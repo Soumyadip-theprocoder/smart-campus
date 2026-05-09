@@ -1,0 +1,25 @@
+.attendance-filters {
+  padding: 1.5rem;
+}
+
+.filters-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.filters-row .form-group {
+  flex: 1;
+  min-width: 180px;
+}
+
+@media (max-width: 768px) {
+  .filters-row {
+    flex-direction: column;
+  }
+
+  .filters-row .form-group {
+    min-width: 100%;
+  }
+}

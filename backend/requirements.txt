@@ -1,0 +1,20 @@
+# Django & REST Framework
+Django>=4.2,<5.0
+djangorestframework>=3.14
+djangorestframework-simplejwt>=5.3
+django-cors-headers>=4.3
+
+# Database
+psycopg2-binary>=2.9
+
+# Face Recognition & Computer Vision
+face-recognition>=1.3.0
+opencv-python>=4.8
+numpy>=1.24
+Pillow>=10.0
+
+# Email
+django-environ>=0.11
+
+# Utilities
+python-decouple>=3.8
