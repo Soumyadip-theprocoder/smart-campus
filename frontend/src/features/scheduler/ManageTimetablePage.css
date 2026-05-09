@@ -1,0 +1,224 @@
+/* ─── Manage Timetable Page ────────────────────────────────────── */
+
+/* Tab bar */
+.manage-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(20px);
+}
+
+.manage-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.manage-tab:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+
+.manage-tab.active {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: var(--color-accent-blue-light);
+  font-weight: 600;
+}
+
+.manage-tab .tab-icon {
+  font-size: 1.15rem;
+}
+
+.manage-tab .tab-count {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.manage-tab.active .tab-count {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--color-accent-blue-light);
+}
+
+/* Code badge */
+.code-badge {
+  display: inline-block;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-accent-blue-light);
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* Number pill */
+.num-pill {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* Type badge */
+.type-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+/* Building label */
+.building-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Action buttons inline */
+.action-btns {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+/* ─── Time Slot Groups ─────────────────────────────────────────── */
+.timeslot-groups {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.timeslot-day-group .day-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.day-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.day-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+.day-count {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.slot-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.slot-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--color-bg-glass);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  transition: all var(--transition-fast);
+}
+
+.slot-card:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-bg-hover);
+}
+
+.slot-time {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Icon buttons for timeslots */
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.2rem;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-icon:hover {
+  opacity: 1;
+}
+
+.btn-icon-danger:hover {
+  filter: brightness(1.3);
+}
+
+/* ─── Form layout ──────────────────────────────────────────────── */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ─── Confirm dialog ───────────────────────────────────────────── */
+.confirm-dialog {
+  max-width: 380px;
+  text-align: center;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .manage-tabs {
+    flex-direction: column;
+  }
+
+  .manage-tab .tab-label {
+    display: none;
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+  }
+}

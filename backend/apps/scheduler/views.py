@@ -20,6 +20,13 @@ class SubjectListView(generics.ListCreateAPIView):
     queryset = Subject.objects.select_related('faculty__user').all()
 
 
+class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a subject."""
+    serializer_class = SubjectSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Subject.objects.select_related('faculty__user').all()
+
+
 class RoomListView(generics.ListCreateAPIView):
     """List or create rooms."""
     serializer_class = RoomSerializer
@@ -27,8 +34,22 @@ class RoomListView(generics.ListCreateAPIView):
     queryset = Room.objects.all()
 
 
+class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a room."""
+    serializer_class = RoomSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Room.objects.all()
+
+
 class TimeSlotListView(generics.ListCreateAPIView):
     """List or create time slots."""
+    serializer_class = TimeSlotSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = TimeSlot.objects.all()
+
+
+class TimeSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a time slot."""
     serializer_class = TimeSlotSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = TimeSlot.objects.all()

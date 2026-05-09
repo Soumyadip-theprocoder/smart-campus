@@ -8,6 +8,7 @@ import AdminDashboard from './features/dashboard/AdminDashboard';
 import StudentDashboard from './features/dashboard/StudentDashboard';
 import AttendancePage from './features/attendance/AttendancePage';
 import TimetablePage from './features/scheduler/TimetablePage';
+import ManageTimetablePage from './features/scheduler/ManageTimetablePage';
 import NoticeDashboard from './features/communication/NoticeDashboard';
 
 function ProtectedRoute({ children, allowedRoles }) {
@@ -63,6 +64,14 @@ function AppLayout() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AttendancePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/manage-timetable"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ManageTimetablePage />
               </ProtectedRoute>
             }
           />

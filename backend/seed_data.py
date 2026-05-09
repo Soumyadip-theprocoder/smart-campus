@@ -18,7 +18,9 @@ django.setup()
 from apps.accounts.models import User, Student, Faculty
 from apps.scheduler.models import Subject, Room, TimeSlot
 from apps.communication.models import Notice
-from datetime import time
+from apps.attendance.models import Attendance
+from datetime import time, date, timedelta
+import random
 
 
 def seed():
@@ -306,6 +308,83 @@ def seed():
             defaults={**nd, 'posted_by': admin_user},
         )
         print(f"✓ Notice: {nd['title'][:50]}...")
+
+    # ── Attendance Records ──────────────────────────────────────────
+    print("\n📋 Seeding attendance records...")
+
+    random.seed(42)  # Deterministic for reproducibility
+
+    students = list(Student.objects.all())
+    subjects = list(Subject.objects.all())
+    today = date.today()
+
+    # Map subjects to the days they have classes (simulate a timetable)
+    subject_class_days = {
+        'CS301': [0, 2, 4],      # Mon, Wed, Fri
+        'CS302': [1, 3, 4],      # Tue, Thu, Fri
+        'CS303': [0, 3],         # Mon, Thu
+        'MA201': [1, 2, 4],      # Tue, Wed, Fri
+        'EC201': [0, 2, 3],      # Mon, Wed, Thu
+        'CS304': [1, 3],         # Tue, Thu
+    }
+
+    # Per-student attendance tendency (some students attend more regularly)
+    student_attendance_rate = {
+        'STU001': 0.92,  # Alice — very regular
+        'STU002': 0.78,  # Bob — decent
+        'STU003': 0.65,  # Charlie — struggles
+        'STU004': 0.88,  # Diana — good
+        'STU005': 0.72,  # Ethan — average
+    }
+
+    attendance_count = 0
+    for day_offset in range(30, 0, -1):  # Last 30 days
+        current_date = today - timedelta(days=day_offset)
+        weekday = current_date.weekday()  # 0=Mon ... 6=Sun
+
+        if weekday >= 5:  # Skip weekends
+            continue
+
+        for subj in subjects:
+            class_days = subject_class_days.get(subj.code, [])
+            if weekday not in class_days:
+                continue
+
+            for student in students:
+                rate = student_attendance_rate.get(
+                    student.enrollment_number, 0.80
+                )
+                is_present = random.random() < rate
+                method = random.choice(
+                    ['face_recognition', 'face_recognition',
+                     'face_recognition', 'manual']  # 75% face recog
+                )
+
+                obj, created = Attendance.objects.get_or_create(
+                    student=student,
+                    subject=subj,
+                    date=current_date,
+                    defaults={
+                        'status': 'present' if is_present else 'absent',
+                        'method': method,
+                    },
+                )
+                if created:
+                    attendance_count += 1
+
+    print(f"✓ Attendance records created: {attendance_count}")
+
+    # Print per-student summary
+    for student in students:
+        total = Attendance.objects.filter(student=student).count()
+        present = Attendance.objects.filter(
+            student=student, status='present'
+        ).count()
+        pct = (present / total * 100) if total else 0
+        print(
+            f"  📊 {student.user.first_name} {student.user.last_name}: "
+            f"{present}/{total} present ({pct:.0f}%)"
+        )
 
     print("\n✅ Database seeding complete!")
 

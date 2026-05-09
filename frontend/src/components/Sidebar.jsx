@@ -18,6 +18,7 @@ export default function Sidebar({ collapsed }) {
     { to: '/admin', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
     { to: '/admin/attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
+    { to: '/admin/manage-timetable', icon: <HiOutlineAcademicCap />, label: 'Manage Resources' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
   ];
 
