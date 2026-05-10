@@ -32,3 +32,567 @@
   font-size: 0.85rem;
   color: var(--color-text-secondary);
 }
+
+/* ─── Configuration Panel ──────────────────────────────────────── */
+.config-panel {
+  margin-bottom: 1.5rem;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.config-header {
+  padding: 1.5rem 2rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.config-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.config-header p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Config tabs */
+.config-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.config-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.config-tab:hover {
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.config-tab.active {
+  color: var(--color-accent-blue-light);
+  border-bottom-color: var(--color-accent-blue);
+}
+
+.config-tab-count {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.config-tab.active .config-tab-count {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-accent-blue-light);
+}
+
+.config-body {
+  padding: 1.5rem 2rem 2rem;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* ─── Config Sections ──────────────────────────────────────────── */
+.config-section h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.config-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+/* ─── Checkbox Card Grid ───────────────────────────────────────── */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.6rem;
+}
+
+.checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: transparent;
+}
+
+.checkbox-card:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.checkbox-card.selected {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.checkbox-card input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: var(--color-accent-blue);
+  flex-shrink: 0;
+}
+
+.checkbox-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.checkbox-code {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--color-accent-blue-light);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.checkbox-name {
+  font-size: 0.88rem;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.checkbox-meta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+/* ─── Time Slot Selection ──────────────────────────────────────── */
+.ts-day-group {
+  margin-bottom: 1rem;
+}
+
+.ts-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.ts-day-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ts-day-toggle input {
+  accent-color: var(--color-accent-blue);
+}
+
+.ts-day-count {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.ts-slot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: 1.5rem;
+}
+
+.ts-slot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.ts-slot-chip input {
+  display: none;
+}
+
+.ts-slot-chip:hover {
+  border-color: var(--color-border-hover);
+  background: var(--color-bg-hover);
+}
+
+.ts-slot-chip.selected {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--color-accent-blue-light);
+}
+
+/* ─── Constraint Panel ─────────────────────────────────────────── */
+.constraint-group {
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.constraint-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.constraint-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.constraint-subjects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.constraint-detail {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.constraint-detail[open] {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.constraint-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+  transition: background var(--transition-fast);
+}
+
+.constraint-summary:hover {
+  background: var(--color-bg-hover);
+}
+
+.constraint-count {
+  margin-left: auto;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-accent-red);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.constraint-slots {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.constraint-day {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.constraint-day-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  min-width: 75px;
+}
+
+.constraint-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.constraint-chip {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.constraint-chip:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--color-accent-red);
+}
+
+.constraint-chip.excluded {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-accent-red);
+  font-weight: 600;
+}
+
+/* ─── Preferred Room Type Grid ─────────────────────────────────── */
+.pref-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pref-row:last-child {
+  border-bottom: none;
+}
+
+.pref-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+}
+
+.pref-select {
+  max-width: 160px;
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.82rem !important;
+}
+
+/* ─── Advanced Options ─────────────────────────────────────────── */
+.advanced-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.advanced-option {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.option-toggle {
+  flex-shrink: 0;
+}
+
+.option-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent-blue);
+  cursor: pointer;
+}
+
+.option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.option-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.option-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.option-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.stepper-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-glass);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.stepper-btn:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-accent-blue);
+}
+
+.stepper-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-accent-blue-light);
+  min-width: 24px;
+  text-align: center;
+}
+
+/* ─── Lock section ─────────────────────────────────────────────── */
+.lock-section {
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.locked-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--color-accent-orange);
+  font-weight: 500;
+}
+
+/* ─── Config Summary ───────────────────────────────────────────── */
+.config-summary {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.config-summary h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--color-accent-blue-light);
+}
+
+.summary-items {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.summary-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.summary-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ─── Timetable Cell Lock Interaction ──────────────────────────── */
+.timetable-cell.clickable {
+  cursor: pointer;
+}
+
+.timetable-cell.clickable:hover {
+  background: rgba(245, 158, 11, 0.08) !important;
+}
+
+.timetable-cell.locked {
+  background: rgba(245, 158, 11, 0.05) !important;
+}
+
+.class-card-locked {
+  background: linear-gradient(135deg, #92400e, #b45309) !important;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  position: relative;
+}
+
+.lock-icon {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.65rem;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .config-tabs {
+    gap: 0;
+  }
+
+  .config-tab {
+    padding: 0.7rem 0.75rem;
+    font-size: 0.78rem;
+  }
+
+  .config-body {
+    padding: 1rem;
+  }
+
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-items {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .constraint-day {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
