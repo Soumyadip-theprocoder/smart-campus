@@ -10,6 +10,12 @@ import AttendancePage from './features/attendance/AttendancePage';
 import TimetablePage from './features/scheduler/TimetablePage';
 import ManageTimetablePage from './features/scheduler/ManageTimetablePage';
 import NoticeDashboard from './features/communication/NoticeDashboard';
+import SubjectsPage from './features/scheduler/SubjectsPage';
+import FacultyPage from './features/scheduler/FacultyPage';
+import RoomsPage from './features/scheduler/RoomsPage';
+import StudentAttendancePage from './features/attendance/StudentAttendancePage';
+import StudentClassAttendancePage from './features/attendance/StudentClassAttendancePage';
+import FacultyDashboard from './features/dashboard/FacultyDashboard';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuth();
@@ -60,6 +66,30 @@ function AppLayout() {
             }
           />
           <Route
+            path="/admin/courses"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <SubjectsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/faculty"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <FacultyPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/rooms"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <RoomsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/attendance"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
@@ -82,6 +112,31 @@ function AppLayout() {
             element={
               <ProtectedRoute allowedRoles={['student']}>
                 <StudentDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student/attendance"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <StudentAttendancePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/student/class-attendance"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <StudentClassAttendancePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/faculty"
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultyDashboard />
               </ProtectedRoute>
             }
           />

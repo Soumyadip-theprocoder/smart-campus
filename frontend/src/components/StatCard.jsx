@@ -1,4 +1,4 @@
-export default function StatCard({ icon, label, value, change, gradient, delay = 0 }) {
+export default function StatCard({ icon, label, value, change, gradient, delay = 0, onClick = null }) {
   const gradientMap = {
     blue: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.05))',
     emerald: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))',
@@ -17,8 +17,9 @@ export default function StatCard({ icon, label, value, change, gradient, delay =
 
   return (
     <div
-      className={`glass-card stat-card animate-fade-in-up stagger-${delay}`}
-      style={{ opacity: 0 }}
+      className={`glass-card stat-card animate-fade-in-up stagger-${delay} ${onClick ? 'clickable' : ''}`}
+      style={{ opacity: 0, cursor: onClick ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+      onClick={onClick}
     >
       <div
         className="stat-icon"

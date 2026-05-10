@@ -86,6 +86,12 @@ class Faculty(models.Model):
     employee_id = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=100)
     designation = models.CharField(max_length=100, default='Assistant Professor')
+    max_hours_per_week = models.PositiveIntegerField(default=20)
+    availability = models.JSONField(
+        blank=True,
+        null=True,
+        help_text='Per-day time slot availability preferences'
+    )
 
     class Meta:
         db_table = 'faculty'

@@ -170,28 +170,31 @@ export default function TimetablePage() {
   };
 
   /* ── Timetable helpers ──────────────────────────────────────────── */
+  const [customColors, setCustomColors] = useState(() => {
+    const saved = localStorage.getItem('timetableColors');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const handleColorChange = (subjectCode, color) => {
+    const newColors = { ...customColors, [subjectCode]: color };
+    setCustomColors(newColors);
+    localStorage.setItem('timetableColors', JSON.stringify(newColors));
+  };
+
   const getClassForSlot = (day, time) => {
     return timetable.find(
       entry => entry.day === day && entry.start_time?.substring(0, 5) === time
     );
   };
 
-  const subjectColors = {};
-  const colorPalette = [
-    'var(--gradient-primary)',
-    'var(--gradient-emerald)',
-    'var(--gradient-sunset)',
-    'var(--gradient-pink)',
-    'linear-gradient(135deg, #06b6d4, #0891b2)',
-    'linear-gradient(135deg, #a855f7, #9333ea)',
-  ];
-
-  const getSubjectColor = (subjectCode) => {
-    if (!subjectColors[subjectCode]) {
-      const idx = Object.keys(subjectColors).length % colorPalette.length;
-      subjectColors[subjectCode] = colorPalette[idx];
+  const getSubjectColor = (subjectCode, subjectType) => {
+    if (customColors[subjectCode]) return customColors[subjectCode];
+    switch (subjectType?.toLowerCase()) {
+      case "lecture":  return "var(--gradient-primary)";
+      case "lab":      return "var(--gradient-emerald)";
+      case "seminar":  return "var(--gradient-pink)";
+      default:         return "var(--gradient-dark)";
     }
-    return subjectColors[subjectCode];
   };
 
   /* ── Group time slots by day ────────────────────────────────────── */
@@ -619,7 +622,7 @@ export default function TimetablePage() {
                       {cls && (
                         <div
                           className={`class-card ${locked ? 'class-card-locked' : ''}`}
-                          style={{ background: locked ? undefined : getSubjectColor(cls.subject_code) }}
+                          style={{ background: locked ? undefined : getSubjectColor(cls.subject_code, cls.subject_type) }}
                         >
                           {locked && <span className="lock-icon">🔒</span>}
                           <div className="class-name">{cls.subject_code}</div>
@@ -645,10 +648,18 @@ export default function TimetablePage() {
               const entry = timetable.find(t => t.subject_code === code);
               return (
                 <div className="legend-item" key={code}>
-                  <div
-                    className="legend-color"
-                    style={{ background: getSubjectColor(code) }}
-                  />
+                  <div style={{ position: 'relative', width: '1rem', height: '1rem', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
+                    <input
+                      type="color"
+                      value={customColors[code] || '#5b6cf9'}
+                      onChange={(e) => handleColorChange(code, e.target.value)}
+                      style={{ position: 'absolute', top: '-10px', left: '-10px', width: '40px', height: '40px', cursor: 'pointer', border: 'none', padding: 0 }}
+                      title="Change color"
+                    />
+                    <div
+                      style={{ position: 'absolute', inset: 0, background: getSubjectColor(code, entry?.subject_type), pointerEvents: 'none' }}
+                    />
+                  </div>
                   <span className="legend-code">{code}</span>
                   <span className="legend-name">{entry?.subject_name}</span>
                 </div>

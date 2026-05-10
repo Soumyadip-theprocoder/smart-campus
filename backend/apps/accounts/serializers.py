@@ -34,7 +34,7 @@ class FacultySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Faculty
-        fields = ['id', 'user', 'employee_id', 'department', 'designation']
+        fields = ['id', 'user', 'employee_id', 'department', 'designation', 'max_hours_per_week', 'availability']
         read_only_fields = ['id']
 
 

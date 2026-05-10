@@ -16,6 +16,7 @@ class SubjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'name', 'faculty', 'faculty_name',
             'credits', 'required_capacity', 'sessions_per_week',
+            'subject_type', 'description',
         ]
         read_only_fields = ['id']
 
@@ -25,7 +26,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Room
-        fields = ['id', 'room_number', 'capacity', 'building', 'room_type']
+        fields = ['id', 'room_number', 'capacity', 'building', 'room_type', 'equipment']
         read_only_fields = ['id']
 
 
@@ -43,6 +44,7 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
     """Serializer for TimetableEntry."""
     subject_code = serializers.CharField(source='subject.code', read_only=True)
     subject_name = serializers.CharField(source='subject.name', read_only=True)
+    subject_type = serializers.CharField(source='subject.subject_type', read_only=True)
     faculty_name = serializers.CharField(
         source='subject.faculty.user.get_full_name', read_only=True,
     )
@@ -58,7 +60,7 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = TimetableEntry
         fields = [
-            'id', 'subject', 'subject_code', 'subject_name',
+            'id', 'subject', 'subject_code', 'subject_name', 'subject_type',
             'faculty_name', 'room', 'room_number', 'building',
             'time_slot', 'day', 'day_display', 'start_time', 'end_time',
         ]

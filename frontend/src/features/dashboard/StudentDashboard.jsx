@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
@@ -12,6 +13,7 @@ import './StudentDashboard.css';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [report, setReport] = useState([]);
   const [notices, setNotices] = useState([]);
@@ -91,6 +93,7 @@ export default function StudentDashboard() {
           value={`${overallAttendance}%`}
           gradient={overallAttendance >= 75 ? 'emerald' : 'red'}
           delay={1}
+          onClick={() => navigate('/student/attendance')}
         />
         <StatCard
           icon={<HiOutlineAcademicCap />}
@@ -99,6 +102,7 @@ export default function StudentDashboard() {
           change={`of ${totalClasses} total`}
           gradient="blue"
           delay={2}
+          onClick={() => navigate('/student/class-attendance')}
         />
         <StatCard
           icon={<HiOutlineCalendar />}
@@ -106,6 +110,7 @@ export default function StudentDashboard() {
           value={todayClasses.length}
           gradient="purple"
           delay={3}
+          onClick={() => navigate('/timetable')}
         />
         <StatCard
           icon={<HiOutlineSpeakerphone />}
@@ -113,6 +118,7 @@ export default function StudentDashboard() {
           value={notices.length}
           gradient="orange"
           delay={4}
+          onClick={() => navigate('/notices')}
         />
       </div>
 
@@ -168,20 +174,35 @@ export default function StudentDashboard() {
               <p>Enjoy your day off!</p>
             </div>
           ) : (
-            <div className="today-schedule">
-              {todayClasses.map((cls, i) => (
-                <div className="schedule-item" key={i}>
-                  <div className="schedule-time">
-                    {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
-                  </div>
-                  <div className="schedule-details">
-                    <div className="schedule-subject">{cls.subject_name}</div>
-                    <div className="schedule-meta">
-                      {cls.room_number} · {cls.faculty_name}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                    <th style={{ padding: '0.5rem' }}>Time</th>
+                    <th style={{ padding: '0.5rem' }}>Subject</th>
+                    <th style={{ padding: '0.5rem' }}>Faculty</th>
+                    <th style={{ padding: '0.5rem' }}>Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {todayClasses.map((cls, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap', color: 'var(--color-accent-blue-light)' }}>
+                        {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <div style={{ fontWeight: 600 }}>{cls.subject_code}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{cls.subject_name}</div>
+                      </td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>{cls.faculty_name}</td>
+                      <td style={{ padding: '0.75rem 0.5rem' }}>
+                        <div className="badge badge-low">{cls.room_number}</div>
+                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>{cls.building}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

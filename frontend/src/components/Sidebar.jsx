@@ -12,23 +12,33 @@ import { FiSettings } from 'react-icons/fi';
 import './Sidebar.css';
 
 export default function Sidebar({ collapsed }) {
-  const { isAdmin, isStudent } = useAuth();
+  const { isAdmin, isStudent, isFaculty } = useAuth();
 
   const adminLinks = [
     { to: '/admin', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
-    { to: '/admin/attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
-    { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
-    { to: '/admin/manage-timetable', icon: <HiOutlineAcademicCap />, label: 'Manage Resources' },
-    { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
+    { to: '/admin/courses', icon: <HiOutlineAcademicCap />, label: 'Courses' },
+    { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
+    { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
+    { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetables' },
+    { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notifications' },
   ];
 
   const studentLinks = [
     { to: '/student', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
+    { to: '/student/class-attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
   ];
 
-  const links = isAdmin ? adminLinks : studentLinks;
+  const facultyLinks = [
+    { to: '/faculty', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
+    { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
+    { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
+  ];
+
+  let links = studentLinks;
+  if (isAdmin) links = adminLinks;
+  if (isFaculty) links = facultyLinks;
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>

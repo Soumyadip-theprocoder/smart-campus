@@ -80,7 +80,7 @@ export default function NoticeDashboard() {
             onClick={() => setShowForm(!showForm)}
             id="btn-toggle-notice-form"
           >
-            {showForm ? 'Cancel' : '+ New Notice'}
+            {showForm ? 'Cancel' : '+ Add Notification'}
           </button>
         )}
       </div>
@@ -190,37 +190,49 @@ export default function NoticeDashboard() {
             </div>
           </div>
         ) : (
-          notices.map((notice, i) => (
-            <div
-              key={notice.id}
-              className={`glass-card notice-card priority-${notice.priority} animate-fade-in-up`}
-              style={{ opacity: 0, animationDelay: `${i * 0.05}s` }}
-            >
-              <div className="notice-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span>{priorityIcons[notice.priority] || '📢'}</span>
-                  <span className="notice-title">{notice.title}</span>
+          notices.map((notice, i) => {
+            const isError = notice.priority === 'urgent' || notice.priority === 'high';
+            return (
+              <div
+                key={notice.id}
+                className={`notice-card priority-${notice.priority} animate-fade-in-up`}
+                style={{
+                  opacity: 0,
+                  animationDelay: `${i * 0.05}s`,
+                  background: 'transparent',
+                  border: `1px solid ${isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
+                  borderLeft: `3px solid ${isError ? 'var(--color-accent-red)' : 'var(--color-accent-emerald)'}`,
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1rem 1.25rem'
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div className="notice-header" style={{ marginBottom: '0.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ color: isError ? 'var(--color-accent-red)' : 'var(--color-accent-emerald)' }}>
+                        {isError ? '⚠️' : '✅'}
+                      </span>
+                      <span className="notice-title" style={{ fontSize: '1rem' }}>{notice.title}</span>
+                      <span className="badge badge-secondary" style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', fontSize: '0.65rem' }}>🔗</span>
+                    </div>
+                  </div>
+                  <p className="notice-content" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', margin: 0, marginBottom: '0.25rem' }}>
+                    {notice.content}
+                  </p>
+                  <div className="notice-meta" style={{ fontSize: '0.75rem' }}>
+                    {new Date(notice.created_at).toLocaleString('en-GB')}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className={`badge badge-${notice.priority}`}>
-                    {notice.priority_display || notice.priority}
-                  </span>
-                  {notice.email_sent && (
-                    <span className="badge badge-low" title="Email sent">📧</span>
-                  )}
+                <div style={{ display: 'flex', gap: '1rem', color: 'var(--color-text-muted)', fontSize: '1.1rem' }}>
+                  <span style={{ cursor: 'pointer' }}>✓</span>
+                  <span style={{ cursor: 'pointer' }}>🗑️</span>
                 </div>
               </div>
-              <p className="notice-content">{notice.content}</p>
-              <div className="notice-meta">
-                Posted by {notice.posted_by_name} · {new Date(notice.created_at).toLocaleDateString('en-US', {
-                  year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                })}
-                {notice.target_audience !== 'all' && (
-                  <span> · For: {notice.target_audience}</span>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

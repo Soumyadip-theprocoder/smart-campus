@@ -25,6 +25,16 @@ class Subject(models.Model):
         default=3,
         help_text='Number of sessions per week',
     )
+    subject_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('lecture', 'Lecture'),
+            ('lab', 'Laboratory'),
+            ('seminar', 'Seminar'),
+        ],
+        default='lecture',
+    )
+    description = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'subjects'
@@ -48,6 +58,11 @@ class Room(models.Model):
             ('seminar', 'Seminar Room'),
         ],
         default='lecture',
+    )
+    equipment = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of equipment like ["Projector", "Whiteboard"]',
     )
 
     class Meta:
