@@ -2,6 +2,10 @@
 
 A full-stack campus management platform featuring **AI-automated attendance** via facial recognition, **constraint-based class scheduling**, **centralized dashboards**, and **automated email alerts**.
 
+## 🌐 Deployment
+
+Live app: **https://smart-campus-1-rrf1.onrender.com**
+
 ## 🏗️ Architecture
 
 ```
