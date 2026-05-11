@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import './NoticeDashboard.css';
@@ -7,6 +7,8 @@ export default function NoticeDashboard() {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
   const [form, setForm] = useState({
     title: '',
     content: '',
@@ -19,6 +21,17 @@ export default function NoticeDashboard() {
 
   useEffect(() => {
     loadNotices();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadNotices = async () => {
@@ -55,8 +68,18 @@ export default function NoticeDashboard() {
     }
   };
 
-  const priorityIcons = {
-    low: '💡', medium: '📢', high: '⚠️', urgent: '🚨',
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this notice? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      await api.delete(`/api/communication/notices/${id}/delete/`);
+      setNotices(prev => prev.filter(n => n.id !== id));
+      setOpenMenuId(null);
+    } catch (err) {
+      console.error('Failed to delete notice:', err);
+      alert('Failed to delete notice. Please try again.');
+    }
   };
 
   if (loading) {
@@ -192,6 +215,7 @@ export default function NoticeDashboard() {
         ) : (
           notices.map((notice, i) => {
             const isError = notice.priority === 'urgent' || notice.priority === 'high';
+            const isMenuOpen = openMenuId === notice.id;
             return (
               <div
                 key={notice.id}
@@ -216,7 +240,19 @@ export default function NoticeDashboard() {
                         {isError ? '⚠️' : '✅'}
                       </span>
                       <span className="notice-title" style={{ fontSize: '1rem' }}>{notice.title}</span>
-                      <span className="badge badge-secondary" style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', fontSize: '0.65rem' }}>🔗</span>
+                      <span
+                        className="badge"
+                        style={{
+                          background: isError ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
+                          color: isError ? 'var(--color-accent-red)' : 'var(--color-accent-emerald)',
+                          padding: '2px 8px',
+                          fontSize: '0.65rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}
+                      >
+                        {notice.priority}
+                      </span>
                     </div>
                   </div>
                   <p className="notice-content" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', margin: 0, marginBottom: '0.25rem' }}>
@@ -224,12 +260,82 @@ export default function NoticeDashboard() {
                   </p>
                   <div className="notice-meta" style={{ fontSize: '0.75rem' }}>
                     {new Date(notice.created_at).toLocaleString('en-GB')}
+                    {notice.target_audience && notice.target_audience !== 'all' && (
+                      <span style={{ marginLeft: '0.75rem', opacity: 0.7 }}>
+                        👥 {notice.target_audience}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', color: 'var(--color-text-muted)', fontSize: '1.1rem' }}>
-                  <span style={{ cursor: 'pointer' }}>✓</span>
-                  <span style={{ cursor: 'pointer' }}>🗑️</span>
-                </div>
+
+                {/* Actions Dropdown — Admin only */}
+                {isAdmin && (
+                  <div style={{ position: 'relative' }} ref={isMenuOpen ? menuRef : null}>
+                    <button
+                      onClick={() => setOpenMenuId(isMenuOpen ? null : notice.id)}
+                      style={{
+                        background: 'none',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '6px',
+                        padding: '0.35rem 0.5rem',
+                        cursor: 'pointer',
+                        color: 'var(--color-text-muted)',
+                        fontSize: '1.1rem',
+                        lineHeight: 1,
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Actions"
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                    >
+                      ⋮
+                    </button>
+
+                    {isMenuOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 'calc(100% + 4px)',
+                          background: 'var(--color-bg-elevated, #1e1e2e)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                          zIndex: 100,
+                          minWidth: '160px',
+                          overflow: 'hidden',
+                          animation: 'fadeIn 0.15s ease',
+                        }}
+                      >
+                        <button
+                          onClick={() => {
+                            handleDelete(notice.id);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            width: '100%',
+                            padding: '0.65rem 1rem',
+                            border: 'none',
+                            background: 'none',
+                            color: 'var(--color-accent-red)',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                        >
+                          🗑️ Delete Notice
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })

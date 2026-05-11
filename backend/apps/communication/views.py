@@ -43,6 +43,14 @@ class CreateNoticeView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+class DeleteNoticeView(generics.DestroyAPIView):
+    """Delete a notice (admin only)."""
+    serializer_class = NoticeSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Notice.objects.all()
+    lookup_field = 'pk'
+
+
 class SendAttendanceAlertsView(APIView):
     """Trigger attendance shortage alerts (admin only)."""
     permission_classes = [permissions.IsAuthenticated]

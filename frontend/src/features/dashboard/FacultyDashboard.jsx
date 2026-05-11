@@ -136,6 +136,7 @@ export default function FacultyDashboard() {
           value={subjects.length}
           gradient="blue"
           delay={1}
+          onClick={() => navigate('/faculty/subjects')}
         />
         <StatCard
           icon={<HiOutlineCalendar />}
@@ -162,144 +163,8 @@ export default function FacultyDashboard() {
         />
       </div>
 
-      <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-        {/* My Subjects List */}
-        <div className="glass-card animate-fade-in-up stagger-5" style={{ opacity: 0, padding: '1.5rem' }}>
-          <h3 className="section-title" style={{ marginBottom: '1rem' }}>
-            My Subjects
-          </h3>
-          {subjectAnalytics.length === 0 ? (
-            <div className="empty-state">
-              <p>No subjects assigned yet.</p>
-            </div>
-          ) : (
-            <div className="subject-attendance-list">
-              {subjectAnalytics.map((subj, i) => {
-                const isExpanded = expandedSubject === subj.code;
-                return (
-                  <div className="subject-attendance-item" key={i} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                    <div 
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', width: '100%', padding: '0.5rem 0' }}
-                      onClick={() => setExpandedSubject(isExpanded ? null : subj.code)}
-                    >
-                      <div className="subject-info" style={{ flex: 1 }}>
-                        <span className="subject-code" style={{ fontSize: '1rem' }}>{subj.code}</span>
-                        <span className="subject-name" style={{ fontSize: '1rem', fontWeight: 500 }}>{subj.name}</span>
-                      </div>
-                      
-                      {/* Only show brief meta if collapsed */}
-                      {!isExpanded && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginRight: '1rem' }}>
-                          {subj.recordsCount} records
-                        </div>
-                      )}
-                      
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                        {isExpanded ? '▲' : '▼'}
-                      </div>
-                    </div>
-                    
-                    {isExpanded && (
-                      <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', animation: 'fadeIn 0.3s ease' }}>
-                        
-                        {/* Overall Subject Analytics */}
-                        <div style={{ marginBottom: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
-                          <h4 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Overall Subject Attendance</h4>
-                          <div className="subject-progress" style={{ margin: '0.5rem 0' }}>
-                            <div className="progress-bar">
-                              <div
-                                className="progress-fill"
-                                style={{
-                                  width: `${subj.attendancePercentage}%`,
-                                  background: subj.attendancePercentage >= 75
-                                    ? 'var(--gradient-emerald)'
-                                    : 'var(--gradient-sunset)',
-                                }}
-                              />
-                            </div>
-                            <span className={`progress-text ${subj.attendancePercentage < 75 ? 'low' : ''}`} style={{ fontWeight: 'bold' }}>
-                              {subj.attendancePercentage}%
-                            </span>
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                            {subj.recordsCount > 0 ? `Based on ${subj.recordsCount} total attendance records captured across all students.` : 'No attendance data yet'}
-                          </div>
-                        </div>
-
-                        {/* Student Breakdown */}
-                        <h4 style={{ fontSize: '0.85rem', marginBottom: '0.75rem', color: 'var(--color-text-secondary)' }}>Student Attendance Breakdown</h4>
-                        {getStudentAnalyticsForSubject(subj.code).length === 0 ? (
-                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No students found in this class.</div>
-                        ) : (
-                          <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                              <thead>
-                                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                                  <th style={{ padding: '0.5rem' }}>Student Name</th>
-                                  <th style={{ padding: '0.5rem', textAlign: 'center' }}>Present / Total</th>
-                                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>Percentage</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {getStudentAnalyticsForSubject(subj.code).map((student, idx) => {
-                                  const isStudentExpanded = expandedStudent === student.name;
-                                  return (
-                                    <React.Fragment key={idx}>
-                                      <tr 
-                                        style={{ borderBottom: isStudentExpanded ? 'none' : '1px solid rgba(255,255,255,0.02)', cursor: 'pointer' }}
-                                        onClick={() => setExpandedStudent(isStudentExpanded ? null : student.name)}
-                                      >
-                                        <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500 }}>
-                                          {isStudentExpanded ? '▼ ' : '▶ '}{student.name}
-                                        </td>
-                                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>{student.present} / {student.total}</td>
-                                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
-                                          <span className={`badge ${student.percentage >= 75 ? 'badge-low' : 'badge-urgent'}`}>
-                                            {student.percentage}%
-                                          </span>
-                                        </td>
-                                      </tr>
-                                      {isStudentExpanded && (
-                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                          <td colSpan={3} style={{ padding: '0 1rem 1rem 1.5rem' }}>
-                                            <div style={{ background: 'var(--color-bg-input)', padding: '0.75rem', borderRadius: '4px', fontSize: '0.75rem' }}>
-                                              <div style={{ fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Daily Attendance Log</div>
-                                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.5rem' }}>
-                                                {attendanceRecords
-                                                  .filter(a => a.student_name === student.name && a.subject_code === subj.code)
-                                                  .sort((a, b) => new Date(b.date) - new Date(a.date)) // Latest first
-                                                  .map((record, rIdx) => (
-                                                    <div key={rIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                      <span style={{ 
-                                                        width: 8, height: 8, borderRadius: '50%', 
-                                                        background: record.status === 'present' ? 'var(--color-accent-emerald)' : 'var(--color-accent-red)' 
-                                                      }} />
-                                                      <span>{new Date(record.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
-                                                    </div>
-                                                  ))
-                                                }
-                                              </div>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Today's Schedule Mini-Table */}
+      <div style={{ marginTop: '1.5rem' }}>
+        {/* Today's Schedule Full-Width Table */}
         <div className="glass-card animate-fade-in-up stagger-5" style={{ opacity: 0, padding: '1.5rem' }}>
           <h3 className="section-title" style={{ marginBottom: '1rem' }}>
             Today's Schedule

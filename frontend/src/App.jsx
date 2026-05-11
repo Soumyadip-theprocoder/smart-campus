@@ -16,6 +16,7 @@ import RoomsPage from './features/scheduler/RoomsPage';
 import StudentAttendancePage from './features/attendance/StudentAttendancePage';
 import StudentClassAttendancePage from './features/attendance/StudentClassAttendancePage';
 import FacultyDashboard from './features/dashboard/FacultyDashboard';
+import FacultySubjectsPage from './features/dashboard/FacultySubjectsPage';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuth();
@@ -28,6 +29,7 @@ function ProtectedRoute({ children, allowedRoles }) {
     // Redirect to appropriate dashboard
     if (user.role === 'admin') return <Navigate to="/admin" replace />;
     if (user.role === 'student') return <Navigate to="/student" replace />;
+    if (user.role === 'faculty') return <Navigate to="/faculty" replace />;
     return <Navigate to="/timetable" replace />;
   }
 
@@ -137,6 +139,14 @@ function AppLayout() {
             element={
               <ProtectedRoute allowedRoles={['faculty']}>
                 <FacultyDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/faculty/subjects"
+            element={
+              <ProtectedRoute allowedRoles={['faculty']}>
+                <FacultySubjectsPage />
               </ProtectedRoute>
             }
           />
