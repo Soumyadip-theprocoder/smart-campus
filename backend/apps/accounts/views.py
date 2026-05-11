@@ -90,3 +90,14 @@ class FacultyListView(generics.ListAPIView):
     serializer_class = FacultySerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Faculty.objects.select_related('user').all()
+
+
+class FacultyDetailView(generics.RetrieveDestroyAPIView):
+    """Retrieve or delete a faculty member."""
+    serializer_class = FacultySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Faculty.objects.select_related('user').all()
+
+    def perform_destroy(self, instance):
+        # Delete the associated user (cascades to faculty profile)
+        instance.user.delete()
