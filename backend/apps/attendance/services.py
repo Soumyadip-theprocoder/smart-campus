@@ -24,7 +24,7 @@ def run_face_recognition(subject_id: int) -> dict:
     )
 
     result = subprocess.run(
-        [sys.executable, str(script_path), '--subject-id', str(subject_id)],
+        [sys.executable, str(script_path), '--subject-id', str(subject_id), '--headless'],
         capture_output=True,
         text=True,
         timeout=120,  # 2 minute timeout

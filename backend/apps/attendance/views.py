@@ -14,6 +14,7 @@ from .serializers import (
     AttendanceSerializer, MarkAttendanceSerializer,
     AttendanceReportSerializer,
 )
+from .services import run_face_recognition
 
 
 class AttendanceListView(generics.ListAPIView):
@@ -162,3 +163,18 @@ class AttendanceSummaryView(APIView):
                 (present_records / total_records * 100), 2
             ) if total_records > 0 else 0,
         })
+
+class TriggerFaceRecognitionView(APIView):
+    """Trigger the face recognition engine for a specific subject."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        subject_id = request.data.get('subject_id')
+        if not subject_id:
+            return Response({'error': 'subject_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # This will call the headless engine
+        result = run_face_recognition(subject_id)
+        if result.get('success'):
+            return Response(result, status=status.HTTP_200_OK)
+        return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

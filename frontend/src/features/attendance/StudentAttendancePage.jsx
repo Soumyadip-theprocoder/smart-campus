@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import DataTable from '../../components/DataTable';
 import StatCard from '../../components/StatCard';
 import { HiOutlineClipboardCheck, HiOutlineAcademicCap, HiOutlineXCircle } from 'react-icons/hi';
+import QRCodeScanner from './QRCodeScanner';
 
 export default function StudentAttendancePage() {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export default function StudentAttendancePage() {
   const [report, setReport] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     loadAttendanceData();
@@ -40,6 +42,26 @@ export default function StudentAttendancePage() {
     }
   };
 
+  const handleQRScanSuccess = async (decodedText) => {
+    try {
+      const qrData = JSON.parse(decodedText);
+      if (!qrData.subject_id || !qrData.date) throw new Error("Invalid QR code format");
+
+      await api.post('/api/attendance/mark/', {
+        enrollment_number: profile.profile.enrollment_number,
+        subject_id: qrData.subject_id,
+        date: qrData.date,
+        method: 'qr_scan'
+      });
+      alert('Attendance marked successfully via QR code!');
+      setShowScanner(false);
+      loadAttendanceData(); // Refresh data
+    } catch (e) {
+      console.warn("QR Scan error:", e);
+      // We don't alert here to prevent spamming if they hold the phone on a bad QR
+    }
+  };
+
   const overallAttendance = report.length > 0
     ? (report.reduce((sum, r) => sum + r.percentage, 0) / report.length).toFixed(1)
     : 0;
@@ -66,10 +88,36 @@ export default function StudentAttendancePage() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h1>My Attendance Analytics</h1>
-        <p>Detailed view of your class attendance and subject-wise performance</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1>My Attendance Analytics</h1>
+          <p>Detailed view of your class attendance and subject-wise performance</p>
+        </div>
+        <button 
+          className="btn btn-primary"
+          onClick={() => setShowScanner(true)}
+        >
+          📷 Scan Class QR Code
+        </button>
       </div>
+
+      {showScanner && (
+        <div className="scanner-modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '500px', width: '90%', position: 'relative' }}>
+            <button 
+              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}
+              onClick={() => setShowScanner(false)}
+            >×</button>
+            <h2 style={{ marginBottom: '1rem' }}>Scan QR Code</h2>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Point your camera at the QR code shown by the faculty.</p>
+            <QRCodeScanner onScanSuccess={handleQRScanSuccess} />
+          </div>
+        </div>
+      )}
 
       <div className="grid-3" style={{ marginBottom: '2rem' }}>
         <StatCard

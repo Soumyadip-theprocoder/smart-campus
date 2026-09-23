@@ -11,6 +11,8 @@ from .serializers import (
     TimeSlotSerializer, TimetableEntrySerializer,
 )
 from .csp_solver import ScheduleCSP
+from .csp_solver import ScheduleCSP
+from django_q.tasks import async_task, result, fetch
 
 
 class SubjectListView(generics.ListCreateAPIView):
@@ -84,105 +86,45 @@ class GenerateTimetableView(APIView):
 
     def post(self, request):
         config = request.data or {}
+        
+        # Enqueue the background task
+        task_id = async_task('apps.scheduler.tasks.generate_timetable_task', config)
 
-        # ── Filter subjects ────────────────────────────────────────────
-        subject_qs = Subject.objects.select_related('faculty')
-        subject_ids = config.get('subject_ids')
-        if subject_ids:
-            subject_qs = subject_qs.filter(id__in=subject_ids)
-
-        subjects = list(subject_qs.values(
-            'id', 'code', 'name', 'faculty_id',
-            'required_capacity', 'sessions_per_week',
-        ))
-
-        # ── Filter rooms ───────────────────────────────────────────────
-        room_qs = Room.objects.all()
-        room_ids = config.get('room_ids')
-        if room_ids:
-            room_qs = room_qs.filter(id__in=room_ids)
-
-        rooms = list(room_qs.values('id', 'room_number', 'capacity', 'room_type'))
-
-        # ── Filter time slots ──────────────────────────────────────────
-        ts_qs = TimeSlot.objects.all()
-        timeslot_ids = config.get('timeslot_ids')
-        if timeslot_ids:
-            ts_qs = ts_qs.filter(id__in=timeslot_ids)
-
-        time_slots = list(ts_qs.values('id', 'day', 'start_time', 'end_time'))
-
-        # ── Validate ───────────────────────────────────────────────────
-        if not subjects:
-            return Response(
-                {'error': 'No subjects to schedule. Select at least one subject.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not rooms:
-            return Response(
-                {'error': 'No rooms available. Select at least one room.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not time_slots:
-            return Response(
-                {'error': 'No time slots defined. Select at least one time slot.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # ── Parse advanced constraints ─────────────────────────────────
-        locked_entries = config.get('locked_entries', [])
-        excluded_slots = config.get('excluded_slots', {})
-        preferred_room_types = config.get('preferred_room_types', {})
-        avoid_back_to_back = config.get('avoid_back_to_back', False)
-        max_classes_per_day = config.get('max_classes_per_day', 1)
-
-        # Convert excluded_slots keys to int
-        excluded_slots_int = {}
-        for k, v in excluded_slots.items():
-            excluded_slots_int[int(k)] = [int(x) for x in v]
-
-        # Convert preferred_room_types keys to int
-        pref_room_types_int = {}
-        for k, v in preferred_room_types.items():
-            pref_room_types_int[int(k)] = v
-
-        # ── Run CSP solver ─────────────────────────────────────────────
-        solver = ScheduleCSP(
-            subjects, rooms, time_slots,
-            locked_entries=locked_entries,
-            excluded_slots=excluded_slots_int,
-            preferred_room_types=pref_room_types_int,
-            avoid_back_to_back=avoid_back_to_back,
-            max_classes_per_day=max_classes_per_day,
-        )
-        timetable = solver.get_timetable()
-
-        if not timetable:
-            return Response(
-                {'error': 'Could not generate a conflict-free timetable with these constraints. '
-                          'Try relaxing some constraints, adding more rooms, or more time slots.'},
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        # ── Clear & create new timetable ───────────────────────────────
-        TimetableEntry.objects.all().delete()
-
-        entries = []
-        for entry in timetable:
-            entries.append(TimetableEntry(
-                subject_id=entry['subject_id'],
-                room_id=entry['room_id'],
-                time_slot_id=entry['time_slot_id'],
-            ))
-        TimetableEntry.objects.bulk_create(entries)
-
-        # Return the newly created timetable
-        new_entries = TimetableEntry.objects.select_related(
-            'subject__faculty__user', 'room', 'time_slot',
-        ).all()
-        serializer = TimetableEntrySerializer(new_entries, many=True)
+        from django.conf import settings
+        if getattr(settings, 'Q_CLUSTER', {}).get('sync', False):
+            task = fetch(task_id)
+            if task and task.success:
+                result_data = task.result
+                if isinstance(result_data, dict) and not result_data.get('success', True):
+                    return Response({'error': result_data.get('error', 'Unknown error')}, status=status.HTTP_400_BAD_REQUEST)
+                
+                new_entries = TimetableEntry.objects.select_related('subject__faculty__user', 'room', 'time_slot').all()
+                serializer = TimetableEntrySerializer(new_entries, many=True)
+                return Response({
+                    'message': f'Successfully scheduled {len(new_entries)} sessions.',
+                    'timetable': serializer.data,
+                }, status=status.HTTP_201_CREATED)
+            elif task and task.success is False:
+                return Response({'error': str(task.result)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
-            'message': f'Successfully scheduled {len(entries)} sessions.',
-            'timetable': serializer.data,
-        }, status=status.HTTP_201_CREATED)
+            'message': 'Timetable generation has been queued in the background.',
+            'task_id': task_id,
+            'status': 'processing'
+        }, status=status.HTTP_202_ACCEPTED)
+
+class TaskStatusView(APIView):
+    """Check the status of a background task."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, task_id):
+        task = fetch(task_id)
+        if not task:
+            return Response({'status': 'unknown'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if task.success:
+            return Response({'status': 'completed', 'result': task.result})
+        elif task.success is False:
+            return Response({'status': 'failed', 'error': task.result})
+        else:
+            return Response({'status': 'processing'})

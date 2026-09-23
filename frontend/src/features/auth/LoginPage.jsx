@@ -19,7 +19,7 @@ export default function LoginPage() {
     if (result.success) {
       const role = result.user.role;
       if (role === 'admin') {
-        navigate('/admin/courses');
+        navigate('/admin');
       } else if (role === 'student') {
         navigate('/student');
       } else if (role === 'faculty') {

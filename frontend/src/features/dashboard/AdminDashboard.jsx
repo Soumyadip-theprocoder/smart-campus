@@ -116,7 +116,7 @@ export default function AdminDashboard() {
         {/* Attendance Chart */}
         <div className="glass-card dashboard-chart animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
           <div className="section-header">
-            <h3 className="section-title">Weekly Attendance</h3>
+            <h3 className="section-title">Weekly Attendance (Sample)</h3>
           </div>
           <div className="attendance-bar-chart">
             {weekDays.map((day, i) => (

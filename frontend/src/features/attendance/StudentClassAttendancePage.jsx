@@ -16,7 +16,7 @@ export default function StudentClassAttendancePage() {
     const d = new Date();
     const day = d.getDay() || 7; // Get current day number, converting Sun(0) to 7
     if (day !== 1) {
-      d.setHours(-24 * (day - 1)); // Set to Monday of this week
+      d.setDate(d.getDate() - (day - 1)); // Set to Monday of this week
     }
     d.setHours(0, 0, 0, 0);
     return d;

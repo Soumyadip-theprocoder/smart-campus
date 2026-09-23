@@ -9,6 +9,7 @@ app_name = 'attendance'
 urlpatterns = [
     path('', views.AttendanceListView.as_view(), name='list'),
     path('mark/', views.MarkAttendanceView.as_view(), name='mark'),
+    path('recognize/', views.TriggerFaceRecognitionView.as_view(), name='recognize'),
     path('report/<int:student_id>/', views.AttendanceReportView.as_view(), name='report'),
     path('summary/', views.AttendanceSummaryView.as_view(), name='summary'),
 ]

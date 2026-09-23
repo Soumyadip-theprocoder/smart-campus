@@ -5,6 +5,8 @@ Student and Faculty profile models.
 """
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.contrib.postgres.indexes import GinIndex
+from pgvector.django import VectorField, HnswIndex
 
 
 class User(AbstractUser):
@@ -56,10 +58,11 @@ class Student(models.Model):
     enrollment_number = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=100)
     semester = models.PositiveIntegerField(default=1)
-    face_encoding = models.JSONField(
+    face_encoding = VectorField(
+        dimensions=128,
         blank=True,
         null=True,
-        help_text='128-dimensional face encoding vector as JSON array',
+        help_text='128-dimensional face encoding vector'
     )
     face_image = models.ImageField(
         upload_to='face_images/',
@@ -70,6 +73,15 @@ class Student(models.Model):
     class Meta:
         db_table = 'students'
         ordering = ['enrollment_number']
+        indexes = [
+            HnswIndex(
+                name='student_face_hnsw_idx',
+                fields=['face_encoding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_l2_ops']
+            )
+        ]
 
     def __str__(self):
         return f"{self.enrollment_number} — {self.user.get_full_name()}"
@@ -97,6 +109,9 @@ class Faculty(models.Model):
         db_table = 'faculty'
         verbose_name_plural = 'Faculty'
         ordering = ['employee_id']
+        indexes = [
+            GinIndex(fields=['availability'], name='faculty_avail_gin_idx')
+        ]
 
     def __str__(self):
         return f"{self.employee_id} — {self.user.get_full_name()}"

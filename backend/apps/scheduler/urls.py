@@ -15,4 +15,5 @@ urlpatterns = [
     path('timeslots/<int:pk>/', views.TimeSlotDetailView.as_view(), name='timeslot-detail'),
     path('timetable/', views.TimetableView.as_view(), name='timetable'),
     path('generate/', views.GenerateTimetableView.as_view(), name='generate'),
+    path('task-status/<str:task_id>/', views.TaskStatusView.as_view(), name='task-status'),
 ]

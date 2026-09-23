@@ -527,7 +527,9 @@ a:hover {
   gap: 2px;
   background: var(--color-border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 600px;
 }
 
 .timetable-header {

@@ -36,6 +36,13 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+function RoleRedirect() {
+  const { user } = useAuth();
+  if (user?.role === 'student') return <Navigate to="/student" replace />;
+  if (user?.role === 'faculty') return <Navigate to="/faculty" replace />;
+  return <Navigate to="/admin" replace />;
+}
+
 function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -170,9 +177,9 @@ function AppLayout() {
           />
 
           {/* Redirects */}
-          <Route path="/login" element={<Navigate to="/admin" replace />} />
-          <Route path="/" element={<Navigate to="/admin" replace />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
+          <Route path="/login" element={<RoleRedirect />} />
+          <Route path="/" element={<RoleRedirect />} />
+          <Route path="*" element={<RoleRedirect />} />
         </Routes>
       </main>
     </div>

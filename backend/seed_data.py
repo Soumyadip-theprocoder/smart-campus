@@ -200,16 +200,20 @@ def seed():
         print(f"✓ Room: {rd['room_number']} ({rd['building']}, cap: {rd['capacity']})")
 
     # ── Time Slots ──────────────────────────────────────────────────
+    # 8 periods per day: 4 morning (9 AM – 1 PM) + 4 afternoon (2 PM – 6 PM)
     slot_times = [
-        (time(9, 0), time(10, 0)),
-        (time(10, 0), time(11, 0)),
-        (time(11, 0), time(12, 0)),
-        (time(13, 0), time(14, 0)),
-        (time(14, 0), time(15, 0)),
-        (time(15, 0), time(16, 0)),
+        (time(9, 0), time(10, 0)),    # Period 1
+        (time(10, 0), time(11, 0)),   # Period 2
+        (time(11, 0), time(12, 0)),   # Period 3
+        (time(12, 0), time(13, 0)),   # Period 4
+        # ── Lunch Break 1:00 PM – 2:00 PM ──
+        (time(14, 0), time(15, 0)),   # Period 5
+        (time(15, 0), time(16, 0)),   # Period 6
+        (time(16, 0), time(17, 0)),   # Period 7
+        (time(17, 0), time(18, 0)),   # Period 8
     ]
 
-    days = ['MON', 'TUE', 'WED', 'THU', 'FRI']
+    days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
     for day in days:
         for start, end in slot_times:
@@ -219,7 +223,7 @@ def seed():
                 end_time=end,
             )
 
-    print(f"✓ Time slots: {len(days)} days × {len(slot_times)} slots = {len(days)*len(slot_times)} total")
+    print(f"✓ Time slots: {len(days)} days × {len(slot_times)} periods = {len(days)*len(slot_times)} total")
 
     # ── Subjects ────────────────────────────────────────────────────
     subjects_data = [

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import './TimetablePage.css';
@@ -33,9 +33,10 @@ export default function TimetablePage() {
     THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday',
   };
 
-  const timeSlotTimes = [
-    '09:00', '10:00', '11:00', '13:00', '14:00', '15:00',
-  ];
+  /* Derive unique start times dynamically from fetched time slots */
+  const timeSlotTimes = [...new Set(
+    timeslots.map(ts => ts.start_time?.substring(0, 5))
+  )].filter(Boolean).sort();
 
   /* ── Load data ──────────────────────────────────────────────────── */
   useEffect(() => {
@@ -604,7 +605,7 @@ export default function TimetablePage() {
 
             {/* Time slot rows */}
             {timeSlotTimes.map(time => (
-              <>
+              <React.Fragment key={`row-${time}`}>
                 <div className="timetable-time" key={`time-${time}`}>
                   {time}
                 </div>
@@ -633,7 +634,7 @@ export default function TimetablePage() {
                     </div>
                   );
                 })}
-              </>
+              </React.Fragment>
             ))}
           </div>
         </div>

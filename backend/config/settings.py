@@ -2,6 +2,7 @@
 Django settings for Smart Campus Management System.
 """
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
@@ -36,6 +37,7 @@ INSTALLED_APPS = [
     'apps.attendance',
     'apps.scheduler',
     'apps.communication',
+    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -94,8 +96,12 @@ elif os.environ.get('DB_NAME'):
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'smartcampus_db',
+            'USER': 'smartcampus',
+            'PASSWORD': 'smartcampus_password',
+            'HOST': 'localhost',
+            'PORT': '5432',
         }
     }
 
@@ -137,7 +143,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': 100,
 }
 
 # ─── JWT Configuration ──────────────────────────────────────────────
@@ -178,3 +184,18 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # ─── Face Recognition ───────────────────────────────────────────────
 FACE_RECOGNITION_TOLERANCE = 0.5
 FACE_IMAGES_DIR = BASE_DIR / 'face_recognition_engine' / 'training_images'
+
+# ─── Django Q2 Configuration ─────────────────────────────────────────
+Q_CLUSTER = {
+    'name': 'smart_campus_q',
+    'workers': 4,
+    'recycle': 500,
+    'timeout': 600,
+    'compress': True,
+    'save_limit': 250,
+    'queue_limit': 500,
+    'cpu_affinity': 1,
+    'label': 'Django Q',
+    'orm': 'default',
+    'sync': 'test' in sys.argv,
+}

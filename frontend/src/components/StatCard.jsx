@@ -31,7 +31,7 @@ export default function StatCard({ icon, label, value, change, gradient, delay =
         <div className="stat-label">{label}</div>
         <div className="stat-value">{value}</div>
         {change && (
-          <div className={`stat-change ${change.startsWith('-') ? 'negative' : ''}`}>
+          <div className={`stat-change ${String(change).startsWith('-') ? 'negative' : ''}`}>
             {change}
           </div>
         )}

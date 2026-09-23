@@ -26,7 +26,7 @@ class Attendance(models.Model):
         on_delete=models.CASCADE,
         related_name='attendance_records',
     )
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     status = models.CharField(
         max_length=10,
         choices=Status.choices,
@@ -43,6 +43,9 @@ class Attendance(models.Model):
         db_table = 'attendance'
         ordering = ['-date', '-marked_at']
         unique_together = ['student', 'subject', 'date']
+        indexes = [
+            models.Index(fields=['student', 'subject']),
+        ]
 
     def __str__(self):
         return (

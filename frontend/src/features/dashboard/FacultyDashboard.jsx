@@ -21,32 +21,10 @@ export default function FacultyDashboard() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [expandedSubject, setExpandedSubject] = useState(null);
-  const [expandedStudent, setExpandedStudent] = useState(null);
 
   useEffect(() => {
     loadFacultyData();
   }, []);
-
-  const getStudentAnalyticsForSubject = (subjectCode) => {
-    const records = attendanceRecords.filter(a => a.subject_code === subjectCode);
-    const studentMap = {};
-    records.forEach(r => {
-      if (!studentMap[r.student_name]) {
-        studentMap[r.student_name] = { name: r.student_name, total: 0, present: 0 };
-      }
-      studentMap[r.student_name].total++;
-      if (r.status === 'present') {
-        studentMap[r.student_name].present++;
-      }
-    });
-    return Object.values(studentMap)
-      .map(s => ({
-        ...s,
-        percentage: s.total > 0 ? ((s.present / s.total) * 100).toFixed(1) : 0
-      }))
-      .sort((a, b) => b.percentage - a.percentage); // Sort highest attendance first
-  };
 
   const loadFacultyData = async () => {
     setLoading(true);
