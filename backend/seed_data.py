@@ -24,7 +24,7 @@ import random
 
 
 def seed():
-    print("🌱 Seeding database...\n")
+    print("Seeding database...\n")
 
     # ── Admin User ──────────────────────────────────────────────────
     admin_user, created = User.objects.get_or_create(
@@ -451,11 +451,11 @@ def seed():
         ).count()
         pct = (present / total * 100) if total else 0
         print(
-            f"  📊 {student.user.first_name} {student.user.last_name}: "
+            f"  [Summary] {student.user.first_name} {student.user.last_name}: "
             f"{present}/{total} present ({pct:.0f}%)"
         )
 
-    print("\n✅ Database seeding complete!")
+    print("\nDatabase seeding complete!")
 
 
 if __name__ == '__main__':
