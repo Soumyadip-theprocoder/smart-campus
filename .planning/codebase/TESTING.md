@@ -1,9 +1,13 @@
-# Testing
+# Testing Overview
 
-## Overview
-Currently, the codebase does not appear to have an extensive automated testing suite defined (no prominent `tests/` directories or specific test requirements like `pytest` explicitly listed).
+## Current Status
+Testing is currently minimal (rated 1-star in the initial Project Review). Test infrastructure exists, but coverage is sparse.
 
-## Recommendations
-- **Backend**: Implement Django's built-in `TestCase` or integrate `pytest-django` to test API endpoints, CSP solver correctness, and JWT authentication.
-- **Frontend**: Integrate `Vitest` and `React Testing Library` to test component rendering and context state.
-- **Computer Vision**: Unit test the face encoding and matching logic with static mock images to ensure accuracy without requiring a live webcam.
+## Existing Tests
+- `backend/test_login.py`: Verifies JWT authentication flows.
+- `backend/test_generate.py`: Basic test scaffold for the timetable generator.
+
+## Testing Needs (Phase 4 & Phase 5)
+- **Security Tests:** Unit tests needed to verify permission guards (`HasFaceEngineAPIKey`, `IsAdminUser`) properly block unauthorized access to endpoints like `MarkAttendanceView` and `RegisterView`.
+- **Algorithm Tests:** Comprehensive unit tests are needed for the `csp_solver.py` edge cases.
+- **Component Tests:** Frontend error boundary components and toast notifications need regression verification.

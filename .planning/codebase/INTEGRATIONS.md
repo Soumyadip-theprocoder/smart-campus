@@ -1,14 +1,23 @@
-# Integrations & Dependencies
+# Integrations
 
-## External Systems
-- **SMTP Provider**: Used for automated email alerts (Attendance shortages, new notices). Configurable via environment variables (Gmail, Outlook, SendGrid).
+## 1. Face Recognition Engine
+- **Type:** Local Python Script / Library
+- **Integration Point:** `backend/face_recognition_engine/`
+- **Mechanism:** The backend invokes `encode_faces.py` and `recognize_faces.py` functions natively. 
+- **Future Integration (Phase 5):** The engine will be invoked synchronously during a `POST` request from the web UI to process webcam images.
+- **Authentication:** Static Shared API Key (`FACE_ENGINE_API_KEY`) used when automated scripts push data to the API.
 
-## Core Libraries
-- **`face_recognition`**: Heavily relies on dlib's CNN model for 128-d face encoding and matching.
-- **OpenCV (`cv2`)**: Used for real-time webcam frame processing in the attendance engine.
-- **`dj-database-url`**: Parses connection URLs for PostgreSQL integration.
-- **`whitenoise`**: Serves static files in production.
+## 2. PostgreSQL `pgvector`
+- **Type:** Database Extension
+- **Integration Point:** `Student.face_encoding` model field.
+- **Mechanism:** Uses HNSW (Hierarchical Navigable Small World) index to compute vector distances for face matching.
 
-## Infrastructure
-- **Render**: The live application is deployed on Render (`render.yaml` exists in the backend).
-- **PostgreSQL**: Production relational database, handled via Django ORM.
+## 3. Email / SMTP Service
+- **Type:** External Mail Server
+- **Integration Point:** `backend/apps/communication/views.py` (e.g., `SendAttendanceAlertsView`).
+- **Mechanism:** Standard Django `send_mail` functionality to trigger mass alerts.
+
+## 4. Render Platform
+- **Type:** PaaS Deployment
+- **Integration Point:** `backend/render.yaml` and `backend/start.sh`.
+- **Mechanism:** IaC (Infrastructure as Code) file dictates the build and start commands for the backend and background workers.

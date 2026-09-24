@@ -1,32 +1,32 @@
-# Codebase Structure
+# Directory Structure
 
-## Root Workspace
-- `frontend/`: React SPA source code.
-- `backend/`: Django API source code and computer vision scripts.
-
-## Backend (`backend/`)
-- `manage.py`: Django CLI entry point.
-- `requirements.txt`: Python dependencies.
-- `seed_data.py`: Script to populate the database with demo users.
-- `config/`: Django project settings, root `urls.py`, and WSGI/ASGI configurations.
-- `apps/`: Django modular applications.
-  - `accounts/`: User authentication, roles, and profile models.
-  - `attendance/`: Attendance tracking, reports, and API views.
-  - `scheduler/`: CSP solver and timetable management.
-  - `communication/`: Notices, alerts, and SMTP integrations.
-- `face_recognition_engine/`: Dedicated computer vision scripts.
-  - `encode_faces.py`: Script to process images and store encodings in DB.
-  - `recognize_faces.py`: Script to run webcam recognition and hit the API.
-  - `training_images/`: Directory containing student photos organized by ID.
-
-## Frontend (`frontend/`)
-- `src/`
-  - `api/`: Axios configuration and API client abstractions.
-  - `assets/`: Static files (images, icons).
-  - `components/`: Reusable UI components (buttons, modals, layout).
-  - `context/`: React Context providers (AuthContext).
-  - `features/`: Page-level components organized by domain (e.g., dashboard, attendance).
-  - `App.jsx`, `main.jsx`: React entry points and routing definitions.
-  - `index.css`: Global styles.
-- `package.json`: NPM dependencies and Vite scripts.
-- `vite.config.js`: Vite build configuration.
+```text
+smart-campus/
+├── backend/
+│   ├── apps/
+│   │   ├── accounts/          # User auth, JWT, Profiles
+│   │   ├── attendance/        # Face/QR attendance, API
+│   │   ├── communication/     # Notices, emails
+│   │   └── scheduler/         # CSP Algorithm, Rooms, Subjects
+│   ├── config/                # Django settings, WSGI/ASGI
+│   ├── face_recognition_engine/ # OpenCV encoding/matching scripts
+│   ├── manage.py
+│   ├── render.yaml            # Render IaC config
+│   ├── requirements.txt
+│   ├── seed_data.py           # DB populator
+│   └── start.sh               # Dual-boot script for Web + Worker
+└── frontend/
+    ├── package.json
+    ├── public/
+    └── src/
+        ├── App.jsx            # Main Router
+        ├── components/        # Reusable UI (Navbar, Sidebar, StatCard)
+        ├── context/           # Global AuthContext
+        ├── features/          # Domain logic
+        │   ├── attendance/    # QR Scanner/Generator, Attendance Views
+        │   ├── auth/          # LoginPage
+        │   ├── communication/ # Notice boards
+        │   ├── dashboard/     # Role-specific dashboard views
+        │   └── scheduler/     # Timetable management, subjects, rooms
+        └── main.jsx
+```

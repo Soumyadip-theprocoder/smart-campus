@@ -18,14 +18,18 @@ class UserSerializer(serializers.ModelSerializer):
 class StudentSerializer(serializers.ModelSerializer):
     """Serializer for Student profile."""
     user = UserSerializer(read_only=True)
+    has_face_encoding = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
         fields = [
             'id', 'user', 'enrollment_number', 'department',
-            'semester', 'face_image',
+            'semester', 'face_image', 'has_face_encoding',
         ]
         read_only_fields = ['id']
+
+    def get_has_face_encoding(self, obj):
+        return obj.face_encoding is not None
 
 
 class FacultySerializer(serializers.ModelSerializer):

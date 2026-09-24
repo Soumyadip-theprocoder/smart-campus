@@ -1,27 +1,24 @@
 # Architecture
 
-## High-Level System Architecture
-The Smart Campus Management System uses a decoupled **Client-Server Architecture**.
+## Core Architectural Patterns
+The application follows a decoupled Client-Server architecture. 
 
-### 1. Presentation Layer (Vite React Frontend)
-- A Single Page Application (SPA) running on port `5173`.
-- Communicates with the backend exclusively via REST APIs using Axios.
-- Maintains authentication state via JWT tokens (likely stored in context/local storage).
-- Separates features logically (`features/`, `components/`, `context/`).
+### 1. Feature-Sliced Frontend
+The React application is organized by features rather than file types (e.g., separating by `attendance`, `dashboard`, `scheduler`). This encapsulation makes it easier to scale domains.
+- **Role-Based Access:** React Router is wrapped with a `<ProtectedRoute>` component that inspects the JWT payload to ensure users only access their designated UI (Admin, Faculty, Student).
+- **Polling Pattern:** For async backend operations (like Timetable generation), the UI uses `setInterval` to poll a `/status/` endpoint until completion.
 
-### 2. Application Layer (Django API)
-- Serves RESTful endpoints on port `8000`.
-- **Authentication**: JWT token issuance and validation.
-- **Apps**:
-  - `accounts`: Manages users (Admin, Student, Faculty) and roles.
-  - `attendance`: API endpoints for marking and querying attendance.
-  - `scheduler`: API and constraint logic for timetable generation.
-  - `communication`: Notice board and SMTP alert dispatch.
+### 2. App-Based Backend
+Django is structured into highly cohesive apps:
+- `accounts`: Handles Custom User models, JWT auth, and Student/Faculty profiles.
+- `attendance`: Handles face engine APIs, QR fallback, and attendance records.
+- `scheduler`: Handles rooms, subjects, timetable generation, and the core CSP algorithm.
+- `communication`: Handles notices and email alerts.
 
-### 3. Background Services & Algorithms
-- **Face Recognition Engine**: A dedicated Python subsystem (`backend/face_recognition_engine/`) running alongside Django. It handles training (encoding) and real-time live recognition (webcam capture), submitting results to the API.
-- **CSP Solver (`csp_solver.py`)**: A Backtracking Constraint Satisfaction Problem algorithm with MRV heuristic used by the `scheduler` app to generate conflict-free timetables.
+### 3. Background Processing
+The `scheduler` domain is too heavy for standard HTTP request lifecycles. 
+- A `django-q2` worker queue (`qcluster`) runs continuously in the background alongside the `gunicorn` web server.
+- The web server offloads timetable generation to the queue and returns a `task_id`.
 
-### 4. Data Layer
-- **Relational DB**: Stores structured data (Users, Students, Subjects, Rooms, Timetable entries, Notices).
-- **Blob/JSON Storage**: `face_encoding` data is stored as JSON arrays in the `students` table.
+### 4. Vector Database Recognition
+Instead of looping through all face embeddings in Python memory, the architecture delegates distance calculations to the PostgreSQL database engine using `pgvector` with HNSW indices, allowing extremely fast nearest-neighbor lookups.

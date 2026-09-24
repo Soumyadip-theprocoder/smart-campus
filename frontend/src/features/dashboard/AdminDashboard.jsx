@@ -11,13 +11,16 @@ import {
   HiOutlineRefresh,
   HiOutlineMail,
   HiOutlinePlusCircle,
+  HiOutlineDownload,
 } from 'react-icons/hi';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,9 +78,35 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDownloadCsv = async () => {
+    setDownloadingCsv(true);
+    try {
+      const response = await api.get('/api/attendance/export/admin/csv/', {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'attendance_report.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Failed to download CSV:', error);
+      alert('Failed to download CSV report.');
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
+
   // Mock attendance chart data
-  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const chartData = [85, 92, 78, 88, 95];
+  const chartData = [
+    { day: 'Mon', attendance: 85 },
+    { day: 'Tue', attendance: 92 },
+    { day: 'Wed', attendance: 78 },
+    { day: 'Thu', attendance: 88 },
+    { day: 'Fri', attendance: 95 },
+  ];
 
   if (loading) {
     return (
@@ -89,9 +118,16 @@ export default function AdminDashboard() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h1>Admin Dashboard</h1>
-        <p>Overview of campus activities and management</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1>Admin Dashboard</h1>
+          <p>Overview of campus activities and management</p>
+        </div>
+        <div>
+          <button className="btn btn-secondary" onClick={handleDownloadCsv} disabled={downloadingCsv}>
+            <HiOutlineDownload className="btn-icon" /> {downloadingCsv ? 'Exporting...' : 'Export CSV'}
+          </button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -131,17 +167,28 @@ export default function AdminDashboard() {
       <div className="grid-2" style={{ marginTop: '1.5rem' }}>
         {/* Attendance Chart */}
         <div className="glass-card dashboard-chart animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
-          <div className="section-header">
+          <div className="section-header" style={{ padding: '1.5rem 1.5rem 0.5rem' }}>
             <h3 className="section-title">Weekly Attendance (Sample)</h3>
           </div>
-          <div className="attendance-bar-chart">
-            {weekDays.map((day, i) => (
-              <div className="attendance-bar" key={day}>
-                <div className="bar-value">{chartData[i]}%</div>
-                <div className="bar" style={{ height: `${chartData[i] * 1.4}px` }} />
-                <div className="bar-label">{day}</div>
-              </div>
-            ))}
+          <div style={{ height: '250px', padding: '0 1.5rem 1.5rem 1.5rem' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis dataKey="day" stroke="var(--color-text-muted)" />
+                <YAxis stroke="var(--color-text-muted)" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  itemStyle={{ color: 'var(--color-accent-emerald)' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="attendance" 
+                  stroke="var(--color-accent-emerald)" 
+                  strokeWidth={3}
+                  activeDot={{ r: 8 }} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

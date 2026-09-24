@@ -8,7 +8,11 @@ import {
   HiOutlineCalendar,
   HiOutlineAcademicCap,
   HiOutlineSpeakerphone,
+  HiCamera,
+  HiOutlineDocumentDownload,
 } from 'react-icons/hi';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import FaceRegistrationModal from '../accounts/FaceRegistrationModal';
 import './StudentDashboard.css';
 
 export default function StudentDashboard() {
@@ -19,6 +23,8 @@ export default function StudentDashboard() {
   const [notices, setNotices] = useState([]);
   const [timetable, setTimetable] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     loadStudentData();
@@ -76,13 +82,54 @@ export default function StudentDashboard() {
     );
   }
 
+  const handleDownloadPdf = async () => {
+    if (!profile?.profile?.id) return;
+    setDownloadingPdf(true);
+    try {
+      const response = await api.get(`/api/attendance/export/student/pdf/${profile.profile.id}/`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `attendance_${profile.profile.enrollment_number}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      alert('Failed to download PDF report.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+  const chartData = report.map((r, index) => ({
+    name: r.subject_code,
+    value: r.percentage,
+    color: COLORS[index % COLORS.length]
+  }));
+
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h1>Welcome, {user?.first_name}! 👋</h1>
-        <p>
-          {profile?.profile?.enrollment_number} · {profile?.profile?.department} · Semester {profile?.profile?.semester}
-        </p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1>Welcome, {user?.first_name}! 👋</h1>
+          <p>
+            {profile?.profile?.enrollment_number} · {profile?.profile?.department} · Semester {profile?.profile?.semester}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          {!profile?.profile?.has_face_encoding && (
+            <button className="btn btn-primary" onClick={() => setIsFaceModalOpen(true)}>
+              <HiCamera className="btn-icon" /> Register Face Data
+            </button>
+          )}
+          <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+            <HiOutlineDocumentDownload className="btn-icon" /> {downloadingPdf ? 'Exporting...' : 'Download PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -133,31 +180,58 @@ export default function StudentDashboard() {
               <p>No attendance records yet.</p>
             </div>
           ) : (
-            <div className="subject-attendance-list">
-              {report.map((r, i) => (
-                <div className="subject-attendance-item" key={i}>
-                  <div className="subject-info">
-                    <span className="subject-code">{r.subject_code}</span>
-                    <span className="subject-name">{r.subject_name}</span>
-                  </div>
-                  <div className="subject-progress">
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{
-                          width: `${r.percentage}%`,
-                          background: r.percentage >= 75
-                            ? 'var(--gradient-emerald)'
-                            : 'var(--gradient-sunset)',
-                        }}
-                      />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ height: '250px', width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.1)" />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                      itemStyle={{ color: 'var(--color-text)' }}
+                      formatter={(value) => [`${value}%`, 'Attendance']}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="subject-attendance-list">
+                {report.map((r, i) => (
+                  <div className="subject-attendance-item" key={i}>
+                    <div className="subject-info">
+                      <span className="subject-code">{r.subject_code}</span>
+                      <span className="subject-name">{r.subject_name}</span>
                     </div>
-                    <span className={`progress-text ${r.percentage < 75 ? 'low' : ''}`}>
-                      {r.percentage}%
-                    </span>
+                    <div className="subject-progress">
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{
+                            width: `${r.percentage}%`,
+                            background: r.percentage >= 75
+                              ? 'var(--gradient-emerald)'
+                              : 'var(--gradient-sunset)',
+                          }}
+                        />
+                      </div>
+                      <span className={`progress-text ${r.percentage < 75 ? 'low' : ''}`}>
+                        {r.percentage}%
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -233,6 +307,11 @@ export default function StudentDashboard() {
           ))}
         </div>
       </div>
+      <FaceRegistrationModal 
+        isOpen={isFaceModalOpen} 
+        onClose={() => setIsFaceModalOpen(false)} 
+        onSuccess={loadStudentData}
+      />
     </div>
   );
 }

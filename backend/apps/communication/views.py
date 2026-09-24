@@ -46,14 +46,14 @@ class CreateNoticeView(APIView):
 class DeleteNoticeView(generics.DestroyAPIView):
     """Delete a notice (admin only)."""
     serializer_class = NoticeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
     queryset = Notice.objects.all()
     lookup_field = 'pk'
 
 
 class SendAttendanceAlertsView(APIView):
     """Trigger attendance shortage alerts (admin only)."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request):
         threshold = float(request.data.get('threshold', 75.0))

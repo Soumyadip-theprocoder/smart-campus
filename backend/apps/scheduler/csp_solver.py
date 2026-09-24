@@ -16,6 +16,7 @@ Constraints:
   7. Preferred room types per subject (soft — tried first)
   8. Avoid back-to-back classes for same faculty (soft)
 """
+import random
 from typing import Optional
 
 
@@ -122,7 +123,6 @@ class ScheduleCSP:
                 if r['capacity'] >= var['required_capacity']
             ]
 
-            import random
             random.seed(var['subject_id'] + session_idx)
             shuffled_ts = list(time_slots)
             random.shuffle(shuffled_ts)

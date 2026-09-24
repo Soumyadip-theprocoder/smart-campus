@@ -1,22 +1,23 @@
-import { useState } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import LoginPage from './features/auth/LoginPage';
-import AdminDashboard from './features/dashboard/AdminDashboard';
-import StudentDashboard from './features/dashboard/StudentDashboard';
-import AttendancePage from './features/attendance/AttendancePage';
-import TimetablePage from './features/scheduler/TimetablePage';
-import ManageTimetablePage from './features/scheduler/ManageTimetablePage';
-import NoticeDashboard from './features/communication/NoticeDashboard';
-import SubjectsPage from './features/scheduler/SubjectsPage';
-import FacultyPage from './features/scheduler/FacultyPage';
-import RoomsPage from './features/scheduler/RoomsPage';
-import StudentAttendancePage from './features/attendance/StudentAttendancePage';
-import StudentClassAttendancePage from './features/attendance/StudentClassAttendancePage';
-import FacultyDashboard from './features/dashboard/FacultyDashboard';
-import FacultySubjectsPage from './features/dashboard/FacultySubjectsPage';
+
+const LoginPage = lazy(() => import('./features/auth/LoginPage'));
+const AdminDashboard = lazy(() => import('./features/dashboard/AdminDashboard'));
+const StudentDashboard = lazy(() => import('./features/dashboard/StudentDashboard'));
+const AttendancePage = lazy(() => import('./features/attendance/AttendancePage'));
+const TimetablePage = lazy(() => import('./features/scheduler/TimetablePage'));
+const ManageTimetablePage = lazy(() => import('./features/scheduler/ManageTimetablePage'));
+const NoticeDashboard = lazy(() => import('./features/communication/NoticeDashboard'));
+const SubjectsPage = lazy(() => import('./features/scheduler/SubjectsPage'));
+const FacultyPage = lazy(() => import('./features/scheduler/FacultyPage'));
+const RoomsPage = lazy(() => import('./features/scheduler/RoomsPage'));
+const StudentAttendancePage = lazy(() => import('./features/attendance/StudentAttendancePage'));
+const StudentClassAttendancePage = lazy(() => import('./features/attendance/StudentClassAttendancePage'));
+const FacultyDashboard = lazy(() => import('./features/dashboard/FacultyDashboard'));
+const FacultySubjectsPage = lazy(() => import('./features/dashboard/FacultySubjectsPage'));
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuth();
@@ -49,10 +50,12 @@ function AppLayout() {
 
   if (!isAuthenticated) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={<div className="loading-spinner"><div className="spinner"></div></div>}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -64,123 +67,125 @@ function AppLayout() {
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <Routes>
-          {/* Admin routes */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/courses"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <SubjectsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/faculty"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <FacultyPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/rooms"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <RoomsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/attendance"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AttendancePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/manage-timetable"
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <ManageTimetablePage />
-              </ProtectedRoute>
-            }
-          />
+        <Suspense fallback={<div className="loading-spinner"><div className="spinner"></div></div>}>
+          <Routes>
+            {/* Admin routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/courses"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <SubjectsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/faculty"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <FacultyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/rooms"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <RoomsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/manage-timetable"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <ManageTimetablePage />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Student routes */}
-          <Route
-            path="/student"
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/student/attendance"
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <StudentAttendancePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/student/class-attendance"
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <StudentClassAttendancePage />
-              </ProtectedRoute>
-            }
-          />
+            {/* Student routes */}
+            <Route
+              path="/student"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/class-attendance"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentClassAttendancePage />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/faculty"
-            element={
-              <ProtectedRoute allowedRoles={['faculty']}>
-                <FacultyDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/faculty/subjects"
-            element={
-              <ProtectedRoute allowedRoles={['faculty']}>
-                <FacultySubjectsPage />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/faculty"
+              element={
+                <ProtectedRoute allowedRoles={['faculty']}>
+                  <FacultyDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/faculty/subjects"
+              element={
+                <ProtectedRoute allowedRoles={['faculty']}>
+                  <FacultySubjectsPage />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Shared routes */}
-          <Route
-            path="/timetable"
-            element={
-              <ProtectedRoute>
-                <TimetablePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/notices"
-            element={
-              <ProtectedRoute>
-                <NoticeDashboard />
-              </ProtectedRoute>
-            }
-          />
+            {/* Shared routes */}
+            <Route
+              path="/timetable"
+              element={
+                <ProtectedRoute>
+                  <TimetablePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notices"
+              element={
+                <ProtectedRoute>
+                  <NoticeDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Redirects */}
-          <Route path="/login" element={<RoleRedirect />} />
-          <Route path="/" element={<RoleRedirect />} />
-          <Route path="*" element={<RoleRedirect />} />
-        </Routes>
+            {/* Redirects */}
+            <Route path="/login" element={<RoleRedirect />} />
+            <Route path="/" element={<RoleRedirect />} />
+            <Route path="*" element={<RoleRedirect />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   );

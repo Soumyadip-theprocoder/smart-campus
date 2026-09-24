@@ -47,8 +47,9 @@ export default function FacultyDashboard() {
       setSubjects(mySubjects);
 
       // Filter timetable for this faculty
+      const mySubjectIds = mySubjects.map(s => s.id);
       const myTimetable = (timetableRes.data.results || timetableRes.data || []).filter(
-        t => t.faculty_name === `${user.first_name} ${user.last_name}`
+        t => mySubjectIds.includes(t.subject)
       );
       setTimetable(myTimetable);
 

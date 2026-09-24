@@ -7,12 +7,20 @@ from pathlib import Path
 from datetime import timedelta
 import dj_database_url
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-me-in-production')
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY and not DEBUG:
+    raise ImproperlyConfigured("The SECRET_KEY environment variable is required in production.")
+elif not SECRET_KEY:
+    SECRET_KEY = 'django-insecure-dev-key-change-me-in-production'
+
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Render sets this automatically — add it to ALLOWED_HOSTS
@@ -144,6 +152,9 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100,
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '5/minute',
+    },
 }
 
 # ─── JWT Configuration ──────────────────────────────────────────────
@@ -167,6 +178,8 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
 
 # ─── Render Proxy Headers ───────────────────────────────────────────
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
 
 # ─── Email / SMTP ───────────────────────────────────────────────────
 EMAIL_BACKEND = os.environ.get(
@@ -184,6 +197,7 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # ─── Face Recognition ───────────────────────────────────────────────
 FACE_RECOGNITION_TOLERANCE = 0.5
 FACE_IMAGES_DIR = BASE_DIR / 'face_recognition_engine' / 'training_images'
+FACE_ENGINE_API_KEY = os.environ.get('FACE_ENGINE_API_KEY', None)
 
 # ─── Django Q2 Configuration ─────────────────────────────────────────
 Q_CLUSTER = {
@@ -191,6 +205,7 @@ Q_CLUSTER = {
     'workers': 4,
     'recycle': 500,
     'timeout': 600,
+    'retry': 700,
     'compress': True,
     'save_limit': 250,
     'queue_limit': 500,

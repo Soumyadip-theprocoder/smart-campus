@@ -1,11 +1,16 @@
-# Concerns
-
-## Technical Debt & Scalability
-- **Face Recognition Performance**: `face_recognition` library uses dlib. If the server scales to thousands of students, 128-d vector matching in a single Python process could become a bottleneck. Caching or specialized vector DBs (e.g., pgvector, Milvus) might be needed.
-- **Webcam Integration**: The `recognize_faces.py` script requires physical hardware access. Deploying this on a cloud server means the client needs to stream video or send images to the backend. Currently, it seems designed to run locally or on an edge device (e.g., a Raspberry Pi in a classroom).
-- **CSP Solver Blocking**: Constraint Satisfaction generation is NP-hard. For a large campus, the `POST /api/scheduler/generate/` endpoint might time out if it runs synchronously. It should likely be moved to a background task runner (like Celery or Django Q).
-- **SQLite vs PostgreSQL**: README mentions PostgreSQL, but SQLite is the default. Migrating to PostgreSQL is critical for production deployment (Render) to prevent data loss.
+# Codebase Concerns & Technical Debt
 
 ## Security
-- **Email Credentials**: Relies on `.env` for SMTP credentials. Ensure these are never committed and appropriately managed in cloud environments.
-- **Face Data Privacy**: Encoded facial vectors are biometric data. Proper encryption and access control (GDPR/compliance) should be considered.
+- **Open Endpoints:** `RegisterView` and `MarkAttendanceView` currently lack proper restriction in the active codebase (addressed in Phase 4).
+- **Missing API Keys:** Face engine relies on permissive open routes rather than static API keys.
+- **Hardcoded Secrets:** `seed_data.py` contains hardcoded passwords (`admin123`). This should be driven by environment variables.
+- **Rate Limiting:** Login endpoints lack throttling, leaving them vulnerable to brute-force attacks.
+
+## Performance & Optimization
+- **Frontend Bundle Size:** The React Vite build outputs a massive >736KB bundle chunk, indicating a need for `React.lazy` code splitting at the router level.
+- **Loop Imports:** `import random` is executed inside a heavy domain-building loop in `csp_solver.py`, which is poor practice.
+- **String Matching Queries:** Filtering timetables on the frontend using concatenated names (`first_name` + `last_name`) is extremely fragile. It must be refactored to use robust primary keys (`faculty_id`).
+
+## Deployment
+- **HTTPS Enforcement:** Missing `SECURE_SSL_REDIRECT` in Django settings for production.
+- **Django Q2 Config:** Missing `retry` configuration in `Q_CLUSTER` leads to startup warnings.
