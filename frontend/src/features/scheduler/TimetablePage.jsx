@@ -81,15 +81,36 @@ export default function TimetablePage() {
     setGenerating(true);
     try {
       const payload = { ...config };
-      // Only send non-empty optional fields
       if (Object.keys(payload.excluded_slots).length === 0) delete payload.excluded_slots;
       if (Object.keys(payload.preferred_room_types).length === 0) delete payload.preferred_room_types;
       if (payload.locked_entries.length === 0) delete payload.locked_entries;
 
       const response = await api.post('/api/scheduler/generate/', payload);
-      setTimetable(response.data.timetable || []);
-      setShowConfig(false);
-      alert(response.data.message);
+      
+      if (response.data.task_id) {
+        // Poll for task completion
+        const taskId = response.data.task_id;
+        let isComplete = false;
+        
+        while (!isComplete) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusRes = await api.get(`/api/scheduler/task-status/${taskId}/`);
+          
+          if (statusRes.data.status === 'completed') {
+            isComplete = true;
+            alert('Timetable generated successfully!');
+            // Reload the page to fetch the new timetable
+            window.location.reload();
+          } else if (statusRes.data.status === 'failed') {
+            isComplete = true;
+            alert('Failed to generate timetable: ' + statusRes.data.error);
+          }
+        }
+      } else {
+        setTimetable(response.data.timetable || []);
+        setShowConfig(false);
+        alert(response.data.message);
+      }
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to generate timetable.');
     } finally {

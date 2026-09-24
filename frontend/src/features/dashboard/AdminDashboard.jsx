@@ -44,7 +44,23 @@ export default function AdminDashboard() {
   const handleGenerateTimetable = async () => {
     try {
       const response = await api.post('/api/scheduler/generate/');
-      alert(response.data.message || 'Timetable generated successfully!');
+      if (response.data.task_id) {
+        const taskId = response.data.task_id;
+        let isComplete = false;
+        while (!isComplete) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const statusRes = await api.get(`/api/scheduler/task-status/${taskId}/`);
+          if (statusRes.data.status === 'completed') {
+            isComplete = true;
+            alert('Timetable generated successfully!');
+          } else if (statusRes.data.status === 'failed') {
+            isComplete = true;
+            alert('Failed to generate timetable: ' + statusRes.data.error);
+          }
+        }
+      } else {
+        alert(response.data.message || 'Timetable generated successfully!');
+      }
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to generate timetable.');
     }
