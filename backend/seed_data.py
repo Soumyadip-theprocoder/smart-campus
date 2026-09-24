@@ -38,10 +38,9 @@ def seed():
             'is_superuser': True,
         },
     )
-    if created:
-        admin_user.set_password('admin123')
-        admin_user.save()
-        print("✓ Admin user created (admin@smartcampus.edu / admin123)")
+    admin_user.set_password('admin123')
+    admin_user.save()
+    print("✓ Admin user ensured (admin@smartcampus.edu / admin123)")
 
     # ── Faculty ─────────────────────────────────────────────────────
     faculty_data = [
@@ -94,9 +93,8 @@ def seed():
                 'role': 'faculty',
             },
         )
-        if created:
-            user.set_password('faculty123')
-            user.save()
+        user.set_password('faculty123')
+        user.save()
 
         faculty, _ = Faculty.objects.get_or_create(
             user=user,
@@ -213,9 +211,8 @@ def seed():
                 'role': 'student',
             },
         )
-        if created:
-            user.set_password('student123')
-            user.save()
+        user.set_password('student123')
+        user.save()
 
         Student.objects.get_or_create(
             user=user,
