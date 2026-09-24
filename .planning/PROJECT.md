@@ -21,7 +21,7 @@ The MVP is complete. The system features a robust PostgreSQL backend with `pgvec
 </details>
 
 ## Next Milestone Goals
-- Needs to be defined via `/gsd-new-milestone`. Potential areas:
-  - Analytics and predictive shortage modeling.
-  - Integration with hardware turnstiles.
-  - Native iOS/Android app development.
+**v2.0 (Predictive Analytics & Alerts)**
+- Build an advanced analytics dashboard for deep organizational insight.
+- Implement a predictive shortage algorithm to catch students before they fall under the 75% threshold.
+- Setup background cron jobs to dispatch automated warning emails.
