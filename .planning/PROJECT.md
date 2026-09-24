@@ -10,8 +10,15 @@ A full-stack, AI-driven campus management platform that modernizes educational a
 4. **Role-Based Access**: Distinct dashboards and capabilities for Admins, Faculty, and Students.
 
 ## Current State
-**v1.0 (MVP Delivery - Shipped)**
+**v1.1 (Production Hardening & Features - Shipped)**
+The platform is fully feature-complete, secure, and performant. Added critical security fixes, lazy-loaded components, and error boundaries for stability. Replaced manual DB face insertions with a web-based `react-webcam` registration flow. Upgraded the raw HTML dashboards with rich visual analytics (`recharts`) and automated PDF/CSV export generation (`reportlab`).
+
+<details>
+<summary>Archived Versions</summary>
+
+**v1.0 (MVP Delivery)**
 The MVP is complete. The system features a robust PostgreSQL backend with `pgvector` HNSW indexes for face embeddings and asynchronous celery-like processing via Django Q2. The timetable solver successfully handles complex constraints including multi-campus transit times and student elective groupings. The Vite+React frontend is fully mobile-responsive and supports AI Face ID scans alongside fallback QR code scanning.
+</details>
 
 ## Next Milestone Goals
 - Needs to be defined via `/gsd-new-milestone`. Potential areas:
