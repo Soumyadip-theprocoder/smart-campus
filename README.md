@@ -259,7 +259,8 @@ smart-campus/
 │   │   ├── components/       # Shared UI components
 │   │   └── features/         # Feature-based pages
 │   └── package.json
-└── README.md
+├── README.md
+└── TESTING.md            # Test suite documentation
 ```
 
 ---
