@@ -12,7 +12,7 @@ services:
     region: oregon
     rootDir: backend
     buildCommand: "./build.sh"
-    startCommand: "gunicorn config.wsgi:application"
+    startCommand: "python seed_data.py && gunicorn config.wsgi:application"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
