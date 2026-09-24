@@ -156,6 +156,51 @@ def seed():
             'department': 'Mathematics',
             'semester': 3,
         },
+        {
+            'email': 'fatima.zahra@smartcampus.edu',
+            'username': 'fzahra',
+            'first_name': 'Fatima',
+            'last_name': 'Zahra',
+            'enrollment_number': 'STU006',
+            'department': 'Computer Science',
+            'semester': 5,
+        },
+        {
+            'email': 'gabriel.silva@smartcampus.edu',
+            'username': 'gsilva',
+            'first_name': 'Gabriel',
+            'last_name': 'Silva',
+            'enrollment_number': 'STU007',
+            'department': 'Electronics',
+            'semester': 3,
+        },
+        {
+            'email': 'haruki.murakami@smartcampus.edu',
+            'username': 'hmurakami',
+            'first_name': 'Haruki',
+            'last_name': 'Murakami',
+            'enrollment_number': 'STU008',
+            'department': 'Computer Science',
+            'semester': 1,
+        },
+        {
+            'email': 'isabella.martinez@smartcampus.edu',
+            'username': 'imartinez',
+            'first_name': 'Isabella',
+            'last_name': 'Martinez',
+            'enrollment_number': 'STU009',
+            'department': 'Mathematics',
+            'semester': 7,
+        },
+        {
+            'email': 'jamal.jackson@smartcampus.edu',
+            'username': 'jjackson',
+            'first_name': 'Jamal',
+            'last_name': 'Jackson',
+            'enrollment_number': 'STU010',
+            'department': 'Computer Science',
+            'semester': 5,
+        }
     ]
 
     for sd in student_data:
@@ -304,6 +349,24 @@ def seed():
             'priority': 'low',
             'target_audience': 'students',
         },
+        {
+            'title': 'Campus Placement Drive 2026',
+            'content': 'Top tier tech companies including Google, Microsoft, and Amazon are visiting our campus for the placement drive next month. Final year students please update your resumes in the placement portal.',
+            'priority': 'urgent',
+            'target_audience': 'students',
+        },
+        {
+            'title': 'Faculty Development Program',
+            'content': 'A mandatory faculty development program on "AI in Education" will be held next Friday in the main auditorium. Please ensure your classes are rescheduled.',
+            'priority': 'medium',
+            'target_audience': 'faculty',
+        },
+        {
+            'title': 'Annual Tech Fest "Innovate 2026"',
+            'content': 'Get ready for the biggest technical festival of the year! Call for project submissions is now open. Exciting cash prizes to be won.',
+            'priority': 'low',
+            'target_audience': 'all',
+        }
     ]
 
     for nd in notices_data:
@@ -339,6 +402,11 @@ def seed():
         'STU003': 0.65,  # Charlie — struggles
         'STU004': 0.88,  # Diana — good
         'STU005': 0.72,  # Ethan — average
+        'STU006': 0.98,  # Fatima — near perfect
+        'STU007': 0.45,  # Gabriel — severe attendance shortage
+        'STU008': 0.85,  # Haruki — good
+        'STU009': 0.95,  # Isabella — excellent
+        'STU010': 0.30,  # Jamal — failing attendance
     }
 
     attendance_count = 0
