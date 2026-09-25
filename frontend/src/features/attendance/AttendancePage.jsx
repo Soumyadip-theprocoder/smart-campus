@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Webcam from 'react-webcam';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
 import QRCodeGenerator from './QRCodeGenerator';
@@ -10,8 +11,8 @@ export default function AttendancePage() {
   const [showScanner, setShowScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const webcamRef = useRef(null);
+  
   const [filters, setFilters] = useState({
     date_from: '',
     date_to: '',
@@ -52,52 +53,41 @@ export default function AttendancePage() {
     loadAttendance();
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.error("Camera access denied:", err);
-      alert("Could not access camera. Please allow permissions.");
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  // Setup/teardown camera when scanner modal opens/closes
-  useEffect(() => {
-    if (showScanner) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
-    return () => stopCamera(); // Cleanup on unmount
-  }, [showScanner]);
-
-  const handleRunScan = async () => {
+  const handleRunScan = useCallback(async () => {
+    if (!webcamRef.current) return;
+    
     setScanning(true);
-    // Simulate some "scanning" time for UX
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     try {
-      const res = await api.post('/api/attendance/recognize/', { subject_id: filters.subject_id });
-      alert(`Face ID Scanner ran successfully! Recognized ${res.data.count} students.`);
+      // Capture the screenshot as base64
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (!imageSrc) {
+        throw new Error("Failed to capture image from camera.");
+      }
+      
+      // Convert base64 to Blob
+      const resBase64 = await fetch(imageSrc);
+      const blob = await resBase64.blob();
+      const file = new File([blob], 'face.jpg', { type: 'image/jpeg' });
+      
+      const formData = new FormData();
+      formData.append('face_image', file);
+      formData.append('subject_id', filters.subject_id);
+      
+      const res = await api.post('/api/attendance/recognize/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      
+      alert(`✅ Recognized: ${res.data.name} (${res.data.enrollment_number})`);
       setShowScanner(false);
       loadAttendance();
     } catch (e) {
-      alert('Face ID Scan failed. See console.');
+      alert(e.response?.data?.error || e.message || 'Face ID Scan failed.');
       console.error(e);
     } finally {
       setScanning(false);
     }
-  };
+  }, [filters.subject_id]);
 
   const columns = [
     { key: 'enrollment_number', label: 'Enrollment #' },
@@ -236,11 +226,11 @@ export default function AttendancePage() {
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Align face within the outline.</p>
             
             <div style={{ position: 'relative', width: '100%', height: '300px', backgroundColor: '#000', borderRadius: '12px', overflow: 'hidden' }}>
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: "user" }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
               

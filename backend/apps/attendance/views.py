@@ -20,7 +20,6 @@ from .models import Attendance
 from .permissions import HasFaceEngineAPIKey
 from .serializers import (AttendanceReportSerializer, AttendanceSerializer,
                           MarkAttendanceSerializer)
-from .services import run_face_recognition
 
 
 class AttendanceListView(generics.ListAPIView):
@@ -186,10 +185,17 @@ class AttendanceSummaryView(APIView):
         )
 
 
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.conf import settings
+import requests
+from apps.accounts.models import Student
+from pgvector.django import L2Distance
+
 class TriggerFaceRecognitionView(APIView):
-    """Trigger the face recognition engine for a specific subject."""
+    """Trigger the face recognition engine for a specific subject by uploading an image."""
 
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         subject_id = request.data.get("subject_id")
@@ -197,12 +203,77 @@ class TriggerFaceRecognitionView(APIView):
             return Response(
                 {"error": "subject_id is required"}, status=status.HTTP_400_BAD_REQUEST
             )
+            
+        file_obj = request.FILES.get("face_image")
+        if not file_obj:
+            return Response(
+                {"error": "No face image provided."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
-        # This will call the headless engine
-        result = run_face_recognition(subject_id)
-        if result.get("success"):
-            return Response(result, status=status.HTTP_200_OK)
-        return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        encoding_list = None
+
+        if getattr(settings, "FACE_ENGINE_URL", None):
+            url = f"{settings.FACE_ENGINE_URL.rstrip('/')}/encode"
+            headers = {"Bypass-Tunnel-Reminder": "true"}
+            if getattr(settings, "FACE_ENGINE_API_KEY", None):
+                headers["Authorization"] = f"Bearer {settings.FACE_ENGINE_API_KEY}"
+            try:
+                file_obj.seek(0)
+                files = {"file": (file_obj.name, file_obj, file_obj.content_type)}
+                response = requests.post(url, files=files, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    encoding_list = response.json().get("encoding")
+                else:
+                    return Response({"error": response.json().get("detail", "Face engine error")}, status=400)
+            except Exception as e:
+                return Response({"error": str(e)}, status=503)
+        else:
+            # Fallback to local
+            try:
+                import face_recognition
+                file_obj.seek(0)
+                image = face_recognition.load_image_file(file_obj)
+                face_locations = face_recognition.face_locations(image, model="hog")
+                if not face_locations:
+                    return Response({"error": "No face detected."}, status=400)
+                encoding = face_recognition.face_encodings(image, [face_locations[0]])[0]
+                encoding_list = encoding.tolist()
+            except ImportError:
+                return Response({"error": "Face recognition not enabled locally and FACE_ENGINE_URL not set."}, status=501)
+            except Exception as e:
+                return Response({"error": str(e)}, status=500)
+                
+        if not encoding_list:
+            return Response({"error": "Failed to get encoding."}, status=500)
+            
+        tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.5)
+        best_match = (
+            Student.objects.filter(face_encoding__isnull=False)
+            .annotate(distance=L2Distance("face_encoding", encoding_list))
+            .filter(distance__lte=tolerance)
+            .order_by("distance")
+            .first()
+        )
+        
+        if not best_match:
+            return Response({"error": "Unknown Face - No matching student found in database."}, status=404)
+            
+        # Mark attendance
+        attendance, created = Attendance.objects.get_or_create(
+            student=best_match,
+            subject_id=subject_id,
+            date=date.today(),
+            defaults={
+                "status": Attendance.Status.PRESENT,
+                "method": Attendance.Method.FACE_RECOGNITION,
+            },
+        )
+        
+        return Response({
+            "message": "Attendance marked successfully",
+            "name": best_match.user.get_full_name(),
+            "enrollment_number": best_match.enrollment_number
+        }, status=status.HTTP_200_OK)
 
 
 class AdminCSVExportView(APIView):

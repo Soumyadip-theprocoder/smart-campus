@@ -11,6 +11,11 @@
 - **Goal:** Offload computationally expensive face recognition tasks (dlib/face_recognition) to a Google Colab notebook API.
 - **Scope:** Create a Google Colab notebook that runs a FastAPI server exposed via ngrok or localtunnel. Refactor the Django backend to send image encoding requests to this external Colab API instead of running it locally, bypassing Render's memory limits.
 
+### Phase 5.5: Cloud-Native Face ID Check-in
+- **Status:** Planning
+- **Goal:** Refactor the attendance Face ID scanner to work over the web rather than relying on a local server webcam.
+- **Scope:** Update the React frontend (`AttendancePage.jsx`) to capture webcam frames in the browser and POST them to the Django backend. Refactor the backend `TriggerFaceRecognitionView` to accept an image, use the Colab API for encoding, and match it against the pgvector database to mark attendance.
+
 ### Phase 6: Core Analytics & Predictive Modeling
 - **Status:** Planned
 - **Goal:** Develop backend aggregation endpoints and the predictive shortage algorithm.
