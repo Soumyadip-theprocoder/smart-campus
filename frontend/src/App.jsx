@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const AdminDashboard = lazy(() => import('./features/dashboard/AdminDashboard'));
+const AnalyticsDashboard = lazy(() => import('./features/dashboard/AnalyticsDashboard'));
 const StudentDashboard = lazy(() => import('./features/dashboard/StudentDashboard'));
 const AttendancePage = lazy(() => import('./features/attendance/AttendancePage'));
 const TimetablePage = lazy(() => import('./features/scheduler/TimetablePage'));
@@ -107,6 +108,14 @@ function AppLayout() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AnalyticsDashboard />
                 </ProtectedRoute>
               }
             />

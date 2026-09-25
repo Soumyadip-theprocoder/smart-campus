@@ -7,6 +7,7 @@ import {
   HiOutlineSpeakerphone,
   HiOutlineUsers,
   HiOutlineAcademicCap,
+  HiOutlineChartBar,
 } from 'react-icons/hi';
 import { FiSettings } from 'react-icons/fi';
 import './Sidebar.css';
@@ -19,6 +20,7 @@ export default function Sidebar({ collapsed }) {
     { to: '/admin/courses', icon: <HiOutlineAcademicCap />, label: 'Courses' },
     { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
+    { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetables' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notifications' },
   ];

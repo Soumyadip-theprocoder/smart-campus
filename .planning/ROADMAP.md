@@ -22,7 +22,7 @@
 - **Scope:** Verify faculty authorization and student enrollment in `TriggerFaceRecognitionView`. Add camera permission error handling to the React frontend.
 
 ### Phase 6: Core Analytics & Predictive Modeling
-- **Status:** Planned
+- **Status:** Complete
 - **Goal:** Develop backend aggregation endpoints and the predictive shortage algorithm.
 - **Scope:** Django ORM aggregations for department/subject stats, and a linear trajectory model to flag students at risk of < 75% attendance.
 

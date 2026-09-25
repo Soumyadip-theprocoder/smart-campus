@@ -187,6 +187,49 @@ export default function FacultyDashboard() {
         </div>
       </div>
 
+      <div style={{ marginTop: '1.5rem' }}>
+        <div className="glass-card animate-fade-in-up stagger-5" style={{ opacity: 0, padding: '1.5rem', animationDelay: '0.25s' }}>
+          <h3 className="section-title" style={{ marginBottom: '1rem' }}>
+            My Subjects Overview
+          </h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  <th style={{ padding: '0.5rem' }}>Subject</th>
+                  <th style={{ padding: '0.5rem' }}>Total Classes</th>
+                  <th style={{ padding: '0.5rem' }}>Avg. Attendance</th>
+                  <th style={{ padding: '0.5rem' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjectAnalytics.map((subj, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <div style={{ fontWeight: 600 }}>{subj.code}</div>
+                      <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{subj.name}</div>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                      {subj.recordsCount}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      {subj.attendancePercentage}%
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      {parseFloat(subj.attendancePercentage) < 75.0 && subj.recordsCount > 0 ? (
+                        <span className="badge badge-urgent">Low Attendance</span>
+                      ) : (
+                        <span className="badge badge-low">Healthy</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* Recent Notices */}
       <div className="section" style={{ marginTop: '1.5rem' }}>
         <div className="glass-card animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.35s', padding: '1.5rem' }}>
