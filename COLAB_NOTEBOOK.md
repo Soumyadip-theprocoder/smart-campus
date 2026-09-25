@@ -10,23 +10,20 @@ To offload the heavy `face_recognition` and `dlib` processing from your Render b
 5. In your Django backend `.env` (or Render Environment Variables), set:
    `FACE_ENGINE_URL=<the_ngrok_url>`
 
-## Code
+```python
+# Cell 1: Install dependencies
+!npm install -g localtunnel
+!pip install fastapi uvicorn python-multipart face_recognition
+```
 
 ```python
-# 1. Install dependencies
-!npm install -g localtunnel
-!pip install fastapi uvicorn python-multipart face_recognition nest-asyncio
-
+# Cell 2: Write the FastAPI app to a file
+%%writefile app.py
 import face_recognition
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import nest_asyncio
 import numpy as np
 import io
-import subprocess
-import time
-import threading
 from PIL import Image
 
 app = FastAPI()
@@ -71,27 +68,35 @@ async def encode_face(file: UploadFile = File(...)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+```
 
-# Setup Localtunnel
-def start_localtunnel():
-    print("Starting localtunnel...")
-    process = subprocess.Popen(
-        ["lt", "--port", "8000"], 
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    # Give it a second to start
-    time.sleep(2)
-    output = process.stdout.readline().decode('utf-8').strip()
-    print("\n" + "="*50)
-    print("YOUR FACE ENGINE URL IS:")
-    print(output.replace("your url is: ", ""))
-    print("="*50 + "\n")
+```python
+# Cell 3: Start the server and localtunnel
+import subprocess
+import time
 
-# Run localtunnel in a background thread
-threading.Thread(target=start_localtunnel, daemon=True).start()
+print("Starting Uvicorn server...")
+# Start uvicorn in the background
+subprocess.Popen(["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"])
 
-# Run the FastAPI server
-nest_asyncio.apply()
-uvicorn.run(app, host="0.0.0.0", port=8000)
+# Give uvicorn a second to start
+time.sleep(2)
+
+print("Starting Localtunnel...")
+# Start localtunnel
+lt_process = subprocess.Popen(
+    ["lt", "--port", "8000"], 
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE
+)
+
+# Read the URL
+time.sleep(2)
+output = lt_process.stdout.readline().decode('utf-8').strip()
+
+print("\n" + "="*50)
+print("YOUR FACE ENGINE URL IS:")
+print(output.replace("your url is: ", ""))
+print("="*50 + "\n")
+print("Keep this tab open while you want the Face Engine to be online!")
 ```
