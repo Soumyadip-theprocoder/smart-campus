@@ -27,7 +27,7 @@
 - **Scope:** Django ORM aggregations for department/subject stats, and a linear trajectory model to flag students at risk of < 75% attendance.
 
 ### Phase 7: Analytics Dashboard UI
-- **Status:** Planned
+- **Status:** Complete
 - **Goal:** Build the dedicated frontend interface for data visualization.
 - **Scope:** New `/admin/analytics` route, extensive `recharts` integration (bar charts, area charts), and UI indicators for "At Risk" students on the Faculty dashboard.
 
