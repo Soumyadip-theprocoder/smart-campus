@@ -14,16 +14,19 @@ To offload the heavy `face_recognition` and `dlib` processing from your Render b
 
 ```python
 # 1. Install dependencies
-!pip install fastapi uvicorn python-multipart face_recognition pyngrok nest-asyncio
+!npm install -g localtunnel
+!pip install fastapi uvicorn python-multipart face_recognition nest-asyncio
 
 import face_recognition
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import nest_asyncio
-from pyngrok import ngrok
 import numpy as np
 import io
+import subprocess
+import time
+import threading
 from PIL import Image
 
 app = FastAPI()
@@ -46,7 +49,7 @@ async def encode_face(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
-        # Convert to RGB (face_recognition expects RGB)
+        # Convert to RGB
         if image.mode != 'RGB':
             image = image.convert('RGB')
             
@@ -69,15 +72,26 @@ async def encode_face(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Setup ngrok
-# (Optional) You can authenticate your ngrok agent if required by ngrok:
-# ngrok.set_auth_token("YOUR_NGROK_AUTH_TOKEN")
+# Setup Localtunnel
+def start_localtunnel():
+    print("Starting localtunnel...")
+    process = subprocess.Popen(
+        ["lt", "--port", "8000"], 
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    # Give it a second to start
+    time.sleep(2)
+    output = process.stdout.readline().decode('utf-8').strip()
+    print("\n" + "="*50)
+    print("YOUR FACE ENGINE URL IS:")
+    print(output.replace("your url is: ", ""))
+    print("="*50 + "\n")
 
-ngrok_tunnel = ngrok.connect(8000)
-print("Public URL:", ngrok_tunnel.public_url)
-print("Use this URL as your FACE_ENGINE_URL in Django settings.")
+# Run localtunnel in a background thread
+threading.Thread(target=start_localtunnel, daemon=True).start()
 
-# Run the server
+# Run the FastAPI server
 nest_asyncio.apply()
 uvicorn.run(app, host="0.0.0.0", port=8000)
 ```

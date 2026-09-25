@@ -168,7 +168,9 @@ class FaceRegistrationView(APIView):
         if getattr(settings, "FACE_ENGINE_URL", None):
             # Use external Colab API
             url = f"{settings.FACE_ENGINE_URL.rstrip('/')}/encode"
-            headers = {}
+            headers = {
+                "Bypass-Tunnel-Reminder": "true"  # Required if using localtunnel
+            }
             if getattr(settings, "FACE_ENGINE_API_KEY", None):
                 headers["Authorization"] = f"Bearer {settings.FACE_ENGINE_API_KEY}"
             
