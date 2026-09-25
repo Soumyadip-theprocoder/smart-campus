@@ -122,11 +122,11 @@ class FaceRegistrationView(APIView):
             return Response({'error': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
-            try:
-                import face_recognition
-            except ImportError:
-                return Response({'error': 'Face recognition is not enabled on this server.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
-                
+            import face_recognition
+        except ImportError:
+            return Response({'error': 'Face recognition is not enabled on this server.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+            
+        try:
             image = face_recognition.load_image_file(file_obj)
             face_locations = face_recognition.face_locations(image, model='hog')
             
