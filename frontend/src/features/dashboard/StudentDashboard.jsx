@@ -127,7 +127,7 @@ export default function StudentDashboard() {
             </button>
           )}
           <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
-            <HiOutlineDocumentDownload className="btn-icon" /> {downloadingPdf ? 'Exporting...' : 'Download PDF'}
+            <HiOutlineDocumentDownload className="btn-icon" /> {downloadingPdf ? 'Exporting...' : 'Download PDF Report'}
           </button>
         </div>
       </div>

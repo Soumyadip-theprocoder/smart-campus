@@ -6,6 +6,16 @@
 
 ## Active Milestone (v2.0: Predictive Analytics)
 
+### Phase 5.1: Codebase & Documentation Polish
+- **Status:** Complete
+- **Goal:** Comprehensive cleanup of the backend codebase, removal of deprecated files, and polishing of project documentation to ensure a pristine state for the v2.0 milestone.
+- **Scope:** Run linters/formatters, remove dead code/unused imports, verify `README.md` and architecture docs are up-to-date.
+
+### Phase 5.2: UI Rewrite & Polish
+- **Status:** Complete
+- **Goal:** Comprehensive frontend rewrite to ensure maximum visual polish, responsiveness, and user-friendly interaction across all dashboards according to the `UI-SPEC.md`.
+- **Scope:** Enhance `AdminDashboard` and `StudentDashboard` with glassmorphism, responsive `recharts` layouts, hover states, proper loading indicators, and graceful fallback behaviors. Ensure the webcam modal and PDF/CSV buttons are intuitively placed and aesthetically pleasing.
+
 ### Phase 6: Core Analytics & Predictive Modeling
 - **Status:** Planned
 - **Goal:** Develop backend aggregation endpoints and the predictive shortage algorithm.

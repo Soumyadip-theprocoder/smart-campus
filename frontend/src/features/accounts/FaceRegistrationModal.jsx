@@ -78,6 +78,11 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
               facingMode: "user"
             }}
           />
+          {isCapturing && (
+            <div className="webcam-overlay">
+              <div className="spinner"></div>
+            </div>
+          )}
         </div>
 
         <button 
