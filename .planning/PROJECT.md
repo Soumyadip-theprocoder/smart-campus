@@ -10,9 +10,10 @@ A full-stack, AI-driven campus management platform that modernizes educational a
 4. **Role-Based Access**: Distinct dashboards and capabilities for Admins, Faculty, and Students.
 
 ## Current State
-**v3.0 (Scale & Mobile Native)**
-- Expand the platform for native mobile devices (iOS/Android) via React Native.
-- Setup microservices for timetable scheduling to scale across multiple university branches.
+**v2.1 (Feature Enhancements & Usability)**
+- **Attendance & Timetable**: Add manual drag-and-drop timetable overrides and better historical attendance views.
+- **Analytics & Dashboards**: Implement granular date-range filtering and deeper insights.
+- **Communication & UX**: Add SMS support for urgent alerts, refine email templates, and implement global UX improvements like Dark Mode and enhanced accessibility.
 
 <details>
 <summary>Archived Versions</summary>
