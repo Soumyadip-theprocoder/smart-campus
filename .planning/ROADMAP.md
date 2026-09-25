@@ -32,6 +32,6 @@
 - **Scope:** New `/admin/analytics` route, extensive `recharts` integration (bar charts, area charts), and UI indicators for "At Risk" students on the Faculty dashboard.
 
 ### Phase 8: Proactive Warning System
-- **Status:** Planned
+- **Status:** Complete
 - **Goal:** Automate the dispatch of warning emails.
 - **Scope:** Django Q2 scheduled background tasks to run the predictive model weekly and trigger SMTP emails to flagged students.
