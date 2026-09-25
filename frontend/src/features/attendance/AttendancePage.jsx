@@ -231,6 +231,10 @@ export default function AttendancePage() {
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
                 videoConstraints={{ facingMode: "user" }}
+                onUserMediaError={() => {
+                  alert("Camera access denied or unavailable. Please allow camera permissions in your browser.");
+                  setShowScanner(false);
+                }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
               

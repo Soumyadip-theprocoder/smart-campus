@@ -44,16 +44,12 @@ export default function StudentAttendancePage() {
 
   const handleQRScanSuccess = async (decodedText) => {
     try {
-      const qrData = JSON.parse(decodedText);
-      if (!qrData.subject_id || !qrData.date) throw new Error("Invalid QR code format");
+      if (!decodedText) throw new Error("Invalid QR code format");
 
       await api.post('/api/attendance/mark/', {
-        enrollment_number: profile.profile.enrollment_number,
-        subject_id: qrData.subject_id,
-        date: qrData.date,
-        method: 'qr_scan'
+        token: decodedText
       });
-      alert('Attendance marked successfully via QR code!');
+      alert('Attendance marked successfully via secure QR code!');
       setShowScanner(false);
       loadAttendanceData(); // Refresh data
     } catch (e) {

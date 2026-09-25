@@ -57,47 +57,66 @@ class AttendanceListView(generics.ListAPIView):
         return qs
 
 
-class MarkAttendanceView(APIView):
-    """Mark attendance for a student (from face recognition or manual)."""
+from django.core.signing import dumps, loads, SignatureExpired, BadSignature
 
-    permission_classes = [HasFaceEngineAPIKey]
+class MarkAttendanceView(APIView):
+    """Mark attendance manually via QR Code Scan."""
+
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = MarkAttendanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            student = Student.objects.get(
-                enrollment_number=serializer.validated_data["enrollment_number"]
-            )
-        except Student.DoesNotExist:
+        token = request.data.get("token")
+        
+        # Determine student
+        user = request.user
+        if not user.is_student or not hasattr(user, "student_profile"):
             return Response(
-                {"error": "Student not found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "Only students can mark their own attendance via QR."},
+                status=status.HTTP_403_FORBIDDEN,
             )
-
-        attendance, created = Attendance.objects.get_or_create(
-            student=student,
-            subject_id=serializer.validated_data["subject_id"],
-            date=serializer.validated_data["date"],
-            defaults={
-                "status": Attendance.Status.PRESENT,
-                "method": serializer.validated_data.get(
-                    "method", Attendance.Method.FACE_RECOGNITION
-                ),
-            },
-        )
-
-        if not created:
-            return Response(
-                {"message": "Attendance already marked for today."},
-                status=status.HTTP_200_OK,
+        student = user.student_profile
+        
+        if token:
+            try:
+                # Token expires in 15 seconds
+                data = loads(token, max_age=15)
+                subject_id = data.get("subject_id")
+            except SignatureExpired:
+                return Response({"error": "QR Code expired. Please scan again."}, status=status.HTTP_400_BAD_REQUEST)
+            except BadSignature:
+                return Response({"error": "Invalid QR Code."}, status=status.HTTP_400_BAD_REQUEST)
+                
+            attendance, created = Attendance.objects.get_or_create(
+                student=student,
+                subject_id=subject_id,
+                date=date.today(),
+                defaults={
+                    "status": Attendance.Status.PRESENT,
+                    "method": Attendance.Method.QR_SCAN,
+                },
             )
+            return Response({"message": "Attendance marked successfully"}, status=status.HTTP_201_CREATED)
+            
+        return Response({"error": "QR token is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(
-            AttendanceSerializer(attendance).data,
-            status=status.HTTP_201_CREATED,
-        )
+class GenerateQRTokenView(APIView):
+    """Generate a secure, short-lived token for the QR code display."""
+    
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        subject_id = request.query_params.get("subject_id")
+        if not subject_id:
+            return Response({"error": "subject_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Verify faculty owns the subject
+        if not request.user.is_superuser:
+            if not Subject.objects.filter(id=subject_id, faculty__user=request.user).exists():
+                return Response({"error": "Unauthorized for this subject"}, status=status.HTTP_403_FORBIDDEN)
+                
+        # Generate token
+        token = dumps({"subject_id": subject_id})
+        return Response({"token": token})
 
 
 class AttendanceReportView(APIView):
@@ -204,6 +223,11 @@ class TriggerFaceRecognitionView(APIView):
                 {"error": "subject_id is required"}, status=status.HTTP_400_BAD_REQUEST
             )
             
+        # Verify faculty owns the subject
+        if not request.user.is_superuser:
+            if not Subject.objects.filter(id=subject_id, faculty__user=request.user).exists():
+                return Response({"error": "Unauthorized for this subject"}, status=status.HTTP_403_FORBIDDEN)
+                
         file_obj = request.FILES.get("face_image")
         if not file_obj:
             return Response(
