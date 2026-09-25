@@ -35,3 +35,8 @@
 - **Status:** Complete
 - **Goal:** Automate the dispatch of warning emails.
 - **Scope:** Django Q2 scheduled background tasks to run the predictive model weekly and trigger SMTP emails to flagged students.
+
+### Phase 9: MVP Polishing (Error Handling & UX)
+- **Status:** Planned
+- **Goal:** Address pending items from the polish-project.md TODO list before finalizing v2.0.
+- **Scope:** Implement global React Error Boundaries, replace native browser alerts with toast notifications (e.g., react-toastify or react-hot-toast), refine form validations, and clean up technical debt.
