@@ -21,4 +21,4 @@
 ## 4. Surprises Encountered
 - **Buried PDF Requirements:** Essential features (Webcam registration UI and Data Exporting) were present in the initial academic PDF proposal but were easily overlooked when decomposing the technical MVP, requiring a retroactive "Phase 5" to achieve feature parity.
 - **Silent Misconfigurations:** The initial `SECRET_KEY` implementation had an insecure default fallback. In production, this can silently compromise the entire application without throwing an error. We learned to enforce `ImproperlyConfigured` exceptions for critical missing environment variables.
-- **Python Imports in Loops:** An `import random` statement was found inside a heavy CSP domain-building loop. While Python caches imports, it highlighted the need for stricter code reviews regarding loop optimization.
+- **Python Imports in Loops:** An `import random` statement was initially found inside a CSP domain-building loop during Phase 4 code review. This was fixed by moving the import to module level (`csp_solver.py` line 19). While Python caches imports, the discovery highlighted the need for stricter code reviews regarding loop optimization.
