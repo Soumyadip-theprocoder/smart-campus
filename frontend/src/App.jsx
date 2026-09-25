@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const AdminDashboard = lazy(() => import('./features/dashboard/AdminDashboard'));
@@ -203,9 +205,21 @@ function AppLayout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppLayout />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <Toaster 
+            position="top-right" 
+            toastOptions={{ 
+              style: { 
+                background: 'var(--color-bg-secondary)', 
+                color: 'var(--color-text)', 
+                border: '1px solid rgba(255,255,255,0.1)' 
+              } 
+            }} 
+          />
+          <AppLayout />
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

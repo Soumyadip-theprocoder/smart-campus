@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import api from '../../api/axios';
@@ -78,11 +79,11 @@ export default function AttendancePage() {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       
-      alert(`✅ Recognized: ${res.data.name} (${res.data.enrollment_number})`);
+      toast.success(`✅ Recognized: ${res.data.name} (${res.data.enrollment_number})`);
       setShowScanner(false);
       loadAttendance();
     } catch (e) {
-      alert(e.response?.data?.error || e.message || 'Face ID Scan failed.');
+      toast.error(e.response?.data?.error || e.message || 'Face ID Scan failed.');
       console.error(e);
     } finally {
       setScanning(false);
@@ -232,7 +233,7 @@ export default function AttendancePage() {
                 screenshotFormat="image/jpeg"
                 videoConstraints={{ facingMode: "user" }}
                 onUserMediaError={() => {
-                  alert("Camera access denied or unavailable. Please allow camera permissions in your browser.");
+                  toast.error("Camera access denied or unavailable. Please allow camera permissions in your browser.");
                   setShowScanner(false);
                 }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}

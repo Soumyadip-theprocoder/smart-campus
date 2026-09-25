@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -98,21 +99,21 @@ export default function TimetablePage() {
           
           if (statusRes.data.status === 'completed') {
             isComplete = true;
-            alert('Timetable generated successfully!');
+            toast.success('Timetable generated successfully!');
             // Reload the page to fetch the new timetable
             window.location.reload();
           } else if (statusRes.data.status === 'failed') {
             isComplete = true;
-            alert('Failed to generate timetable: ' + statusRes.data.error);
+            toast.error('Failed to generate timetable: ' + statusRes.data.error);
           }
         }
       } else {
         setTimetable(response.data.timetable || []);
         setShowConfig(false);
-        alert(response.data.message);
+        toast(response.data.message);
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to generate timetable.');
+      toast.error(err.response?.data?.error || 'Failed to generate timetable.');
     } finally {
       setGenerating(false);
     }

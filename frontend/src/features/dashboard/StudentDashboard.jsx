@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
@@ -98,7 +99,7 @@ export default function StudentDashboard() {
       link.remove();
     } catch (error) {
       console.error('Failed to download PDF:', error);
-      alert('Failed to download PDF report.');
+      toast.error('Failed to download PDF report.');
     } finally {
       setDownloadingPdf(false);
     }

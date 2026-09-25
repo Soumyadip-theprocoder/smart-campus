@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect, useRef } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -59,10 +60,10 @@ export default function NoticeDashboard() {
       loadNotices();
 
       if (response.data.emails_sent > 0) {
-        alert(`Notice created and ${response.data.emails_sent} emails sent!`);
+        toast(`Notice created and ${response.data.emails_sent} emails sent!`);
       }
     } catch (err) {
-      alert('Failed to create notice.');
+      toast.error('Failed to create notice.');
     } finally {
       setSubmitting(false);
     }
@@ -78,7 +79,7 @@ export default function NoticeDashboard() {
       setOpenMenuId(null);
     } catch (err) {
       console.error('Failed to delete notice:', err);
-      alert('Failed to delete notice. Please try again.');
+      toast.error('Failed to delete notice. Please try again.');
     }
   };
 

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
@@ -164,7 +165,7 @@ export default function RoomsPage() {
       fetchRooms();
     } catch (err) {
       console.error('Save failed:', err);
-      alert(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to save.');
+      toast.error(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -178,7 +179,7 @@ export default function RoomsPage() {
       fetchRooms();
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Failed to delete. It may be in use by the timetable.');
+      toast.error('Failed to delete. It may be in use by the timetable.');
     }
   };
 

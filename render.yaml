@@ -1,0 +1,58 @@
+services:
+  # PostgreSQL with pgvector
+  - type: pgo
+    name: smart-campus-db
+    plan: free
+
+  # Django Backend
+  - type: web
+    name: smart-campus-backend
+    env: docker
+    region: oregon
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-campus-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://smart-campus-frontend.onrender.com"
+
+  # Django Q2 Worker
+  - type: worker
+    name: smart-campus-worker
+    env: docker
+    region: oregon
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerCommand: python manage.py qcluster
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smart-campus-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+
+  # React Frontend (Nginx)
+  - type: web
+    name: smart-campus-frontend
+    env: docker
+    region: oregon
+    plan: free
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    envVars:
+      - key: VITE_API_URL
+        value: "https://smart-campus-backend.onrender.com"

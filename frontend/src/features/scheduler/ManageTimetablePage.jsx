@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -105,7 +106,7 @@ export default function ManageTimetablePage() {
       loadAll();
     } catch (err) {
       console.error('Save failed:', err);
-      alert(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to save.');
+      toast.error(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to save.');
     } finally {
       setSaving(false);
     }
@@ -119,7 +120,7 @@ export default function ManageTimetablePage() {
       loadAll();
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Failed to delete. It may be in use.');
+      toast.error('Failed to delete. It may be in use.');
     }
   };
 

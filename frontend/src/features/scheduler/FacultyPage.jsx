@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
@@ -249,9 +250,9 @@ export default function FacultyPage() {
           const msg = Array.isArray(val) ? val.join(', ') : val;
           messages.push(`${key}: ${msg}`);
         });
-        alert(messages.join('\n') || 'Failed to save.');
+        toast.error(messages.join('\n') || 'Failed to save.');
       } else {
-        alert('Failed to save. Please try again.');
+        toast.error('Failed to save. Please try again.');
       }
     } finally {
       setSaving(false);
@@ -268,7 +269,7 @@ export default function FacultyPage() {
       fetchFaculty();
     } catch (err) {
       console.error('Delete failed:', err);
-      alert('Failed to delete faculty member.');
+      toast.error('Failed to delete faculty member.');
     }
   };
 

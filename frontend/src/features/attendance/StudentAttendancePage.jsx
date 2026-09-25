@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -49,7 +50,7 @@ export default function StudentAttendancePage() {
       await api.post('/api/attendance/mark/', {
         token: decodedText
       });
-      alert('Attendance marked successfully via secure QR code!');
+      toast.success('Attendance marked successfully via secure QR code!');
       setShowScanner(false);
       loadAttendanceData(); // Refresh data
     } catch (e) {
