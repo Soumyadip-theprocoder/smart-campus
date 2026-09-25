@@ -8,7 +8,6 @@ from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
-import face_recognition
 
 from .models import User, Student, Faculty
 from .serializers import (
@@ -123,6 +122,11 @@ class FaceRegistrationView(APIView):
             return Response({'error': 'No image provided.'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
+            try:
+                import face_recognition
+            except ImportError:
+                return Response({'error': 'Face recognition is not enabled on this server.'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+                
             image = face_recognition.load_image_file(file_obj)
             face_locations = face_recognition.face_locations(image, model='hog')
             
