@@ -1,30 +1,31 @@
 """
 Models for the Attendance app.
 """
-from django.db import models
+
 from apps.accounts.models import Student
+from django.db import models
 
 
 class Attendance(models.Model):
     """Records a single attendance entry for a student in a subject."""
 
     class Status(models.TextChoices):
-        PRESENT = 'present', 'Present'
-        ABSENT = 'absent', 'Absent'
+        PRESENT = "present", "Present"
+        ABSENT = "absent", "Absent"
 
     class Method(models.TextChoices):
-        FACE_RECOGNITION = 'face_recognition', 'Face Recognition'
-        MANUAL = 'manual', 'Manual'
+        FACE_RECOGNITION = "face_recognition", "Face Recognition"
+        MANUAL = "manual", "Manual"
 
     student = models.ForeignKey(
         Student,
         on_delete=models.CASCADE,
-        related_name='attendance_records',
+        related_name="attendance_records",
     )
     subject = models.ForeignKey(
-        'scheduler.Subject',
+        "scheduler.Subject",
         on_delete=models.CASCADE,
-        related_name='attendance_records',
+        related_name="attendance_records",
     )
     date = models.DateField(db_index=True)
     status = models.CharField(
@@ -40,11 +41,11 @@ class Attendance(models.Model):
     marked_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'attendance'
-        ordering = ['-date', '-marked_at']
-        unique_together = ['student', 'subject', 'date']
+        db_table = "attendance"
+        ordering = ["-date", "-marked_at"]
+        unique_together = ["student", "subject", "date"]
         indexes = [
-            models.Index(fields=['student', 'subject']),
+            models.Index(fields=["student", "subject"]),
         ]
 
     def __str__(self):

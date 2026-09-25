@@ -7,20 +7,23 @@ Usage:
     OR
     python seed_data.py
 """
+
 import os
 import sys
+
 import django
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
-from apps.accounts.models import User, Student, Faculty
-from apps.scheduler.models import Subject, Room, TimeSlot
-from apps.communication.models import Notice
-from apps.attendance.models import Attendance
-from datetime import time, date, timedelta
 import random
+from datetime import date, time, timedelta
+
+from apps.accounts.models import Faculty, Student, User
+from apps.attendance.models import Attendance
+from apps.communication.models import Notice
+from apps.scheduler.models import Room, Subject, TimeSlot
 
 
 def seed():
@@ -28,17 +31,17 @@ def seed():
 
     # ── Admin User ──────────────────────────────────────────────────
     admin_user, created = User.objects.get_or_create(
-        email='admin@smartcampus.edu',
+        email="admin@smartcampus.edu",
         defaults={
-            'username': 'admin',
-            'first_name': 'System',
-            'last_name': 'Admin',
-            'role': 'admin',
-            'is_staff': True,
-            'is_superuser': True,
+            "username": "admin",
+            "first_name": "System",
+            "last_name": "Admin",
+            "role": "admin",
+            "is_staff": True,
+            "is_superuser": True,
         },
     )
-    admin_password = os.environ.get('SEED_ADMIN_PASSWORD', 'admin123')
+    admin_password = os.environ.get("SEED_ADMIN_PASSWORD", "admin123")
     admin_user.set_password(admin_password)
     admin_user.save()
     print("✓ Admin user ensured (admin@smartcampus.edu)")
@@ -46,64 +49,64 @@ def seed():
     # ── Faculty ─────────────────────────────────────────────────────
     faculty_data = [
         {
-            'email': 'john.smith@smartcampus.edu',
-            'username': 'jsmith',
-            'first_name': 'John',
-            'last_name': 'Smith',
-            'employee_id': 'FAC001',
-            'department': 'Computer Science',
-            'designation': 'Professor',
+            "email": "john.smith@smartcampus.edu",
+            "username": "jsmith",
+            "first_name": "John",
+            "last_name": "Smith",
+            "employee_id": "FAC001",
+            "department": "Computer Science",
+            "designation": "Professor",
         },
         {
-            'email': 'sarah.johnson@smartcampus.edu',
-            'username': 'sjohnson',
-            'first_name': 'Sarah',
-            'last_name': 'Johnson',
-            'employee_id': 'FAC002',
-            'department': 'Computer Science',
-            'designation': 'Associate Professor',
+            "email": "sarah.johnson@smartcampus.edu",
+            "username": "sjohnson",
+            "first_name": "Sarah",
+            "last_name": "Johnson",
+            "employee_id": "FAC002",
+            "department": "Computer Science",
+            "designation": "Associate Professor",
         },
         {
-            'email': 'mike.wilson@smartcampus.edu',
-            'username': 'mwilson',
-            'first_name': 'Mike',
-            'last_name': 'Wilson',
-            'employee_id': 'FAC003',
-            'department': 'Mathematics',
-            'designation': 'Assistant Professor',
+            "email": "mike.wilson@smartcampus.edu",
+            "username": "mwilson",
+            "first_name": "Mike",
+            "last_name": "Wilson",
+            "employee_id": "FAC003",
+            "department": "Mathematics",
+            "designation": "Assistant Professor",
         },
         {
-            'email': 'emily.davis@smartcampus.edu',
-            'username': 'edavis',
-            'first_name': 'Emily',
-            'last_name': 'Davis',
-            'employee_id': 'FAC004',
-            'department': 'Electronics',
-            'designation': 'Professor',
+            "email": "emily.davis@smartcampus.edu",
+            "username": "edavis",
+            "first_name": "Emily",
+            "last_name": "Davis",
+            "employee_id": "FAC004",
+            "department": "Electronics",
+            "designation": "Professor",
         },
     ]
 
     faculty_objects = []
     for fd in faculty_data:
         user, created = User.objects.get_or_create(
-            email=fd['email'],
+            email=fd["email"],
             defaults={
-                'username': fd['username'],
-                'first_name': fd['first_name'],
-                'last_name': fd['last_name'],
-                'role': 'faculty',
+                "username": fd["username"],
+                "first_name": fd["first_name"],
+                "last_name": fd["last_name"],
+                "role": "faculty",
             },
         )
-        faculty_password = os.environ.get('SEED_FACULTY_PASSWORD', 'faculty123')
+        faculty_password = os.environ.get("SEED_FACULTY_PASSWORD", "faculty123")
         user.set_password(faculty_password)
         user.save()
 
         faculty, _ = Faculty.objects.get_or_create(
             user=user,
             defaults={
-                'employee_id': fd['employee_id'],
-                'department': fd['department'],
-                'designation': fd['designation'],
+                "employee_id": fd["employee_id"],
+                "department": fd["department"],
+                "designation": fd["designation"],
             },
         )
         faculty_objects.append(faculty)
@@ -112,134 +115,166 @@ def seed():
     # ── Students ────────────────────────────────────────────────────
     student_data = [
         {
-            'email': 'alice.brown@smartcampus.edu',
-            'username': 'abrown',
-            'first_name': 'Alice',
-            'last_name': 'Brown',
-            'enrollment_number': 'STU001',
-            'department': 'Computer Science',
-            'semester': 5,
+            "email": "alice.brown@smartcampus.edu",
+            "username": "abrown",
+            "first_name": "Alice",
+            "last_name": "Brown",
+            "enrollment_number": "STU001",
+            "department": "Computer Science",
+            "semester": 5,
         },
         {
-            'email': 'bob.taylor@smartcampus.edu',
-            'username': 'btaylor',
-            'first_name': 'Bob',
-            'last_name': 'Taylor',
-            'enrollment_number': 'STU002',
-            'department': 'Computer Science',
-            'semester': 5,
+            "email": "bob.taylor@smartcampus.edu",
+            "username": "btaylor",
+            "first_name": "Bob",
+            "last_name": "Taylor",
+            "enrollment_number": "STU002",
+            "department": "Computer Science",
+            "semester": 5,
         },
         {
-            'email': 'charlie.lee@smartcampus.edu',
-            'username': 'clee',
-            'first_name': 'Charlie',
-            'last_name': 'Lee',
-            'enrollment_number': 'STU003',
-            'department': 'Computer Science',
-            'semester': 3,
+            "email": "charlie.lee@smartcampus.edu",
+            "username": "clee",
+            "first_name": "Charlie",
+            "last_name": "Lee",
+            "enrollment_number": "STU003",
+            "department": "Computer Science",
+            "semester": 3,
         },
         {
-            'email': 'diana.patel@smartcampus.edu',
-            'username': 'dpatel',
-            'first_name': 'Diana',
-            'last_name': 'Patel',
-            'enrollment_number': 'STU004',
-            'department': 'Electronics',
-            'semester': 5,
+            "email": "diana.patel@smartcampus.edu",
+            "username": "dpatel",
+            "first_name": "Diana",
+            "last_name": "Patel",
+            "enrollment_number": "STU004",
+            "department": "Electronics",
+            "semester": 5,
         },
         {
-            'email': 'ethan.kim@smartcampus.edu',
-            'username': 'ekim',
-            'first_name': 'Ethan',
-            'last_name': 'Kim',
-            'enrollment_number': 'STU005',
-            'department': 'Mathematics',
-            'semester': 3,
+            "email": "ethan.kim@smartcampus.edu",
+            "username": "ekim",
+            "first_name": "Ethan",
+            "last_name": "Kim",
+            "enrollment_number": "STU005",
+            "department": "Mathematics",
+            "semester": 3,
         },
         {
-            'email': 'fatima.zahra@smartcampus.edu',
-            'username': 'fzahra',
-            'first_name': 'Fatima',
-            'last_name': 'Zahra',
-            'enrollment_number': 'STU006',
-            'department': 'Computer Science',
-            'semester': 5,
+            "email": "fatima.zahra@smartcampus.edu",
+            "username": "fzahra",
+            "first_name": "Fatima",
+            "last_name": "Zahra",
+            "enrollment_number": "STU006",
+            "department": "Computer Science",
+            "semester": 5,
         },
         {
-            'email': 'gabriel.silva@smartcampus.edu',
-            'username': 'gsilva',
-            'first_name': 'Gabriel',
-            'last_name': 'Silva',
-            'enrollment_number': 'STU007',
-            'department': 'Electronics',
-            'semester': 3,
+            "email": "gabriel.silva@smartcampus.edu",
+            "username": "gsilva",
+            "first_name": "Gabriel",
+            "last_name": "Silva",
+            "enrollment_number": "STU007",
+            "department": "Electronics",
+            "semester": 3,
         },
         {
-            'email': 'haruki.murakami@smartcampus.edu',
-            'username': 'hmurakami',
-            'first_name': 'Haruki',
-            'last_name': 'Murakami',
-            'enrollment_number': 'STU008',
-            'department': 'Computer Science',
-            'semester': 1,
+            "email": "haruki.murakami@smartcampus.edu",
+            "username": "hmurakami",
+            "first_name": "Haruki",
+            "last_name": "Murakami",
+            "enrollment_number": "STU008",
+            "department": "Computer Science",
+            "semester": 1,
         },
         {
-            'email': 'isabella.martinez@smartcampus.edu',
-            'username': 'imartinez',
-            'first_name': 'Isabella',
-            'last_name': 'Martinez',
-            'enrollment_number': 'STU009',
-            'department': 'Mathematics',
-            'semester': 7,
+            "email": "isabella.martinez@smartcampus.edu",
+            "username": "imartinez",
+            "first_name": "Isabella",
+            "last_name": "Martinez",
+            "enrollment_number": "STU009",
+            "department": "Mathematics",
+            "semester": 7,
         },
         {
-            'email': 'jamal.jackson@smartcampus.edu',
-            'username': 'jjackson',
-            'first_name': 'Jamal',
-            'last_name': 'Jackson',
-            'enrollment_number': 'STU010',
-            'department': 'Computer Science',
-            'semester': 5,
-        }
+            "email": "jamal.jackson@smartcampus.edu",
+            "username": "jjackson",
+            "first_name": "Jamal",
+            "last_name": "Jackson",
+            "enrollment_number": "STU010",
+            "department": "Computer Science",
+            "semester": 5,
+        },
     ]
 
     for sd in student_data:
         user, created = User.objects.get_or_create(
-            email=sd['email'],
+            email=sd["email"],
             defaults={
-                'username': sd['username'],
-                'first_name': sd['first_name'],
-                'last_name': sd['last_name'],
-                'role': 'student',
+                "username": sd["username"],
+                "first_name": sd["first_name"],
+                "last_name": sd["last_name"],
+                "role": "student",
             },
         )
-        student_password = os.environ.get('SEED_STUDENT_PASSWORD', 'student123')
+        student_password = os.environ.get("SEED_STUDENT_PASSWORD", "student123")
         user.set_password(student_password)
         user.save()
 
         Student.objects.get_or_create(
             user=user,
             defaults={
-                'enrollment_number': sd['enrollment_number'],
-                'department': sd['department'],
-                'semester': sd['semester'],
+                "enrollment_number": sd["enrollment_number"],
+                "department": sd["department"],
+                "semester": sd["semester"],
             },
         )
-        print(f"✓ Student: {sd['first_name']} {sd['last_name']} ({sd['enrollment_number']})")
+        print(
+            f"✓ Student: {sd['first_name']} {sd['last_name']} ({sd['enrollment_number']})"
+        )
 
     # ── Rooms ───────────────────────────────────────────────────────
     rooms_data = [
-        {'room_number': 'LH-101', 'capacity': 60, 'building': 'Main Block', 'room_type': 'lecture'},
-        {'room_number': 'LH-102', 'capacity': 60, 'building': 'Main Block', 'room_type': 'lecture'},
-        {'room_number': 'LH-201', 'capacity': 40, 'building': 'Main Block', 'room_type': 'lecture'},
-        {'room_number': 'LAB-301', 'capacity': 30, 'building': 'CS Block', 'room_type': 'lab'},
-        {'room_number': 'LAB-302', 'capacity': 30, 'building': 'CS Block', 'room_type': 'lab'},
-        {'room_number': 'SR-101', 'capacity': 20, 'building': 'Annex', 'room_type': 'seminar'},
+        {
+            "room_number": "LH-101",
+            "capacity": 60,
+            "building": "Main Block",
+            "room_type": "lecture",
+        },
+        {
+            "room_number": "LH-102",
+            "capacity": 60,
+            "building": "Main Block",
+            "room_type": "lecture",
+        },
+        {
+            "room_number": "LH-201",
+            "capacity": 40,
+            "building": "Main Block",
+            "room_type": "lecture",
+        },
+        {
+            "room_number": "LAB-301",
+            "capacity": 30,
+            "building": "CS Block",
+            "room_type": "lab",
+        },
+        {
+            "room_number": "LAB-302",
+            "capacity": 30,
+            "building": "CS Block",
+            "room_type": "lab",
+        },
+        {
+            "room_number": "SR-101",
+            "capacity": 20,
+            "building": "Annex",
+            "room_type": "seminar",
+        },
     ]
 
     for rd in rooms_data:
         Room.objects.get_or_create(
-            room_number=rd['room_number'],
+            room_number=rd["room_number"],
             defaults=rd,
         )
         print(f"✓ Room: {rd['room_number']} ({rd['building']}, cap: {rd['capacity']})")
@@ -247,18 +282,18 @@ def seed():
     # ── Time Slots ──────────────────────────────────────────────────
     # 8 periods per day: 4 morning (9 AM – 1 PM) + 4 afternoon (2 PM – 6 PM)
     slot_times = [
-        (time(9, 0), time(10, 0)),    # Period 1
-        (time(10, 0), time(11, 0)),   # Period 2
-        (time(11, 0), time(12, 0)),   # Period 3
-        (time(12, 0), time(13, 0)),   # Period 4
+        (time(9, 0), time(10, 0)),  # Period 1
+        (time(10, 0), time(11, 0)),  # Period 2
+        (time(11, 0), time(12, 0)),  # Period 3
+        (time(12, 0), time(13, 0)),  # Period 4
         # ── Lunch Break 1:00 PM – 2:00 PM ──
-        (time(14, 0), time(15, 0)),   # Period 5
-        (time(15, 0), time(16, 0)),   # Period 6
-        (time(16, 0), time(17, 0)),   # Period 7
-        (time(17, 0), time(18, 0)),   # Period 8
+        (time(14, 0), time(15, 0)),  # Period 5
+        (time(15, 0), time(16, 0)),  # Period 6
+        (time(16, 0), time(17, 0)),  # Period 7
+        (time(17, 0), time(18, 0)),  # Period 8
     ]
 
-    days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+    days = ["MON", "TUE", "WED", "THU", "FRI", "SAT"]
 
     for day in days:
         for start, end in slot_times:
@@ -268,63 +303,65 @@ def seed():
                 end_time=end,
             )
 
-    print(f"✓ Time slots: {len(days)} days × {len(slot_times)} periods = {len(days)*len(slot_times)} total")
+    print(
+        f"✓ Time slots: {len(days)} days × {len(slot_times)} periods = {len(days)*len(slot_times)} total"
+    )
 
     # ── Subjects ────────────────────────────────────────────────────
     subjects_data = [
         {
-            'code': 'CS301',
-            'name': 'Data Structures & Algorithms',
-            'faculty': faculty_objects[0],
-            'credits': 4,
-            'required_capacity': 40,
-            'sessions_per_week': 3,
+            "code": "CS301",
+            "name": "Data Structures & Algorithms",
+            "faculty": faculty_objects[0],
+            "credits": 4,
+            "required_capacity": 40,
+            "sessions_per_week": 3,
         },
         {
-            'code': 'CS302',
-            'name': 'Database Management Systems',
-            'faculty': faculty_objects[1],
-            'credits': 3,
-            'required_capacity': 40,
-            'sessions_per_week': 3,
+            "code": "CS302",
+            "name": "Database Management Systems",
+            "faculty": faculty_objects[1],
+            "credits": 3,
+            "required_capacity": 40,
+            "sessions_per_week": 3,
         },
         {
-            'code': 'CS303',
-            'name': 'Computer Networks',
-            'faculty': faculty_objects[0],
-            'credits': 3,
-            'required_capacity': 40,
-            'sessions_per_week': 2,
+            "code": "CS303",
+            "name": "Computer Networks",
+            "faculty": faculty_objects[0],
+            "credits": 3,
+            "required_capacity": 40,
+            "sessions_per_week": 2,
         },
         {
-            'code': 'MA201',
-            'name': 'Discrete Mathematics',
-            'faculty': faculty_objects[2],
-            'credits': 3,
-            'required_capacity': 60,
-            'sessions_per_week': 3,
+            "code": "MA201",
+            "name": "Discrete Mathematics",
+            "faculty": faculty_objects[2],
+            "credits": 3,
+            "required_capacity": 60,
+            "sessions_per_week": 3,
         },
         {
-            'code': 'EC201',
-            'name': 'Digital Electronics',
-            'faculty': faculty_objects[3],
-            'credits': 4,
-            'required_capacity': 40,
-            'sessions_per_week': 3,
+            "code": "EC201",
+            "name": "Digital Electronics",
+            "faculty": faculty_objects[3],
+            "credits": 4,
+            "required_capacity": 40,
+            "sessions_per_week": 3,
         },
         {
-            'code': 'CS304',
-            'name': 'Artificial Intelligence',
-            'faculty': faculty_objects[1],
-            'credits': 3,
-            'required_capacity': 30,
-            'sessions_per_week': 2,
+            "code": "CS304",
+            "name": "Artificial Intelligence",
+            "faculty": faculty_objects[1],
+            "credits": 3,
+            "required_capacity": 30,
+            "sessions_per_week": 2,
         },
     ]
 
     for sd in subjects_data:
         Subject.objects.get_or_create(
-            code=sd['code'],
+            code=sd["code"],
             defaults=sd,
         )
         print(f"✓ Subject: {sd['code']} — {sd['name']}")
@@ -332,47 +369,47 @@ def seed():
     # ── Sample Notices ──────────────────────────────────────────────
     notices_data = [
         {
-            'title': 'Mid-Semester Examination Schedule Released',
-            'content': 'The mid-semester examination schedule for all departments has been released. Please check the timetable section for your exam dates and timings. All students are requested to carry their ID cards to the examination hall.',
-            'priority': 'high',
-            'target_audience': 'all',
+            "title": "Mid-Semester Examination Schedule Released",
+            "content": "The mid-semester examination schedule for all departments has been released. Please check the timetable section for your exam dates and timings. All students are requested to carry their ID cards to the examination hall.",
+            "priority": "high",
+            "target_audience": "all",
         },
         {
-            'title': 'Campus Wi-Fi Maintenance — Weekend Downtime',
-            'content': 'The campus Wi-Fi network will undergo scheduled maintenance this Saturday from 10:00 PM to Sunday 6:00 AM. Please plan your work accordingly.',
-            'priority': 'medium',
-            'target_audience': 'all',
+            "title": "Campus Wi-Fi Maintenance — Weekend Downtime",
+            "content": "The campus Wi-Fi network will undergo scheduled maintenance this Saturday from 10:00 PM to Sunday 6:00 AM. Please plan your work accordingly.",
+            "priority": "medium",
+            "target_audience": "all",
         },
         {
-            'title': 'Workshop on Machine Learning — Register Now',
-            'content': 'The Computer Science department is organizing a two-day workshop on "Practical Machine Learning with Python" on May 20-21. Registration is open for all CS students. Limited seats available.',
-            'priority': 'low',
-            'target_audience': 'students',
+            "title": "Workshop on Machine Learning — Register Now",
+            "content": 'The Computer Science department is organizing a two-day workshop on "Practical Machine Learning with Python" on May 20-21. Registration is open for all CS students. Limited seats available.',
+            "priority": "low",
+            "target_audience": "students",
         },
         {
-            'title': 'Campus Placement Drive 2026',
-            'content': 'Top tier tech companies including Google, Microsoft, and Amazon are visiting our campus for the placement drive next month. Final year students please update your resumes in the placement portal.',
-            'priority': 'urgent',
-            'target_audience': 'students',
+            "title": "Campus Placement Drive 2026",
+            "content": "Top tier tech companies including Google, Microsoft, and Amazon are visiting our campus for the placement drive next month. Final year students please update your resumes in the placement portal.",
+            "priority": "urgent",
+            "target_audience": "students",
         },
         {
-            'title': 'Faculty Development Program',
-            'content': 'A mandatory faculty development program on "AI in Education" will be held next Friday in the main auditorium. Please ensure your classes are rescheduled.',
-            'priority': 'medium',
-            'target_audience': 'faculty',
+            "title": "Faculty Development Program",
+            "content": 'A mandatory faculty development program on "AI in Education" will be held next Friday in the main auditorium. Please ensure your classes are rescheduled.',
+            "priority": "medium",
+            "target_audience": "faculty",
         },
         {
-            'title': 'Annual Tech Fest "Innovate 2026"',
-            'content': 'Get ready for the biggest technical festival of the year! Call for project submissions is now open. Exciting cash prizes to be won.',
-            'priority': 'low',
-            'target_audience': 'all',
-        }
+            "title": 'Annual Tech Fest "Innovate 2026"',
+            "content": "Get ready for the biggest technical festival of the year! Call for project submissions is now open. Exciting cash prizes to be won.",
+            "priority": "low",
+            "target_audience": "all",
+        },
     ]
 
     for nd in notices_data:
         Notice.objects.get_or_create(
-            title=nd['title'],
-            defaults={**nd, 'posted_by': admin_user},
+            title=nd["title"],
+            defaults={**nd, "posted_by": admin_user},
         )
         print(f"✓ Notice: {nd['title'][:50]}...")
 
@@ -387,26 +424,26 @@ def seed():
 
     # Map subjects to the days they have classes (simulate a timetable)
     subject_class_days = {
-        'CS301': [0, 2, 4],      # Mon, Wed, Fri
-        'CS302': [1, 3, 4],      # Tue, Thu, Fri
-        'CS303': [0, 3],         # Mon, Thu
-        'MA201': [1, 2, 4],      # Tue, Wed, Fri
-        'EC201': [0, 2, 3],      # Mon, Wed, Thu
-        'CS304': [1, 3],         # Tue, Thu
+        "CS301": [0, 2, 4],  # Mon, Wed, Fri
+        "CS302": [1, 3, 4],  # Tue, Thu, Fri
+        "CS303": [0, 3],  # Mon, Thu
+        "MA201": [1, 2, 4],  # Tue, Wed, Fri
+        "EC201": [0, 2, 3],  # Mon, Wed, Thu
+        "CS304": [1, 3],  # Tue, Thu
     }
 
     # Per-student attendance tendency (some students attend more regularly)
     student_attendance_rate = {
-        'STU001': 0.92,  # Alice — very regular
-        'STU002': 0.78,  # Bob — decent
-        'STU003': 0.65,  # Charlie — struggles
-        'STU004': 0.88,  # Diana — good
-        'STU005': 0.72,  # Ethan — average
-        'STU006': 0.98,  # Fatima — near perfect
-        'STU007': 0.45,  # Gabriel — severe attendance shortage
-        'STU008': 0.85,  # Haruki — good
-        'STU009': 0.95,  # Isabella — excellent
-        'STU010': 0.30,  # Jamal — failing attendance
+        "STU001": 0.92,  # Alice — very regular
+        "STU002": 0.78,  # Bob — decent
+        "STU003": 0.65,  # Charlie — struggles
+        "STU004": 0.88,  # Diana — good
+        "STU005": 0.72,  # Ethan — average
+        "STU006": 0.98,  # Fatima — near perfect
+        "STU007": 0.45,  # Gabriel — severe attendance shortage
+        "STU008": 0.85,  # Haruki — good
+        "STU009": 0.95,  # Isabella — excellent
+        "STU010": 0.30,  # Jamal — failing attendance
     }
 
     attendance_count = 0
@@ -423,13 +460,15 @@ def seed():
                 continue
 
             for student in students:
-                rate = student_attendance_rate.get(
-                    student.enrollment_number, 0.80
-                )
+                rate = student_attendance_rate.get(student.enrollment_number, 0.80)
                 is_present = random.random() < rate
                 method = random.choice(
-                    ['face_recognition', 'face_recognition',
-                     'face_recognition', 'manual']  # 75% face recog
+                    [
+                        "face_recognition",
+                        "face_recognition",
+                        "face_recognition",
+                        "manual",
+                    ]  # 75% face recog
                 )
 
                 obj, created = Attendance.objects.get_or_create(
@@ -437,8 +476,8 @@ def seed():
                     subject=subj,
                     date=current_date,
                     defaults={
-                        'status': 'present' if is_present else 'absent',
-                        'method': method,
+                        "status": "present" if is_present else "absent",
+                        "method": method,
                     },
                 )
                 if created:
@@ -449,9 +488,7 @@ def seed():
     # Print per-student summary
     for student in students:
         total = Attendance.objects.filter(student=student).count()
-        present = Attendance.objects.filter(
-            student=student, status='present'
-        ).count()
+        present = Attendance.objects.filter(student=student, status="present").count()
         pct = (present / total * 100) if total else 0
         print(
             f"  [Summary] {student.user.first_name} {student.user.last_name}: "
@@ -461,5 +498,5 @@ def seed():
     print("\nDatabase seeding complete!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     seed()

@@ -17,19 +17,22 @@ Directory structure expected:
 Usage:
     python encode_faces.py
 """
+
+import json
 import os
 import sys
-import json
+
 import django
 import numpy as np
 
 # Setup Django environment
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 try:
     import face_recognition
+
     HAS_FR = True
 except ImportError:
     HAS_FR = False
@@ -44,7 +47,7 @@ def encode_faces():
     """
     training_dir = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        'training_images',
+        "training_images",
     )
 
     if not os.path.exists(training_dir):
@@ -53,9 +56,9 @@ def encode_faces():
 
     # Iterate through student folders
     student_dirs = [
-        d for d in os.listdir(training_dir)
-        if os.path.isdir(os.path.join(training_dir, d))
-        and not d.startswith('.')
+        d
+        for d in os.listdir(training_dir)
+        if os.path.isdir(os.path.join(training_dir, d)) and not d.startswith(".")
     ]
 
     if not student_dirs:
@@ -77,8 +80,9 @@ def encode_faces():
 
         # Collect all image files
         image_files = [
-            f for f in os.listdir(student_path)
-            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))
+            f
+            for f in os.listdir(student_path)
+            if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp"))
         ]
 
         if not image_files:
@@ -97,7 +101,7 @@ def encode_faces():
                     image = face_recognition.load_image_file(img_path)
 
                     # Detect faces
-                    face_locations = face_recognition.face_locations(image, model='hog')
+                    face_locations = face_recognition.face_locations(image, model="hog")
 
                     if not face_locations:
                         print("No face detected.")
@@ -106,7 +110,9 @@ def encode_faces():
                     face_locations = [(0, 0, 0, 0)]
 
                 if len(face_locations) > 1:
-                    print(f"Multiple faces detected ({len(face_locations)}), using first.")
+                    print(
+                        f"Multiple faces detected ({len(face_locations)}), using first."
+                    )
 
                 if HAS_FR:
                     # Generate encoding for the first (or only) face
@@ -131,7 +137,7 @@ def encode_faces():
 
         # Save to database
         student.face_encoding = avg_encoding
-        student.save(update_fields=['face_encoding'])
+        student.save(update_fields=["face_encoding"])
         print(
             f"  ✓ Saved encoding for {enrollment_number} "
             f"(averaged from {len(encodings)} images)"
@@ -140,5 +146,5 @@ def encode_faces():
     print("\n✅ Face encoding complete!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     encode_faces()

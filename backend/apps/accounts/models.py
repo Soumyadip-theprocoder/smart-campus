@@ -3,19 +3,20 @@ Models for the Accounts app.
 Defines the custom User model with role-based access, plus
 Student and Faculty profile models.
 """
+
 from django.contrib.auth.models import AbstractUser
-from django.db import models
 from django.contrib.postgres.indexes import GinIndex
-from pgvector.django import VectorField, HnswIndex
+from django.db import models
+from pgvector.django import HnswIndex, VectorField
 
 
 class User(AbstractUser):
     """Custom user model with role field for RBAC."""
 
     class Role(models.TextChoices):
-        ADMIN = 'admin', 'Admin'
-        STUDENT = 'student', 'Student'
-        FACULTY = 'faculty', 'Faculty'
+        ADMIN = "admin", "Admin"
+        STUDENT = "student", "Student"
+        FACULTY = "faculty", "Faculty"
 
     email = models.EmailField(unique=True)
     role = models.CharField(
@@ -24,12 +25,12 @@ class User(AbstractUser):
         default=Role.STUDENT,
     )
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username", "first_name", "last_name"]
 
     class Meta:
-        db_table = 'users'
-        ordering = ['id']
+        db_table = "users"
+        ordering = ["id"]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.role})"
@@ -53,7 +54,7 @@ class Student(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name='student_profile',
+        related_name="student_profile",
     )
     enrollment_number = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=100)
@@ -62,24 +63,24 @@ class Student(models.Model):
         dimensions=128,
         blank=True,
         null=True,
-        help_text='128-dimensional face encoding vector'
+        help_text="128-dimensional face encoding vector",
     )
     face_image = models.ImageField(
-        upload_to='face_images/',
+        upload_to="face_images/",
         blank=True,
         null=True,
     )
 
     class Meta:
-        db_table = 'students'
-        ordering = ['enrollment_number']
+        db_table = "students"
+        ordering = ["enrollment_number"]
         indexes = [
             HnswIndex(
-                name='student_face_hnsw_idx',
-                fields=['face_encoding'],
+                name="student_face_hnsw_idx",
+                fields=["face_encoding"],
                 m=16,
                 ef_construction=64,
-                opclasses=['vector_l2_ops']
+                opclasses=["vector_l2_ops"],
             )
         ]
 
@@ -93,25 +94,21 @@ class Faculty(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name='faculty_profile',
+        related_name="faculty_profile",
     )
     employee_id = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=100)
-    designation = models.CharField(max_length=100, default='Assistant Professor')
+    designation = models.CharField(max_length=100, default="Assistant Professor")
     max_hours_per_week = models.PositiveIntegerField(default=20)
     availability = models.JSONField(
-        blank=True,
-        null=True,
-        help_text='Per-day time slot availability preferences'
+        blank=True, null=True, help_text="Per-day time slot availability preferences"
     )
 
     class Meta:
-        db_table = 'faculty'
-        verbose_name_plural = 'Faculty'
-        ordering = ['employee_id']
-        indexes = [
-            GinIndex(fields=['availability'], name='faculty_avail_gin_idx')
-        ]
+        db_table = "faculty"
+        verbose_name_plural = "Faculty"
+        ordering = ["employee_id"]
+        indexes = [GinIndex(fields=["availability"], name="faculty_avail_gin_idx")]
 
     def __str__(self):
         return f"{self.employee_id} — {self.user.get_full_name()}"

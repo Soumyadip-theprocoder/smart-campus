@@ -1,9 +1,11 @@
 """
 Serializers for the Accounts app.
 """
-from rest_framework import serializers
+
 from django.contrib.auth import authenticate
-from .models import User, Student, Faculty
+from rest_framework import serializers
+
+from .models import Faculty, Student, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -11,22 +13,28 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'role']
-        read_only_fields = ['id']
+        fields = ["id", "email", "username", "first_name", "last_name", "role"]
+        read_only_fields = ["id"]
 
 
 class StudentSerializer(serializers.ModelSerializer):
     """Serializer for Student profile."""
+
     user = UserSerializer(read_only=True)
     has_face_encoding = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
         fields = [
-            'id', 'user', 'enrollment_number', 'department',
-            'semester', 'face_image', 'has_face_encoding',
+            "id",
+            "user",
+            "enrollment_number",
+            "department",
+            "semester",
+            "face_image",
+            "has_face_encoding",
         ]
-        read_only_fields = ['id']
+        read_only_fields = ["id"]
 
     def get_has_face_encoding(self, obj):
         return obj.face_encoding is not None
@@ -34,16 +42,26 @@ class StudentSerializer(serializers.ModelSerializer):
 
 class FacultySerializer(serializers.ModelSerializer):
     """Serializer for Faculty profile."""
+
     user = UserSerializer(read_only=True)
 
     class Meta:
         model = Faculty
-        fields = ['id', 'user', 'employee_id', 'department', 'designation', 'max_hours_per_week', 'availability']
-        read_only_fields = ['id']
+        fields = [
+            "id",
+            "user",
+            "employee_id",
+            "department",
+            "designation",
+            "max_hours_per_week",
+            "availability",
+        ]
+        read_only_fields = ["id"]
 
 
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializer for user registration."""
+
     password = serializers.CharField(write_only=True, min_length=6)
     enrollment_number = serializers.CharField(required=False, allow_blank=True)
     employee_id = serializers.CharField(required=False, allow_blank=True)
@@ -52,27 +70,32 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'email', 'username', 'password', 'first_name', 'last_name',
-            'role', 'enrollment_number', 'employee_id', 'department',
+            "email",
+            "username",
+            "password",
+            "first_name",
+            "last_name",
+            "role",
+            "enrollment_number",
+            "employee_id",
+            "department",
         ]
 
     def validate(self, attrs):
-        role = attrs.get('role', User.Role.STUDENT)
-        if role == User.Role.STUDENT and not attrs.get('enrollment_number'):
+        role = attrs.get("role", User.Role.STUDENT)
+        if role == User.Role.STUDENT and not attrs.get("enrollment_number"):
             raise serializers.ValidationError(
-                {'enrollment_number': 'Required for students.'}
+                {"enrollment_number": "Required for students."}
             )
-        if role == User.Role.FACULTY and not attrs.get('employee_id'):
-            raise serializers.ValidationError(
-                {'employee_id': 'Required for faculty.'}
-            )
+        if role == User.Role.FACULTY and not attrs.get("employee_id"):
+            raise serializers.ValidationError({"employee_id": "Required for faculty."})
         return attrs
 
     def create(self, validated_data):
-        enrollment_number = validated_data.pop('enrollment_number', None)
-        employee_id = validated_data.pop('employee_id', None)
-        department = validated_data.pop('department', '')
-        password = validated_data.pop('password')
+        enrollment_number = validated_data.pop("enrollment_number", None)
+        employee_id = validated_data.pop("employee_id", None)
+        department = validated_data.pop("department", "")
+        password = validated_data.pop("password")
 
         user = User(**validated_data)
         user.set_password(password)
@@ -97,17 +120,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.Serializer):
     """Serializer for login — validates credentials."""
+
     email = serializers.EmailField()
     password = serializers.CharField()
 
     def validate(self, attrs):
         user = authenticate(
-            username=attrs['email'],
-            password=attrs['password'],
+            username=attrs["email"],
+            password=attrs["password"],
         )
         if not user:
-            raise serializers.ValidationError('Invalid email or password.')
+            raise serializers.ValidationError("Invalid email or password.")
         if not user.is_active:
-            raise serializers.ValidationError('Account is disabled.')
-        attrs['user'] = user
+            raise serializers.ValidationError("Account is disabled.")
+        attrs["user"] = user
         return attrs

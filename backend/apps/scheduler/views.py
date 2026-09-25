@@ -1,36 +1,37 @@
 """
 Views for the Scheduler app.
 """
-from rest_framework import generics, status, permissions
+
+from django_q.tasks import async_task, fetch, result
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Subject, Room, TimeSlot, TimetableEntry
-from .serializers import (
-    SubjectSerializer, RoomSerializer,
-    TimeSlotSerializer, TimetableEntrySerializer,
-)
 from .csp_solver import ScheduleCSP
-from .csp_solver import ScheduleCSP
-from django_q.tasks import async_task, result, fetch
+from .models import Room, Subject, TimeSlot, TimetableEntry
+from .serializers import (RoomSerializer, SubjectSerializer,
+                          TimeSlotSerializer, TimetableEntrySerializer)
 
 
 class SubjectListView(generics.ListCreateAPIView):
     """List or create subjects."""
+
     serializer_class = SubjectSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Subject.objects.select_related('faculty__user').all()
+    queryset = Subject.objects.select_related("faculty__user").all()
 
 
 class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a subject."""
+
     serializer_class = SubjectSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Subject.objects.select_related('faculty__user').all()
+    queryset = Subject.objects.select_related("faculty__user").all()
 
 
 class RoomListView(generics.ListCreateAPIView):
     """List or create rooms."""
+
     serializer_class = RoomSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Room.objects.all()
@@ -38,6 +39,7 @@ class RoomListView(generics.ListCreateAPIView):
 
 class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a room."""
+
     serializer_class = RoomSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Room.objects.all()
@@ -45,6 +47,7 @@ class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class TimeSlotListView(generics.ListCreateAPIView):
     """List or create time slots."""
+
     serializer_class = TimeSlotSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = TimeSlot.objects.all()
@@ -52,6 +55,7 @@ class TimeSlotListView(generics.ListCreateAPIView):
 
 class TimeSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a time slot."""
+
     serializer_class = TimeSlotSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = TimeSlot.objects.all()
@@ -59,12 +63,15 @@ class TimeSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class TimetableView(generics.ListAPIView):
     """Get the current timetable."""
+
     serializer_class = TimetableEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return TimetableEntry.objects.select_related(
-            'subject__faculty__user', 'room', 'time_slot',
+            "subject__faculty__user",
+            "room",
+            "time_slot",
         ).all()
 
 
@@ -82,49 +89,68 @@ class GenerateTimetableView(APIView):
         - avoid_back_to_back: bool, if true, try to avoid back-to-back classes for faculty
         - max_classes_per_day: int, max classes per day per subject (default: 1)
     """
+
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         config = request.data or {}
-        
+
         # Enqueue the background task
-        task_id = async_task('apps.scheduler.tasks.generate_timetable_task', config)
+        task_id = async_task("apps.scheduler.tasks.generate_timetable_task", config)
 
         from django.conf import settings
-        if getattr(settings, 'Q_CLUSTER', {}).get('sync', False):
+
+        if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
             task = fetch(task_id)
             if task and task.success:
                 result_data = task.result
-                if isinstance(result_data, dict) and not result_data.get('success', True):
-                    return Response({'error': result_data.get('error', 'Unknown error')}, status=status.HTTP_400_BAD_REQUEST)
-                
-                new_entries = TimetableEntry.objects.select_related('subject__faculty__user', 'room', 'time_slot').all()
-                serializer = TimetableEntrySerializer(new_entries, many=True)
-                return Response({
-                    'message': f'Successfully scheduled {len(new_entries)} sessions.',
-                    'timetable': serializer.data,
-                }, status=status.HTTP_201_CREATED)
-            elif task and task.success is False:
-                return Response({'error': str(task.result)}, status=status.HTTP_400_BAD_REQUEST)
+                if isinstance(result_data, dict) and not result_data.get(
+                    "success", True
+                ):
+                    return Response(
+                        {"error": result_data.get("error", "Unknown error")},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        return Response({
-            'message': 'Timetable generation has been queued in the background.',
-            'task_id': task_id,
-            'status': 'processing'
-        }, status=status.HTTP_202_ACCEPTED)
+                new_entries = TimetableEntry.objects.select_related(
+                    "subject__faculty__user", "room", "time_slot"
+                ).all()
+                serializer = TimetableEntrySerializer(new_entries, many=True)
+                return Response(
+                    {
+                        "message": f"Successfully scheduled {len(new_entries)} sessions.",
+                        "timetable": serializer.data,
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+            elif task and task.success is False:
+                return Response(
+                    {"error": str(task.result)}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+        return Response(
+            {
+                "message": "Timetable generation has been queued in the background.",
+                "task_id": task_id,
+                "status": "processing",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
 
 class TaskStatusView(APIView):
     """Check the status of a background task."""
+
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, task_id):
         task = fetch(task_id)
         if not task:
-            return Response({'status': 'unknown'}, status=status.HTTP_404_NOT_FOUND)
-        
+            return Response({"status": "unknown"}, status=status.HTTP_404_NOT_FOUND)
+
         if task.success:
-            return Response({'status': 'completed', 'result': task.result})
+            return Response({"status": "completed", "result": task.result})
         elif task.success is False:
-            return Response({'status': 'failed', 'error': task.result})
+            return Response({"status": "failed", "error": task.result})
         else:
-            return Response({'status': 'processing'})
+            return Response({"status": "processing"})

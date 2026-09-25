@@ -2,13 +2,14 @@
 Email service for automated notifications.
 Handles attendance alerts and notice emails via SMTP.
 """
-import logging
-from django.core.mail import send_mass_mail, send_mail
-from django.conf import settings
-from django.template.loader import render_to_string
 
-from apps.accounts.models import User, Student
+import logging
+
+from apps.accounts.models import Student, User
 from apps.attendance.services import get_low_attendance_students
+from django.conf import settings
+from django.core.mail import send_mail, send_mass_mail
+from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +20,20 @@ def send_notice_email(notice) -> int:
     Returns the number of emails sent.
     """
     # Determine recipients based on target audience
-    if notice.target_audience == 'students':
+    if notice.target_audience == "students":
         recipients = User.objects.filter(
-            role=User.Role.STUDENT, is_active=True,
-        ).values_list('email', flat=True)
-    elif notice.target_audience == 'faculty':
+            role=User.Role.STUDENT,
+            is_active=True,
+        ).values_list("email", flat=True)
+    elif notice.target_audience == "faculty":
         recipients = User.objects.filter(
-            role=User.Role.FACULTY, is_active=True,
-        ).values_list('email', flat=True)
+            role=User.Role.FACULTY,
+            is_active=True,
+        ).values_list("email", flat=True)
     else:  # 'all'
         recipients = User.objects.filter(
             is_active=True,
-        ).values_list('email', flat=True)
+        ).values_list("email", flat=True)
 
     if not recipients:
         return 0
@@ -47,14 +50,13 @@ def send_notice_email(notice) -> int:
     )
 
     emails = [
-        (subject, message, settings.DEFAULT_FROM_EMAIL, [email])
-        for email in recipients
+        (subject, message, settings.DEFAULT_FROM_EMAIL, [email]) for email in recipients
     ]
 
     try:
         count = send_mass_mail(emails, fail_silently=False)
         notice.email_sent = True
-        notice.save(update_fields=['email_sent'])
+        notice.save(update_fields=["email_sent"])
         logger.info(f"Sent {count} notification emails for notice: {notice.title}")
         return count
     except Exception as e:
@@ -75,7 +77,7 @@ def send_attendance_alerts(threshold: float = 75.0) -> int:
 
     emails_sent = 0
     for record in low_attendance:
-        student = record['student']
+        student = record["student"]
         subject_line = (
             f"[Smart Campus] ⚠️ Attendance Alert — "
             f"{record['percentage']}% attendance"

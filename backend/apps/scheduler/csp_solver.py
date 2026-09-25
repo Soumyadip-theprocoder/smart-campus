@@ -16,6 +16,7 @@ Constraints:
   7. Preferred room types per subject (soft — tried first)
   8. Avoid back-to-back classes for same faculty (soft)
 """
+
 import random
 from typing import Optional
 
@@ -67,13 +68,15 @@ class ScheduleCSP:
         self.max_classes_per_day = max_classes_per_day
 
         # Build lookup maps
-        self._ts_map = {ts['id']: ts for ts in time_slots}
-        self._room_map = {r['id']: r for r in rooms}
-        
+        self._ts_map = {ts["id"]: ts for ts in time_slots}
+        self._room_map = {r["id"]: r for r in rooms}
+
         # Build preferred rooms lookup
         self.preferred_rooms = {}
         for sid, pref_type in self.preferred_room_types.items():
-            self.preferred_rooms[sid] = {r['id'] for r in rooms if r.get('room_type') == pref_type}
+            self.preferred_rooms[sid] = {
+                r["id"] for r in rooms if r.get("room_type") == pref_type
+            }
 
         # Build variables: one per session per subject
         self.variables = []
@@ -83,31 +86,33 @@ class ScheduleCSP:
         locked_map = {}  # (subject_id, session_idx) -> (ts_id, room_id)
         locked_session_counter = {}
         for le in self.locked_entries:
-            sid = le['subject_id']
+            sid = le["subject_id"]
             locked_session_counter.setdefault(sid, 0)
             idx = locked_session_counter[sid]
-            locked_map[(sid, idx)] = (le['time_slot_id'], le['room_id'])
+            locked_map[(sid, idx)] = (le["time_slot_id"], le["room_id"])
             locked_session_counter[sid] += 1
 
         for subj in subjects:
-            for session_idx in range(subj['sessions_per_week']):
+            for session_idx in range(subj["sessions_per_week"]):
                 var_idx = len(self.variables)
-                self.variables.append({
-                    'subject_id': subj['id'],
-                    'subject_code': subj['code'],
-                    'faculty_id': subj['faculty_id'],
-                    'required_capacity': subj['required_capacity'],
-                    'elective_group_id': subj.get('elective_group_id'),
-                    'session_index': session_idx,
-                })
-                if (subj['id'], session_idx) in locked_map:
+                self.variables.append(
+                    {
+                        "subject_id": subj["id"],
+                        "subject_code": subj["code"],
+                        "faculty_id": subj["faculty_id"],
+                        "required_capacity": subj["required_capacity"],
+                        "elective_group_id": subj.get("elective_group_id"),
+                        "session_index": session_idx,
+                    }
+                )
+                if (subj["id"], session_idx) in locked_map:
                     self._locked_var_indices.add(var_idx)
 
         # Build domains
         self.domains = {}
         for i, var in enumerate(self.variables):
-            sid = var['subject_id']
-            session_idx = var['session_index']
+            sid = var["subject_id"]
+            session_idx = var["session_index"]
 
             # Check if this var is locked
             if (sid, session_idx) in locked_map:
@@ -119,21 +124,20 @@ class ScheduleCSP:
 
             # Valid rooms by capacity
             valid_rooms = [
-                r for r in rooms
-                if r['capacity'] >= var['required_capacity']
+                r for r in rooms if r["capacity"] >= var["required_capacity"]
             ]
 
-            random.seed(var['subject_id'] + session_idx)
+            random.seed(var["subject_id"] + session_idx)
             shuffled_ts = list(time_slots)
             random.shuffle(shuffled_ts)
 
             domain = []
             for ts in shuffled_ts:
-                if ts['id'] in excluded_ts:
+                if ts["id"] in excluded_ts:
                     continue
                 for room in valid_rooms:
-                    domain.append((ts['id'], room['id']))
-            
+                    domain.append((ts["id"], room["id"]))
+
             self.domains[i] = domain
 
         # Assignment: variable_index -> (time_slot_id, room_id)
@@ -155,7 +159,7 @@ class ScheduleCSP:
             # Same time slot?
             if assigned_ts == ts_id:
                 # Constraint 1: Faculty conflict
-                if assigned_var['faculty_id'] == var['faculty_id']:
+                if assigned_var["faculty_id"] == var["faculty_id"]:
                     return False
 
                 # Constraint 2: Room conflict
@@ -163,19 +167,22 @@ class ScheduleCSP:
                     return False
 
                 # Constraint 3: Elective Group conflict
-                if assigned_var.get('elective_group_id') and var.get('elective_group_id'):
-                    if assigned_var['elective_group_id'] == var['elective_group_id']:
+                if assigned_var.get("elective_group_id") and var.get(
+                    "elective_group_id"
+                ):
+                    if assigned_var["elective_group_id"] == var["elective_group_id"]:
                         return False
 
             # Same subject: max_classes_per_day constraint
-            if assigned_var['subject_id'] == var['subject_id']:
+            if assigned_var["subject_id"] == var["subject_id"]:
                 ts_day = self._get_timeslot_day(ts_id)
                 assigned_day = self._get_timeslot_day(assigned_ts)
                 if ts_day == assigned_day:
                     # Count how many of this subject are already on this day
                     count = sum(
-                        1 for idx, val in self.assignment.items()
-                        if self.variables[idx]['subject_id'] == var['subject_id']
+                        1
+                        for idx, val in self.assignment.items()
+                        if self.variables[idx]["subject_id"] == var["subject_id"]
                         and self._get_timeslot_day(val[0]) == ts_day
                     )
                     if count >= self.max_classes_per_day:
@@ -183,21 +190,21 @@ class ScheduleCSP:
 
             # Advanced Soft/Hard constraints for consecutive slots
             if self._are_consecutive(ts_id, assigned_ts):
-                is_same_faculty = (assigned_var['faculty_id'] == var['faculty_id'])
+                is_same_faculty = assigned_var["faculty_id"] == var["faculty_id"]
                 is_same_elective = (
-                    assigned_var.get('elective_group_id') and 
-                    var.get('elective_group_id') and 
-                    assigned_var['elective_group_id'] == var['elective_group_id']
+                    assigned_var.get("elective_group_id")
+                    and var.get("elective_group_id")
+                    and assigned_var["elective_group_id"] == var["elective_group_id"]
                 )
 
                 # Check building transit time constraint
                 if is_same_faculty or is_same_elective:
                     r1 = self._room_map[room_id]
                     r2 = self._room_map[assigned_room]
-                    b1 = r1.get('building')
-                    b2 = r2.get('building')
+                    b1 = r1.get("building")
+                    b2 = r2.get("building")
                     if b1 and b2 and b1 != b2:
-                        return False # Impossible to transit between buildings in 0 minutes
+                        return False  # Impossible to transit between buildings in 0 minutes
 
                 # Original avoid_back_to_back soft constraint (now hard for faculty if enabled)
                 if self.avoid_back_to_back and is_same_faculty:
@@ -207,7 +214,7 @@ class ScheduleCSP:
     def _get_timeslot_day(self, ts_id: int) -> str:
         """Get the day of a time slot by its ID."""
         ts = self._ts_map.get(ts_id)
-        return ts['day'] if ts else ''
+        return ts["day"] if ts else ""
 
     def _are_consecutive(self, ts_id_1: int, ts_id_2: int) -> bool:
         """Check if two time slots are consecutive (back-to-back) on the same day."""
@@ -215,29 +222,25 @@ class ScheduleCSP:
         ts2 = self._ts_map.get(ts_id_2)
         if not ts1 or not ts2:
             return False
-        if ts1['day'] != ts2['day']:
+        if ts1["day"] != ts2["day"]:
             return False
         # Check if end of one equals start of other
-        return ts1['end_time'] == ts2['start_time'] or ts2['end_time'] == ts1['start_time']
+        return (
+            ts1["end_time"] == ts2["start_time"] or ts2["end_time"] == ts1["start_time"]
+        )
 
     def select_unassigned_variable(self) -> Optional[int]:
         """
         Select the next unassigned variable using MRV heuristic
         (variable with fewest remaining legal values).
         """
-        unassigned = [
-            i for i in range(len(self.variables))
-            if i not in self.assignment
-        ]
+        unassigned = [i for i in range(len(self.variables)) if i not in self.assignment]
         if not unassigned:
             return None
 
         return min(
             unassigned,
-            key=lambda i: sum(
-                1 for v in self.domains[i]
-                if self.is_consistent(i, v)
-            ),
+            key=lambda i: sum(1 for v in self.domains[i] if self.is_consistent(i, v)),
         )
 
     def forward_check(self, var_idx: int, value: tuple) -> dict:
@@ -262,7 +265,7 @@ class ScheduleCSP:
 
                 if other_ts == ts_id:
                     # Faculty conflict
-                    if other_var['faculty_id'] == var['faculty_id']:
+                    if other_var["faculty_id"] == var["faculty_id"]:
                         removed.append(other_val)
                         continue
                     # Room conflict
@@ -270,23 +273,29 @@ class ScheduleCSP:
                         removed.append(other_val)
                         continue
                     # Elective group conflict
-                    if other_var.get('elective_group_id') and var.get('elective_group_id'):
-                        if other_var['elective_group_id'] == var['elective_group_id']:
+                    if other_var.get("elective_group_id") and var.get(
+                        "elective_group_id"
+                    ):
+                        if other_var["elective_group_id"] == var["elective_group_id"]:
                             removed.append(other_val)
                             continue
-                            
+
                 # Building transit conflict for back-to-back
                 if self._are_consecutive(other_ts, ts_id):
-                    is_same_fac = (other_var['faculty_id'] == var['faculty_id'])
+                    is_same_fac = other_var["faculty_id"] == var["faculty_id"]
                     is_same_elec = (
-                        other_var.get('elective_group_id') and 
-                        var.get('elective_group_id') and 
-                        other_var['elective_group_id'] == var['elective_group_id']
+                        other_var.get("elective_group_id")
+                        and var.get("elective_group_id")
+                        and other_var["elective_group_id"] == var["elective_group_id"]
                     )
                     if is_same_fac or is_same_elec:
                         r1 = self._room_map[room_id]
                         r2 = self._room_map[other_room]
-                        if r1.get('building') and r2.get('building') and r1.get('building') != r2.get('building'):
+                        if (
+                            r1.get("building")
+                            and r2.get("building")
+                            and r1.get("building") != r2.get("building")
+                        ):
                             removed.append(other_val)
                             continue
 
@@ -331,25 +340,27 @@ class ScheduleCSP:
             ts_id, room_id = value
             ts_day = self._get_timeslot_day(ts_id)
             var = self.variables[var_idx]
-            sid = var['subject_id']
-            
+            sid = var["subject_id"]
+
             room_pref_score = 0
             if sid in self.preferred_rooms:
                 if room_id not in self.preferred_rooms[sid]:
                     room_pref_score = 1
-                    
+
             subject_day_count = sum(
-                1 for idx, val in self.assignment.items()
-                if self.variables[idx]['subject_id'] == sid
+                1
+                for idx, val in self.assignment.items()
+                if self.variables[idx]["subject_id"] == sid
                 and self._get_timeslot_day(val[0]) == ts_day
             )
-            
+
             faculty_day_count = sum(
-                1 for idx, val in self.assignment.items()
-                if self.variables[idx]['faculty_id'] == var['faculty_id']
+                1
+                for idx, val in self.assignment.items()
+                if self.variables[idx]["faculty_id"] == var["faculty_id"]
                 and self._get_timeslot_day(val[0]) == ts_day
             )
-            
+
             return (room_pref_score, subject_day_count, faculty_day_count)
 
         domain_values = list(self.domains[var_idx])
@@ -391,20 +402,22 @@ class ScheduleCSP:
             ts_info = self._ts_map[ts_id]
             room_info = self._room_map[room_id]
 
-            timetable.append({
-                'subject_id': var['subject_id'],
-                'subject_code': var['subject_code'],
-                'faculty_id': var['faculty_id'],
-                'room_id': room_id,
-                'room_number': room_info['room_number'],
-                'time_slot_id': ts_id,
-                'day': ts_info['day'],
-                'start_time': str(ts_info['start_time']),
-                'end_time': str(ts_info['end_time']),
-            })
+            timetable.append(
+                {
+                    "subject_id": var["subject_id"],
+                    "subject_code": var["subject_code"],
+                    "faculty_id": var["faculty_id"],
+                    "room_id": room_id,
+                    "room_number": room_info["room_number"],
+                    "time_slot_id": ts_id,
+                    "day": ts_info["day"],
+                    "start_time": str(ts_info["start_time"]),
+                    "end_time": str(ts_info["end_time"]),
+                }
+            )
 
         # Sort by day and start time
-        day_order = {'MON': 0, 'TUE': 1, 'WED': 2, 'THU': 3, 'FRI': 4, 'SAT': 5}
-        timetable.sort(key=lambda x: (day_order.get(x['day'], 99), x['start_time']))
+        day_order = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5}
+        timetable.sort(key=lambda x: (day_order.get(x["day"], 99), x["start_time"]))
 
         return timetable
