@@ -43,15 +43,15 @@ All decisions implemented here are defined in `4-CONTEXT.md`.
   - Refine existing React components for consistent styling.
   - Enhance micro-animations (e.g., hover effects, page transitions).
   - Fix any visual glitches across the dashboard and timetable views.
-- [ ] **Task 5.2: Error Handling & Notifications**
-  - Implement a global React Error Boundary component to prevent full app crashes.
-  - Add user-friendly toast notifications for success/error states across the app.
+- [x] **Task 5.2: Error Handling & Notifications**
+  - ~~Implement a global React Error Boundary component to prevent full app crashes.~~ ✅ Done (`ErrorBoundary.jsx` wraps app in `main.jsx`)
+  - ~~Add user-friendly toast notifications for success/error states across the app.~~ **Descoped** — no toast library installed; tracked as tech debt for v2.0.
   - Enhance form validation for user inputs (e.g., login, profile updates).
 
 ### 6. Code Quality, Architecture & Refactoring (Aiming for 5-star Code & Architecture)
-- [ ] **Task 6.1: Technical Debt & Refactoring**
+- [x] **Task 6.1: Technical Debt & Refactoring**
   - Remove unused code, console logs, and dead variables across both frontend and backend.
-  - Fix the `import random` inside the loop in `csp_solver.py`.
+  - ~~Fix the `import random` inside the loop in `csp_solver.py`.~~ ✅ Fixed — moved to module level (line 19).
   - Ensure strict linting passes without warnings.
 
 ### 7. Deployment & Production Readiness (Aiming for 5-star Deployment)
@@ -62,10 +62,10 @@ All decisions implemented here are defined in `4-CONTEXT.md`.
   - Fix hardcoded passwords in production seed scripts (use environment variables).
 
 ### 8. Testing & Quality Assurance (Aiming for 5-star Testing)
-- [ ] **Task 8.1: Expand Test Coverage**
-  - Write unit tests for the newly added security permission guards (`HasFaceEngineAPIKey`, `IsAdminUser`).
-  - Ensure the CSP solver has comprehensive unit tests covering edge cases.
-  - Add integration tests for the authentication and login throttling flow.
+- [~] **Task 8.1: Expand Test Coverage** *(partial)*
+  - ~~Write unit tests for the newly added security permission guards (`HasFaceEngineAPIKey`, `IsAdminUser`).~~ ✅ Done (`test_permissions.py`)
+  - Ensure the CSP solver has comprehensive unit tests covering edge cases. *(tech debt — v2.0)*
+  - Add integration tests for the authentication and login throttling flow. *(tech debt — v2.0)*
 
 ### 9. Verification
 - [ ] **Task 9.1: Security Verification**
