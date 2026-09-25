@@ -64,3 +64,7 @@ The CSP Timetable Solver is heavily tested for constraint violations. The solver
 - Tests verify it doesn't double-book a room at the same time.
 - Tests verify a professor isn't assigned to two different classes simultaneously.
 - **Edge cases covered:** Zero rooms available, zero slots, unsatisfiable constraints (it returns an empty schedule instead of raising exceptions).
+
+### 4. UI & Export Workflows (v1.1+)
+- **PDF/CSV Generation:** The backend uses `reportlab` to generate PDF binary streams directly into the HTTP response. Testing involves asserting the `Content-Type: application/pdf` header is present.
+- **Webcam Registration:** Because `face_recognition` is disabled in Render production environments to save RAM, testing the webcam registration flow requires a local development setup with C++ tools installed (`cmake`, `dlib`). Production gracefully degrades by returning `501 Not Implemented`.
