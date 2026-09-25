@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.attendance",
     "apps.scheduler",
     "apps.communication",
+    "apps.analytics",
     "django_q",
 ]
 

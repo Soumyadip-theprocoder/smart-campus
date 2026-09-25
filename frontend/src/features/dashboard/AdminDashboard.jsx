@@ -30,13 +30,15 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [summaryRes, noticesRes] = await Promise.all([
-        api.get('/api/attendance/summary/').catch(() => ({ data: {} })),
+      const [overviewRes, noticesRes, trendsRes] = await Promise.all([
+        api.get('/api/analytics/overview/').catch(() => ({ data: {} })),
         api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } })),
+        api.get('/api/analytics/department-trends/').catch(() => ({ data: [] }))
       ]);
 
-      setSummary(summaryRes.data);
+      setSummary(overviewRes.data);
       setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 5));
+      setChartData(trendsRes.data || []);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
@@ -99,14 +101,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Mock attendance chart data
-  const chartData = [
-    { day: 'Mon', attendance: 85 },
-    { day: 'Tue', attendance: 92 },
-    { day: 'Wed', attendance: 78 },
-    { day: 'Thu', attendance: 88 },
-    { day: 'Fri', attendance: 95 },
-  ];
+  const [chartData, setChartData] = useState([]);
 
   if (loading) {
     return (
@@ -141,23 +136,23 @@ export default function AdminDashboard() {
           delay={1}
         />
         <StatCard
-          icon={<HiOutlineClipboardCheck />}
-          label="Present Today"
-          value={summary?.today_present || 0}
+          icon={<HiOutlineUsers />}
+          label="Total Faculty"
+          value={summary?.total_faculty || 0}
           gradient="emerald"
           delay={2}
         />
         <StatCard
-          icon={<HiOutlineClipboardCheck />}
-          label="Absent Today"
-          value={summary?.today_absent || 0}
+          icon={<HiOutlineCalendar />}
+          label="Active Classes Today"
+          value={summary?.today_active_classes || 0}
           gradient="red"
           delay={3}
         />
         <StatCard
-          icon={<HiOutlineCalendar />}
-          label="Attendance Rate"
-          value={`${summary?.overall_attendance_rate || 0}%`}
+          icon={<HiOutlineClipboardCheck />}
+          label="Overall Campus Attendance"
+          value={`${summary?.overall_attendance || 0}%`}
           gradient="purple"
           delay={4}
         />
@@ -168,7 +163,7 @@ export default function AdminDashboard() {
         {/* Attendance Chart */}
         <div className="glass-card dashboard-chart animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
           <div className="section-header" style={{ padding: '1.5rem 1.5rem 0.5rem' }}>
-            <h3 className="section-title">Weekly Attendance (Sample)</h3>
+            <h3 className="section-title">Department Attendance Trends</h3>
           </div>
           <div style={{ height: '250px', padding: '0 1.5rem 1.5rem 1.5rem' }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -180,7 +175,7 @@ export default function AdminDashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="day" stroke="var(--color-text-muted)" />
+                <XAxis dataKey="department" stroke="var(--color-text-muted)" />
                 <YAxis stroke="var(--color-text-muted)" />
                 <Tooltip 
                   contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
@@ -188,7 +183,7 @@ export default function AdminDashboard() {
                 />
                 <Area 
                   type="monotone" 
-                  dataKey="attendance" 
+                  dataKey="percentage" 
                   stroke="var(--color-accent-emerald)" 
                   strokeWidth={3}
                   fillOpacity={1} 
