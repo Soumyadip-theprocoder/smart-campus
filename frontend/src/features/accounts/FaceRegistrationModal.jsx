@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { HiX, HiCamera } from 'react-icons/hi';
-import api from '../../services/api';
+import api from '../../api/axios';
 import './FaceRegistrationModal.css';
 
 const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
@@ -29,7 +29,7 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
       formData.append('face_image', file);
 
       // Upload directly to backend
-      const response = await api.post('/accounts/student/face-register/', formData, {
+      const response = await api.post('/api/auth/student/face-register/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
