@@ -17,7 +17,7 @@
 - **Scope:** Update the React frontend (`AttendancePage.jsx`) to capture webcam frames in the browser and POST them to the Django backend. Refactor the backend `TriggerFaceRecognitionView` to accept an image, use the Colab API for encoding, and match it against the pgvector database to mark attendance.
 
 ### Phase 5.6: Code Review Fixes for Face ID
-- **Status:** Planning
+- **Status:** Complete
 - **Goal:** Implement the security and business logic fixes identified during the Phase 5.5 code review.
 - **Scope:** Verify faculty authorization and student enrollment in `TriggerFaceRecognitionView`. Add camera permission error handling to the React frontend.
 
