@@ -6,6 +6,10 @@
 
 ## Active Milestone (v2.0: Predictive Analytics)
 
+### Phase 5.4: Google Colab Face Recognition Engine
+- **Status:** Planning
+- **Goal:** Offload computationally expensive face recognition tasks (dlib/face_recognition) to a Google Colab notebook API.
+- **Scope:** Create a Google Colab notebook that runs a FastAPI server exposed via ngrok or localtunnel. Refactor the Django backend to send image encoding requests to this external Colab API instead of running it locally, bypassing Render's memory limits.
 
 ### Phase 6: Core Analytics & Predictive Modeling
 - **Status:** Planned

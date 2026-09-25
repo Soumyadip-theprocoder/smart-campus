@@ -30,3 +30,5 @@ whitenoise[brotli]>=6.5
 # Utilities
 python-decouple>=3.8
 reportlab>=4.0.0
+
+requests>=2.31.0

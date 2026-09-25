@@ -201,6 +201,7 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 FACE_RECOGNITION_TOLERANCE = 0.5
 FACE_IMAGES_DIR = BASE_DIR / "face_recognition_engine" / "training_images"
 FACE_ENGINE_API_KEY = os.environ.get("FACE_ENGINE_API_KEY", None)
+FACE_ENGINE_URL = os.environ.get("FACE_ENGINE_URL", None)
 
 # ─── Django Q2 Configuration ─────────────────────────────────────────
 Q_CLUSTER = {
