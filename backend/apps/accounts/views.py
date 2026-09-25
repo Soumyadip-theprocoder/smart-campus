@@ -14,6 +14,27 @@ from .models import Faculty, Student, User
 from .serializers import (FacultySerializer, LoginSerializer,
                           RegisterSerializer, StudentSerializer,
                           UserSerializer)
+import sys
+from pathlib import Path
+import os
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+from seed_data import seed
+
+
+class SeedDatabaseView(APIView):
+    """Seed the database with demo data if it doesn't exist."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        if User.objects.filter(email="admin@smartcampus.edu").exists():
+            return Response({"message": "Database already seeded."}, status=status.HTTP_200_OK)
+        
+        try:
+            seed()
+            return Response({"message": "Database successfully seeded."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RegisterView(generics.CreateAPIView):

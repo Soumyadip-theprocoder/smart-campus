@@ -136,3 +136,50 @@ While the core features (PDF/CSV generation, AI facial recognition, and CSP sche
 - `recharts` components render correctly and resize dynamically without breaking layouts.
 - Face registration modal transitions gracefully through all defined states.
 - Mobile viewport testing confirms no horizontal scrolling or overlapping elements.
+
+# Phase 5.3: Login Demo Mode Integration
+
+## Objective
+Implement a "Demo Mode" toggle on the login page. Instead of prominently displaying all demo credentials by default, they should be hidden behind a "Demo Mode" or "Try Demo" button. When clicked, the demo credentials (Admin, Student, Faculty) will become visible to the user.
+
+## Context
+The login page currently displays all demo credentials (admin, student, faculty) openly at the bottom of the form. To make the interface cleaner for actual production use, while still allowing potential employers or testers to easily access the demo, these credentials should be hidden by default and only revealed upon clicking a specific demo button.
+
+## Tasks
+
+### 1. Update Login Page State
+- **File:** `frontend/src/features/auth/LoginPage.jsx`
+- **Action:**
+  - Introduce a new boolean React state variable `showDemo` (defaulting to `false`).
+  - Introduce a loading state `seeding` (defaulting to `false`) to show a spinner on the button while seeding.
+
+### 2. Implement Database Seed API (Backend)
+- **File:** `backend/apps/accounts/views.py` & `backend/apps/accounts/urls.py`
+- **Action:**
+  - Create a new unprotected endpoint `POST /api/auth/seed/`.
+  - The view should import `seed` from `seed_data.py`.
+  - Before running `seed()`, it should check if the admin user (`admin@smartcampus.edu`) already exists. If it exists, return early (database already seeded).
+  - If not, execute `seed()` and return a success message.
+
+### 3. Implement Demo Toggle Button & Trigger (Frontend)
+- **File:** `frontend/src/features/auth/LoginPage.jsx`
+- **Action:**
+  - Add a button (e.g., `<button className="btn btn-secondary" onClick={handleTryDemo} disabled={seeding}>Try Demo</button>`) below the main login form.
+  - When clicked, make a `POST` request to `/api/auth/seed/`.
+  - Once successful, toggle the `showDemo` state to `true`.
+  - Conditionally render the existing `.login-demo-credentials` block only when `showDemo` is `true`.
+  - Hide the "Try Demo" toggle button once `showDemo` is active.
+
+### 4. Fix NoticeDashboard Rendering Bug
+- **File:** `frontend/src/features/communication/NoticeDashboard.jsx`
+- **Action:**
+  - Investigate why the 3rd notice fails to render (likely due to CSS animation-delay inline styles overriding or failing to trigger the `opacity: 1` keyframe).
+  - Remove inline `opacity: 0` if it is causing issues, or ensure the `.animate-fade-in-up` class handles it natively without relying on inline styling for the initial state.
+  - Test that all notices in the list render correctly, regardless of their index.
+
+### 5. Verification
+- Navigate to the login page.
+- Verify that the demo credentials are not visible by default.
+- Click the "Try Demo" button and ensure it triggers the backend seed logic (with a loading state) and then credentials populate correctly.
+- Navigate to the `/notices` page.
+- Create at least 3 notices and verify that all 3 are visible on the screen.

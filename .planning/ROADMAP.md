@@ -7,7 +7,6 @@
 ## Active Milestone (v2.0: Predictive Analytics)
 
 
-
 ### Phase 6: Core Analytics & Predictive Modeling
 - **Status:** Planned
 - **Goal:** Develop backend aggregation endpoints and the predictive shortage algorithm.

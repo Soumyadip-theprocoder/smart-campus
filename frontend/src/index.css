@@ -645,11 +645,11 @@ a:hover {
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s ease forwards;
+  animation: fadeInUp 0.5s ease both;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s ease forwards;
+  animation: fadeIn 0.3s ease both;
 }
 
 /* Staggered animation delays */

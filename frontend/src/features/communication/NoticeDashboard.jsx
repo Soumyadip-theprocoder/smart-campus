@@ -221,7 +221,6 @@ export default function NoticeDashboard() {
                 key={notice.id}
                 className={`notice-card priority-${notice.priority} animate-fade-in-up`}
                 style={{
-                  opacity: 0,
                   animationDelay: `${i * 0.05}s`,
                   background: 'transparent',
                   border: `1px solid ${isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,

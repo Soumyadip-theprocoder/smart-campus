@@ -12,6 +12,7 @@ app_name = "accounts"
 urlpatterns = [
     path("register/", views.RegisterView.as_view(), name="register"),
     path("login/", views.LoginView.as_view(), name="login"),
+    path("seed/", views.SeedDatabaseView.as_view(), name="seed"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("me/", views.MeView.as_view(), name="me"),
     path("students/", views.StudentListView.as_view(), name="student-list"),
