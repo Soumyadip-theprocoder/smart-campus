@@ -89,5 +89,6 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
             "day_display",
             "start_time",
             "end_time",
+            "is_locked",
         ]
         read_only_fields = ["id"]

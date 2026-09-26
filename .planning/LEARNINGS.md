@@ -22,3 +22,9 @@
 - **Buried PDF Requirements:** Essential features (Webcam registration UI and Data Exporting) were present in the initial academic PDF proposal but were easily overlooked when decomposing the technical MVP, requiring a retroactive "Phase 5" to achieve feature parity.
 - **Silent Misconfigurations:** The initial `SECRET_KEY` implementation had an insecure default fallback. In production, this can silently compromise the entire application without throwing an error. We learned to enforce `ImproperlyConfigured` exceptions for critical missing environment variables.
 - **Python Imports in Loops:** An `import random` statement was initially found inside a CSP domain-building loop during Phase 4 code review. This was fixed by moving the import to module level (`csp_solver.py` line 19). While Python caches imports, the discovery highlighted the need for stricter code reviews regarding loop optimization.
+
+## 5. Phase 11 Learnings: UI/UX & Stabilization
+- **Mobile Responsive Tables:** Instead of duplicating markup for mobile card views, assigning data-label attributes to <td> elements and using CSS pseudo-elements (::before) allows a single <table className="data-table"> to transform responsively without JavaScript overhead.
+- **React State Memory Leaks:** Asynchronous polling loops (like fetching CSP task status or Recharts data) will throw memory leak warnings if the component unmounts mid-request. Guarding setState calls behind a const isMounted = useRef(true) check is mandatory for all dashboard widgets.
+- **Design Systems:** A vanilla CSS root variable design system (index.css) proved highly effective for implementing Dark/Light mode natively without needing heavy CSS-in-JS libraries or Tailwind.
+- **Error Boundaries:** Complex visual widgets (like Recharts) are fragile to malformed data. Wrapping them in a <LocalErrorBoundary> prevents a single failed endpoint from taking down the entire dashboard SPA.

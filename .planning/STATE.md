@@ -1,10 +1,9 @@
 # Phase State
 
-**Current Phase:** Phase 11
-**Status:** Completed
+**Current Phase:** Phase 12
+**Status:** In Progress (Planning Completed)
 
 ### Recent Activity
-- Implemented robust UI features: Dark/Light Theme toggle via ThemeContext
-- Added Skeleton loaders to dashboards to improve perceived load performance
-- Stabilized async polling mechanism for timetable generation
-- Enhanced empty states with icons and descriptive text for a polished UX
+- Analyzed the codebase and mapping documents (`/gsd-map-codebase`).
+- Ran the `gsd-next` orchestrator router, which correctly identified Phase 12 (Timetable & Attendance Enhancements) as the next unstarted phase on the Roadmap.
+- Created `12-PLAN.md` and `12-UAT.md` detailing the implementation of manual timetable overrides, class locking, and batch facial recognition uploads.

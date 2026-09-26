@@ -22,6 +22,7 @@ urlpatterns = [
         name="timeslot-detail",
     ),
     path("timetable/", views.TimetableView.as_view(), name="timetable"),
+    path("timetable/<int:pk>/", views.TimetableEntryDetailView.as_view(), name="timetable-entry-detail"),
     path("generate/", views.GenerateTimetableView.as_view(), name="generate"),
     path(
         "task-status/<str:task_id>/", views.TaskStatusView.as_view(), name="task-status"

@@ -1,6 +1,7 @@
 import toast from 'react-hot-toast';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
+import { useDropzone } from 'react-dropzone';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
 import QRCodeGenerator from './QRCodeGenerator';
@@ -11,6 +12,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [showBatchUpload, setShowBatchUpload] = useState(false);
   const [scanning, setScanning] = useState(false);
   const webcamRef = useRef(null);
   
@@ -89,6 +91,42 @@ export default function AttendancePage() {
       setScanning(false);
     }
   }, [filters.subject_id]);
+
+  const [batchFiles, setBatchFiles] = useState([]);
+  const onDrop = useCallback(acceptedFiles => {
+    setBatchFiles(prev => [...prev, ...acceptedFiles]);
+  }, []);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+
+  const handleBatchUpload = async () => {
+    if (batchFiles.length === 0) return;
+    setScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('subject_id', filters.subject_id);
+      
+      batchFiles.forEach(file => {
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          formData.append('zip_file', file);
+        } else {
+          formData.append('images', file);
+        }
+      });
+
+      const res = await api.post('/api/attendance/batch-upload/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      
+      toast.success(res.data.message || 'Batch processing started.');
+      setShowBatchUpload(false);
+      setBatchFiles([]);
+    } catch (e) {
+      toast.error(e.response?.data?.error || e.message || 'Batch upload failed.');
+      console.error(e);
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const columns = [
     { key: 'enrollment_number', label: 'Enrollment #' },
@@ -187,6 +225,13 @@ export default function AttendancePage() {
                 >
                   📱 QR Fallback
                 </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ borderColor: 'var(--color-accent-blue)', color: 'var(--color-accent-blue)' }}
+                  onClick={() => setShowBatchUpload(true)}
+                >
+                  📁 Batch Upload
+                </button>
               </div>
             )}
           </div>
@@ -273,6 +318,60 @@ export default function AttendancePage() {
                 100% { top: 10%; }
               }
             `}</style>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Upload Modal */}
+      {showBatchUpload && (
+        <div className="scanner-modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          display: 'flex', justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '500px', width: '100%', position: 'relative' }}>
+            <button 
+              style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}
+              onClick={() => { setShowBatchUpload(false); setBatchFiles([]); }}
+            >×</button>
+            <h2 style={{ marginBottom: '1rem' }}>Batch Upload Images</h2>
+            <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Upload ZIP file or multiple images for processing.</p>
+            
+            <div {...getRootProps()} style={{
+              border: '2px dashed var(--color-border)',
+              borderRadius: '12px',
+              padding: '2rem',
+              cursor: 'pointer',
+              background: isDragActive ? 'rgba(255,255,255,0.05)' : 'transparent',
+              marginBottom: '1.5rem',
+              transition: 'all 0.3s'
+            }}>
+              <input {...getInputProps()} />
+              {isDragActive ?
+                <p>Drop the files here ...</p> :
+                <p>Drag 'n' drop some files here, or click to select files (Images or ZIP)</p>
+              }
+            </div>
+            
+            {batchFiles.length > 0 && (
+              <div style={{ textAlign: 'left', marginBottom: '1.5rem', maxHeight: '100px', overflowY: 'auto' }}>
+                <h4 style={{ marginBottom: '0.5rem' }}>Selected Files:</h4>
+                <ul style={{ listStyle: 'none', padding: 0 }}>
+                  {batchFiles.map((file, i) => (
+                    <li key={i} style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>📄 {file.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <button 
+              className="btn btn-primary btn-lg" 
+              style={{ width: '100%' }}
+              onClick={handleBatchUpload}
+              disabled={scanning || batchFiles.length === 0}
+            >
+              {scanning ? 'Uploading...' : 'Start Batch Process'}
+            </button>
           </div>
         </div>
       )}

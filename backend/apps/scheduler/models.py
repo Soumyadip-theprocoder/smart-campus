@@ -117,6 +117,10 @@ class TimetableEntry(models.Model):
         on_delete=models.CASCADE,
         related_name="timetable_entries",
     )
+    is_locked = models.BooleanField(
+        default=False,
+        help_text="If true, the CSP solver will not modify this entry.",
+    )
 
     class Meta:
         db_table = "timetable_entries"

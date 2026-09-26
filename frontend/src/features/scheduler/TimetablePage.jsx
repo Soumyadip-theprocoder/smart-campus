@@ -1,9 +1,55 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
+import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './TimetablePage.css';
+
+/* ── Drag & Drop Components ───────────────────────────────────── */
+const DraggableClassCard = ({ cls, isLocked, color, isAdmin }) => {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: cls.id,
+    disabled: isLocked || !isAdmin
+  });
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    zIndex: 999
+  } : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ ...style, background: isLocked ? undefined : color }}
+      {...listeners}
+      {...attributes}
+      className={`class-card ${isLocked ? 'class-card-locked' : ''}`}
+    >
+      {isLocked && <span className="lock-icon">🔒</span>}
+      <div className="class-name">{cls.subject_code}</div>
+      <div className="class-room">📍 {cls.room_number}</div>
+      <div className="class-room">{cls.faculty_name}</div>
+    </div>
+  );
+};
+
+const DroppableCell = ({ id, showConfig, cls, onLockToggle, children }) => {
+  const { isOver, setNodeRef } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`timetable-cell ${showConfig && cls ? 'clickable' : ''} ${isOver ? 'drop-target' : ''}`}
+      onClick={() => {
+        if (showConfig && cls) onLockToggle(cls);
+      }}
+      style={isOver ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : undefined}
+    >
+      {children}
+    </div>
+  );
+};
 
 export default function TimetablePage() {
   const [timetable, setTimetable] = useState([]);
@@ -163,34 +209,48 @@ export default function TimetablePage() {
     }));
   };
 
-  const toggleLockEntry = (entry) => {
-    setConfig(prev => {
-      const exists = prev.locked_entries.find(
-        le => le.subject_id === entry.subject && le.room_id === entry.room && le.time_slot_id === entry.time_slot
-      );
-      if (exists) {
-        return {
-          ...prev,
-          locked_entries: prev.locked_entries.filter(
-            le => !(le.subject_id === entry.subject && le.room_id === entry.room && le.time_slot_id === entry.time_slot)
-          ),
-        };
-      }
-      return {
-        ...prev,
-        locked_entries: [...prev.locked_entries, {
-          subject_id: entry.subject,
-          room_id: entry.room,
-          time_slot_id: entry.time_slot,
-        }],
-      };
-    });
+  const toggleDBLockEntry = async (entry) => {
+    try {
+      const newLockedStatus = !entry.is_locked;
+      const response = await api.patch(`/api/scheduler/timetable/${entry.id}/`, {
+        is_locked: newLockedStatus
+      });
+      setTimetable(prev => prev.map(item => item.id === entry.id ? { ...item, is_locked: newLockedStatus } : item));
+      toast.success(newLockedStatus ? 'Class locked' : 'Class unlocked');
+    } catch (err) {
+      toast.error('Failed to toggle lock');
+    }
   };
 
   const isEntryLocked = (entry) => {
-    return config.locked_entries.some(
-      le => le.subject_id === entry.subject && le.room_id === entry.room && le.time_slot_id === entry.time_slot
-    );
+    return entry.is_locked;
+  };
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    
+    const entryId = active.id;
+    const parts = over.id.split('-');
+    const timeslotId = parts[parts.length - 1];
+    
+    try {
+      const response = await api.patch(`/api/scheduler/timetable/${entryId}/`, {
+        time_slot: parseInt(timeslotId)
+      });
+      setTimetable(prev => prev.map(item => 
+        item.id === entryId ? { 
+          ...item, 
+          time_slot: response.data.time_slot,
+          day: response.data.day,
+          start_time: response.data.start_time,
+          end_time: response.data.end_time
+        } : item
+      ));
+      toast.success('Class moved successfully');
+    } catch (err) {
+      toast.error('Failed to move class');
+    }
   };
 
   /* ── Timetable helpers ──────────────────────────────────────────── */
@@ -209,6 +269,10 @@ export default function TimetablePage() {
     return timetable.find(
       entry => entry.day === day && entry.start_time?.substring(0, 5) === time
     );
+  };
+
+  const getTimeslotForDayTime = (day, time) => {
+    return timeslots.find(ts => ts.day === day && ts.start_time?.substring(0, 5) === time);
   };
 
   const getSubjectColor = (subjectCode, subjectType) => {
@@ -540,18 +604,8 @@ export default function TimetablePage() {
                       <p className="constraint-desc" style={{ marginBottom: '1rem' }}>
                         Lock entries in place — the generator will schedule around them.
                         Click entries in the timetable below to lock/unlock.
+                        You can also drag and drop unlocked entries directly on the grid!
                       </p>
-                      {config.locked_entries.length > 0 && (
-                        <div className="locked-summary">
-                          <span>{config.locked_entries.length} entries locked</span>
-                          <button
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => setConfig(prev => ({ ...prev, locked_entries: [] }))}
-                          >
-                            Unlock All
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -619,47 +673,49 @@ export default function TimetablePage() {
         <LocalErrorBoundary>
           <div className="glass-card timetable-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
           <div className="timetable-grid">
-            {/* Header row */}
-            <div className="timetable-header">Time</div>
-            {days.map(day => (
-              <div className="timetable-header" key={day}>
-                {dayLabels[day]}
-              </div>
-            ))}
-
-            {/* Time slot rows */}
-            {timeSlotTimes.map(time => (
-              <React.Fragment key={`row-${time}`}>
-                <div className="timetable-time" key={`time-${time}`}>
-                  {time}
+            <DndContext onDragEnd={handleDragEnd}>
+              {/* Header row */}
+              <div className="timetable-header">Time</div>
+              {days.map(day => (
+                <div className="timetable-header" key={day}>
+                  {dayLabels[day]}
                 </div>
-                {days.map(day => {
-                  const cls = getClassForSlot(day, time);
-                  const locked = cls && isEntryLocked(cls);
-                  return (
-                    <div
-                      className={`timetable-cell ${showConfig && cls ? 'clickable' : ''} ${locked ? 'locked' : ''}`}
-                      key={`${day}-${time}`}
-                      onClick={() => {
-                        if (showConfig && cls) toggleLockEntry(cls);
-                      }}
-                    >
-                      {cls && (
-                        <div
-                          className={`class-card ${locked ? 'class-card-locked' : ''}`}
-                          style={{ background: locked ? undefined : getSubjectColor(cls.subject_code, cls.subject_type) }}
-                        >
-                          {locked && <span className="lock-icon">🔒</span>}
-                          <div className="class-name">{cls.subject_code}</div>
-                          <div className="class-room">📍 {cls.room_number}</div>
-                          <div className="class-room">{cls.faculty_name}</div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
+              ))}
+
+              {/* Time slot rows */}
+              {timeSlotTimes.map(time => (
+                <React.Fragment key={`row-${time}`}>
+                  <div className="timetable-time" key={`time-${time}`}>
+                    {time}
+                  </div>
+                  {days.map(day => {
+                    const cls = getClassForSlot(day, time);
+                    const locked = cls && isEntryLocked(cls);
+                    const ts = getTimeslotForDayTime(day, time);
+                    const dropId = ts ? `${day}-${time}-${ts.id}` : `${day}-${time}-unknown`;
+                    
+                    return (
+                      <DroppableCell 
+                        key={`${day}-${time}`} 
+                        id={dropId} 
+                        showConfig={showConfig} 
+                        cls={cls} 
+                        onLockToggle={toggleDBLockEntry}
+                      >
+                        {cls && (
+                          <DraggableClassCard 
+                            cls={cls} 
+                            isLocked={locked} 
+                            color={getSubjectColor(cls.subject_code, cls.subject_type)} 
+                            isAdmin={isAdmin} 
+                          />
+                        )}
+                      </DroppableCell>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </DndContext>
           </div>
         </div>
       </LocalErrorBoundary>

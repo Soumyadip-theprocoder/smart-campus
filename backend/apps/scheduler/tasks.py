@@ -47,6 +47,20 @@ def generate_timetable_task(config):
 
     # Parse advanced constraints
     locked_entries = config.get("locked_entries", [])
+    
+    # Add DB locked entries
+    db_locked_qs = TimetableEntry.objects.filter(is_locked=True)
+    db_locked_set = set()
+    for le in db_locked_qs:
+        le_dict = {
+            "subject_id": le.subject_id,
+            "room_id": le.room_id,
+            "time_slot_id": le.time_slot_id
+        }
+        if le_dict not in locked_entries:
+            locked_entries.append(le_dict)
+        db_locked_set.add((le.subject_id, le.room_id, le.time_slot_id))
+
     excluded_slots = config.get("excluded_slots", {})
     preferred_room_types = config.get("preferred_room_types", {})
     avoid_back_to_back = config.get("avoid_back_to_back", False)
@@ -72,21 +86,28 @@ def generate_timetable_task(config):
     timetable = solver.get_timetable()
 
     if not timetable:
+        error_msg = "Could not generate a conflict-free timetable."
+        if solver.last_failure_reason:
+            error_msg += f" Reason: {solver.last_failure_reason}"
         return {
             "success": False,
-            "error": "Could not generate a conflict-free timetable.",
+            "error": error_msg,
         }
 
-    # Clear & create new timetable
-    TimetableEntry.objects.all().delete()
-    entries = [
-        TimetableEntry(
-            subject_id=entry["subject_id"],
-            room_id=entry["room_id"],
-            time_slot_id=entry["time_slot_id"],
-        )
-        for entry in timetable
-    ]
+    # Clear unlocked entries & create new ones
+    TimetableEntry.objects.filter(is_locked=False).delete()
+    entries = []
+    for entry in timetable:
+        tup = (entry["subject_id"], entry["room_id"], entry["time_slot_id"])
+        if tup not in db_locked_set:
+            entries.append(
+                TimetableEntry(
+                    subject_id=entry["subject_id"],
+                    room_id=entry["room_id"],
+                    time_slot_id=entry["time_slot_id"],
+                    is_locked=False
+                )
+            )
     TimetableEntry.objects.bulk_create(entries)
 
     return {"success": True, "count": len(entries)}

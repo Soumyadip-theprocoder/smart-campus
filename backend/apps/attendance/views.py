@@ -207,8 +207,13 @@ class AttendanceSummaryView(APIView):
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.conf import settings
 import requests
+import tempfile
+import os
+import zipfile
 from apps.accounts.models import Student
 from pgvector.django import L2Distance
+from django_q.tasks import async_task
+from .tasks import process_batch_images_task
 
 class TriggerFaceRecognitionView(APIView):
     """Trigger the face recognition engine for a specific subject by uploading an image."""
@@ -416,3 +421,57 @@ class StudentPDFExportView(APIView):
         )
         response.write(pdf)
         return response
+
+class BatchUploadView(APIView):
+    """Upload a ZIP file or multiple images for batch face recognition attendance marking."""
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        subject_id = request.data.get("subject_id")
+        if not subject_id:
+            return Response({"error": "subject_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Verify faculty owns the subject
+        if not request.user.is_superuser:
+            if not Subject.objects.filter(id=subject_id, faculty__user=request.user).exists():
+                return Response({"error": "Unauthorized for this subject"}, status=status.HTTP_403_FORBIDDEN)
+                
+        files = request.FILES.getlist("images")
+        zip_file = request.FILES.get("zip_file")
+        
+        if not files and not zip_file:
+            return Response({"error": "No images or ZIP file provided."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        temp_dir = tempfile.mkdtemp()
+        file_paths = []
+        
+        if zip_file:
+            zip_path = os.path.join(temp_dir, zip_file.name)
+            with open(zip_path, 'wb+') as f:
+                for chunk in zip_file.chunks():
+                    f.write(chunk)
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
+                os.remove(zip_path)
+                for root, _, filenames in os.walk(temp_dir):
+                    for filename in filenames:
+                        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                            file_paths.append(os.path.join(root, filename))
+            except zipfile.BadZipFile:
+                return Response({"error": "Invalid ZIP file."}, status=status.HTTP_400_BAD_REQUEST)
+                
+        if files:
+            for file_obj in files:
+                file_path = os.path.join(temp_dir, file_obj.name)
+                with open(file_path, 'wb+') as f:
+                    for chunk in file_obj.chunks():
+                        f.write(chunk)
+                file_paths.append(file_path)
+                
+        if not file_paths:
+            return Response({"error": "No valid images found."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        task_id = async_task(process_batch_images_task, subject_id, file_paths)
+        return Response({"message": "Batch processing started.", "task_id": task_id}, status=status.HTTP_202_ACCEPTED)

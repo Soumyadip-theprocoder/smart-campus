@@ -75,6 +75,13 @@ class TimetableView(generics.ListAPIView):
         ).all()
 
 
+class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a timetable entry."""
+    serializer_class = TimetableEntrySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = TimetableEntry.objects.all()
+
+
 class GenerateTimetableView(APIView):
     """
     Generate a new timetable using the CSP solver.

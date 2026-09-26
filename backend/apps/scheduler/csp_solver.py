@@ -140,6 +140,7 @@ class ScheduleCSP:
 
             self.domains[i] = domain
 
+        self.last_failure_reason = None
         # Assignment: variable_index -> (time_slot_id, room_id)
         self.assignment = {}
 
@@ -160,10 +161,12 @@ class ScheduleCSP:
             if assigned_ts == ts_id:
                 # Constraint 1: Faculty conflict
                 if assigned_var["faculty_id"] == var["faculty_id"]:
+                    self.last_failure_reason = f"Faculty conflict for {var['subject_code']} and {assigned_var['subject_code']} at same time."
                     return False
 
                 # Constraint 2: Room conflict
                 if assigned_room == room_id:
+                    self.last_failure_reason = f"Room {self._room_map[room_id]['room_number']} double-booked for {var['subject_code']} and {assigned_var['subject_code']}."
                     return False
 
                 # Constraint 3: Elective Group conflict
@@ -171,6 +174,7 @@ class ScheduleCSP:
                     "elective_group_id"
                 ):
                     if assigned_var["elective_group_id"] == var["elective_group_id"]:
+                        self.last_failure_reason = f"Elective group conflict for {var['subject_code']} and {assigned_var['subject_code']}."
                         return False
 
             # Same subject: max_classes_per_day constraint
@@ -186,6 +190,7 @@ class ScheduleCSP:
                         and self._get_timeslot_day(val[0]) == ts_day
                     )
                     if count >= self.max_classes_per_day:
+                        self.last_failure_reason = f"Max classes per day ({self.max_classes_per_day}) exceeded for {var['subject_code']}."
                         return False
 
             # Advanced Soft/Hard constraints for consecutive slots
@@ -204,10 +209,12 @@ class ScheduleCSP:
                     b1 = r1.get("building")
                     b2 = r2.get("building")
                     if b1 and b2 and b1 != b2:
+                        self.last_failure_reason = f"Building transit conflict: {var['subject_code']} ({b1}) to {assigned_var['subject_code']} ({b2})."
                         return False  # Impossible to transit between buildings in 0 minutes
 
                 # Original avoid_back_to_back soft constraint (now hard for faculty if enabled)
                 if self.avoid_back_to_back and is_same_faculty:
+                    self.last_failure_reason = f"Avoid back-to-back classes for faculty of {var['subject_code']}."
                     return False
         return True
 
