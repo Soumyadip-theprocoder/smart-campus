@@ -494,7 +494,7 @@ export default function TimetablePage() {
                               checked={config.timeslot_ids.includes(ts.id)}
                               onChange={() => toggleId('timeslot_ids', ts.id)}
                             />
-                            {ts.start_time?.substring(0, 5)} – {ts.end_time?.substring(0, 5)}
+                            {formatTime(ts.start_time)} – {formatTime(ts.end_time)}
                           </label>
                         ))}
                       </div>
