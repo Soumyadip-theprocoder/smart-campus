@@ -107,6 +107,12 @@ export default function TimetablePage() {
     return `${hour12}:${m} ${ampm}`;
   };
 
+  const isTimeSlotBreak = (time) => {
+    const slotsForTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
+    if (slotsForTime.length === 0) return false;
+    return slotsForTime.every(ts => !config.timeslot_ids.includes(ts.id));
+  };
+
   /* ── Load data ──────────────────────────────────────────────────── */
   useEffect(() => {
     loadAll();
@@ -707,37 +713,45 @@ export default function TimetablePage() {
               ))}
 
               {/* Time slot rows */}
-              {timeSlotTimes.map(time => (
+              {timeSlotTimes.map(time => {
+                const isBreak = isTimeSlotBreak(time);
+                return (
                 <React.Fragment key={`row-${time}`}>
                   <div className="timetable-time" key={`time-${time}`}>
                     {formatTime(time)}
                   </div>
-                  {days.map(day => {
-                    const cls = getClassForSlot(day, time);
-                    const locked = cls && isEntryLocked(cls);
-                    const ts = getTimeslotForDayTime(day, time);
-                    const dropId = ts ? `${day}-${time}-${ts.id}` : `${day}-${time}-unknown`;
-                    
-                    return (
-                      <DroppableCell 
-                        key={`${day}-${time}`} 
-                        id={dropId} 
-                      >
-                        {cls && (
-                          <DraggableClassCard 
-                            cls={cls} 
-                            isLocked={locked} 
-                            color={getSubjectColor(cls.subject_code, cls.subject_type)} 
-                            isAdmin={isAdmin} 
-                            showConfig={showConfig}
-                            onLockToggle={toggleDBLockEntry}
-                          />
-                        )}
-                      </DroppableCell>
-                    );
-                  })}
+                  {isBreak ? (
+                    <div className="timetable-break" style={{ gridColumn: 'span 6', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.02)', color: 'var(--color-text-muted)', letterSpacing: '0.25em', textTransform: 'uppercase', fontSize: '0.85rem', fontWeight: 600, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+                       BREAK
+                    </div>
+                  ) : (
+                    days.map(day => {
+                      const cls = getClassForSlot(day, time);
+                      const locked = cls && isEntryLocked(cls);
+                      const ts = getTimeslotForDayTime(day, time);
+                      const dropId = ts ? `${day}-${time}-${ts.id}` : `${day}-${time}-unknown`;
+                      
+                      return (
+                        <DroppableCell 
+                          key={`${day}-${time}`} 
+                          id={dropId} 
+                        >
+                          {cls && (
+                            <DraggableClassCard 
+                              cls={cls} 
+                              isLocked={locked} 
+                              color={getSubjectColor(cls.subject_code, cls.subject_type)} 
+                              isAdmin={isAdmin} 
+                              showConfig={showConfig}
+                              onLockToggle={toggleDBLockEntry}
+                            />
+                          )}
+                        </DroppableCell>
+                      );
+                    })
+                  )}
                 </React.Fragment>
-              ))}
+              )})}
             </DndContext>
           </div>
         </div>
