@@ -1,6 +1,7 @@
 import { useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -49,6 +50,7 @@ function RoleRedirect() {
 
 function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
@@ -64,10 +66,20 @@ function AppLayout() {
 
   return (
     <div className="app-layout">
-      <Sidebar collapsed={sidebarCollapsed} />
+      <Sidebar 
+        collapsed={sidebarCollapsed} 
+        mobileOpen={mobileSidebarOpen} 
+        setMobileOpen={setMobileSidebarOpen}
+      />
       <Navbar
         collapsed={sidebarCollapsed}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleSidebar={() => {
+          if (window.innerWidth <= 768) {
+            setMobileSidebarOpen(!mobileSidebarOpen);
+          } else {
+            setSidebarCollapsed(!sidebarCollapsed);
+          }
+        }}
       />
       <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Suspense fallback={<div className="loading-spinner"><div className="spinner"></div></div>}>
@@ -206,19 +218,21 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
-        <AuthProvider>
-          <Toaster 
-            position="top-right" 
-            toastOptions={{ 
-              style: { 
-                background: 'var(--color-bg-secondary)', 
-                color: 'var(--color-text)', 
-                border: '1px solid rgba(255,255,255,0.1)' 
-              } 
-            }} 
-          />
-          <AppLayout />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <Toaster 
+              position="top-right" 
+              toastOptions={{ 
+                style: { 
+                  background: 'var(--color-bg-secondary)', 
+                  color: 'var(--color-text)', 
+                  border: '1px solid rgba(255,255,255,0.1)' 
+                } 
+              }} 
+            />
+            <AppLayout />
+          </AuthProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </BrowserRouter>
   );

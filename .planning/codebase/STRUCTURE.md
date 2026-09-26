@@ -1,32 +1,31 @@
-# Directory Structure
+# Codebase Structure
 
-```text
-smart-campus/
-├── backend/
-│   ├── apps/
-│   │   ├── accounts/          # User auth, JWT, Profiles
-│   │   ├── attendance/        # Face/QR attendance, API
-│   │   ├── communication/     # Notices, emails
-│   │   └── scheduler/         # CSP Algorithm, Rooms, Subjects
-│   ├── config/                # Django settings, WSGI/ASGI
-│   ├── face_recognition_engine/ # OpenCV encoding/matching scripts
-│   ├── manage.py
-│   ├── render.yaml            # Render IaC config
-│   ├── requirements.txt
-│   ├── seed_data.py           # DB populator
-│   └── start.sh               # Dual-boot script for Web + Worker
-└── frontend/
-    ├── package.json
-    ├── public/
-    └── src/
-        ├── App.jsx            # Main Router
-        ├── components/        # Reusable UI (Navbar, Sidebar, StatCard)
-        ├── context/           # Global AuthContext
-        ├── features/          # Domain logic
-        │   ├── attendance/    # QR Scanner/Generator, Attendance Views
-        │   ├── auth/          # LoginPage
-        │   ├── communication/ # Notice boards
-        │   ├── dashboard/     # Role-specific dashboard views
-        │   └── scheduler/     # Timetable management, subjects, rooms
-        └── main.jsx
-```
+## Root Directory
+- `backend/`: Django REST Framework API, Q2 worker tasks, and ML Engine.
+- `frontend/`: React Vite SPA.
+- `.planning/`: GSD workflow state and architecture documentation.
+- `docs/`: Markdown files describing schemas, deployment, and APIs.
+
+## Backend (`backend/`)
+- `config/`: Main Django settings, URL router, and WSGI entry point.
+- `apps/`: Modular Django apps holding models, serializers, and views.
+  - `accounts/`: Auth, `User`, `StudentProfile`, `FacultyProfile`.
+  - `attendance/`: Face ID verification logic, attendance logging.
+  - `scheduler/`: Timetable generation logic (CSP solver).
+  - `communication/`: Notices and email alerting system.
+  - `analytics/`: ML predictive algorithms for attendance trajectory mapping.
+- `face_recognition_engine/`: OpenCV + dlib scripts for extracting face vectors.
+
+## Frontend (`frontend/src/`)
+- `api/`: Centralized Axios instance configuration with JWT interceptors.
+- `context/`: `AuthContext` (JWT session management) and `ThemeContext` (Dark Mode).
+- `components/`: Generic UI elements.
+  - `DataTable.jsx`: Responsive data grid.
+  - `StatCard.jsx`: Reusable KPI card.
+  - `ErrorBoundary.jsx` & `LocalErrorBoundary.jsx`: Fault-tolerance wrappers.
+- `features/`: Route-specific views.
+  - `auth/`: Login pages.
+  - `dashboard/`: `AdminDashboard`, `StudentDashboard`, `FacultyDashboard`.
+  - `attendance/`: manual marking and history views.
+  - `scheduler/`: `TimetablePage`, subject/room management.
+- `index.css`: Design system tokens (glassmorphism, variables, layout grids).

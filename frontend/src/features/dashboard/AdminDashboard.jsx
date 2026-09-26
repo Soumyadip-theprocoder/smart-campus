@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import StatCard from '../../components/StatCard';
@@ -14,18 +14,28 @@ import {
   HiOutlinePlusCircle,
   HiOutlineDownload,
 } from 'react-icons/hi';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Suspense, lazy } from 'react';
+import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './AdminDashboard.css';
+
+const AdminAttendanceChart = lazy(() => import('./AdminAttendanceChart'));
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
 
+  const isMounted = useRef(true);
+
   useEffect(() => {
+    isMounted.current = true;
     loadDashboardData();
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -37,38 +47,64 @@ export default function AdminDashboard() {
         api.get('/api/analytics/department-trends/').catch(() => ({ data: [] }))
       ]);
 
-      setSummary(overviewRes.data);
-      setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 5));
-      setChartData(trendsRes.data || []);
+      if (isMounted.current) {
+        setSummary(overviewRes.data);
+        setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 5));
+        setChartData(trendsRes.data || []);
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleGenerateTimetable = async () => {
+    setIsGenerating(true);
     try {
       const response = await api.post('/api/scheduler/generate/');
       if (response.data.task_id) {
         const taskId = response.data.task_id;
         let isComplete = false;
-        while (!isComplete) {
+        let attempts = 0;
+        const maxAttempts = 30; // 60 seconds max
+        
+        while (!isComplete && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 2000));
-          const statusRes = await api.get(`/api/scheduler/task-status/${taskId}/`);
-          if (statusRes.data.status === 'completed') {
-            isComplete = true;
-            toast.success('Timetable generated successfully!');
-          } else if (statusRes.data.status === 'failed') {
-            isComplete = true;
-            toast.error('Failed to generate timetable: ' + statusRes.data.error);
+          attempts++;
+          
+          try {
+            const statusRes = await api.get(`/api/scheduler/task-status/${taskId}/`);
+            if (statusRes.data.status === 'completed') {
+              isComplete = true;
+              toast.success('Timetable generated successfully!');
+            } else if (statusRes.data.status === 'failed') {
+              isComplete = true;
+              toast.error('Failed to generate timetable: ' + statusRes.data.error);
+            }
+          } catch (statusErr) {
+             console.error('Error checking task status', statusErr);
+             // don't abort completely on one failed status check
           }
         }
+        if (!isComplete && isMounted.current) {
+          toast.error('Timetable generation timed out. Please check again later.');
+        }
       } else {
-        toast.success(response.data.message || 'Timetable generated successfully!');
+        if (isMounted.current) {
+          toast.success(response.data.message || 'Timetable generated successfully!');
+        }
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to generate timetable.');
+      if (isMounted.current) {
+        toast.error(err.response?.data?.error || 'Failed to generate timetable.');
+      }
+    } finally {
+      if (isMounted.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -107,7 +143,19 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="page-container">
-        <div className="loading-spinner"><div className="spinner" /></div>
+        <div className="page-header" style={{ marginBottom: '2rem' }}>
+          <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '8px' }} />
+          <div className="skeleton" style={{ width: '350px', height: '20px' }} />
+        </div>
+        <div className="grid-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="skeleton skeleton-card" style={{ height: '116px' }} />
+          ))}
+        </div>
+        <div className="grid-2" style={{ marginTop: '1.5rem' }}>
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+        </div>
       </div>
     );
   }
@@ -167,32 +215,11 @@ export default function AdminDashboard() {
             <h3 className="section-title">Department Attendance Trends</h3>
           </div>
           <div style={{ height: '250px', padding: '0 1.5rem 1.5rem 1.5rem' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorAttendance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-accent-emerald)" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="var(--color-accent-emerald)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="department" stroke="var(--color-text-muted)" />
-                <YAxis stroke="var(--color-text-muted)" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                  itemStyle={{ color: 'var(--color-accent-emerald)' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="percentage" 
-                  stroke="var(--color-accent-emerald)" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorAttendance)" 
-                  activeDot={{ r: 8 }} 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <LocalErrorBoundary>
+              <Suspense fallback={<div className="loading-spinner"><div className="spinner" /></div>}>
+                <AdminAttendanceChart data={chartData} />
+              </Suspense>
+            </LocalErrorBoundary>
           </div>
         </div>
 
@@ -206,9 +233,10 @@ export default function AdminDashboard() {
               className="quick-action-btn"
               onClick={handleGenerateTimetable}
               id="btn-generate-timetable"
+              disabled={isGenerating}
             >
-              <span className="action-icon"><HiOutlineRefresh /></span>
-              Generate Timetable
+              <span className="action-icon"><HiOutlineRefresh className={isGenerating ? 'spin' : ''} /></span>
+              {isGenerating ? 'Generating...' : 'Generate Timetable'}
             </button>
             <button
               className="quick-action-btn"
@@ -252,7 +280,9 @@ export default function AdminDashboard() {
           <div style={{ padding: '1rem 1.5rem 1.5rem' }}>
             {notices.length === 0 ? (
               <div className="empty-state">
-                <p>No notices yet.</p>
+                <div className="empty-icon"><HiOutlineSpeakerphone /></div>
+                <h3>No Recent Notices</h3>
+                <p>Campus announcements will appear here.</p>
               </div>
             ) : (
               notices.map(notice => (

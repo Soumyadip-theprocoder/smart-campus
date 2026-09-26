@@ -93,7 +93,19 @@ export default function FacultyDashboard() {
   if (loading) {
     return (
       <div className="page-container">
-        <div className="loading-spinner"><div className="spinner" /></div>
+        <div className="page-header" style={{ marginBottom: '2rem' }}>
+          <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '8px' }} />
+          <div className="skeleton" style={{ width: '350px', height: '20px' }} />
+        </div>
+        <div className="grid-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="skeleton skeleton-card" style={{ height: '116px' }} />
+          ))}
+        </div>
+        <div className="grid-2" style={{ marginTop: '1.5rem' }}>
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+        </div>
       </div>
     );
   }
@@ -155,33 +167,22 @@ export default function FacultyDashboard() {
               <p>Enjoy your day off!</p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                    <th style={{ padding: '0.5rem' }}>Time</th>
-                    <th style={{ padding: '0.5rem' }}>Subject</th>
-                    <th style={{ padding: '0.5rem' }}>Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {todayClasses.map((cls, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap', color: 'var(--color-accent-blue-light)' }}>
-                        {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
-                      </td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div style={{ fontWeight: 600 }}>{cls.subject_code}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{cls.subject_name}</div>
-                      </td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div className="badge badge-low">{cls.room_number}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>{cls.building}</div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="today-schedule">
+              {todayClasses.map((cls, i) => (
+                <div key={i} className="schedule-item">
+                  <div className="schedule-time">
+                    {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
+                  </div>
+                  <div className="schedule-details">
+                    <div className="schedule-subject">{cls.subject_code}</div>
+                    <div className="schedule-meta">{cls.subject_name}</div>
+                  </div>
+                  <div className="schedule-location" style={{ textAlign: 'right' }}>
+                    <div className="badge badge-low">{cls.room_number}</div>
+                    <div className="schedule-meta">{cls.building}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -192,30 +193,30 @@ export default function FacultyDashboard() {
           <h3 className="section-title" style={{ marginBottom: '1rem' }}>
             My Subjects Overview
           </h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+          <div className="data-table-container">
+            <table className="data-table">
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                  <th style={{ padding: '0.5rem' }}>Subject</th>
-                  <th style={{ padding: '0.5rem' }}>Total Classes</th>
-                  <th style={{ padding: '0.5rem' }}>Avg. Attendance</th>
-                  <th style={{ padding: '0.5rem' }}>Status</th>
+                <tr>
+                  <th>Subject</th>
+                  <th>Total Classes</th>
+                  <th>Avg. Attendance</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {subjectAnalytics.map((subj, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                  <tr key={i}>
+                    <td data-label="Subject">
                       <div style={{ fontWeight: 600 }}>{subj.code}</div>
                       <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{subj.name}</div>
                     </td>
-                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--color-text-muted)' }}>
+                    <td data-label="Total Classes">
                       {subj.recordsCount}
                     </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                    <td data-label="Avg. Attendance">
                       {subj.attendancePercentage}%
                     </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                    <td data-label="Status">
                       {parseFloat(subj.attendancePercentage) < 75.0 && subj.recordsCount > 0 ? (
                         <span className="badge badge-urgent">Low Attendance</span>
                       ) : (
@@ -236,23 +237,31 @@ export default function FacultyDashboard() {
           <h3 className="section-title" style={{ marginBottom: '1rem' }}>
             Recent Notices
           </h3>
-          {notices.map(notice => (
-            <div key={notice.id} className={`notice-card priority-${notice.priority}`}>
-              <div className="notice-header">
-                <span className="notice-title">{notice.title}</span>
-                <span className={`badge badge-${notice.priority}`}>
-                  {notice.priority_display || notice.priority}
-                </span>
-              </div>
-              <p className="notice-content">
-                {notice.content?.substring(0, 150)}
-                {notice.content?.length > 150 ? '...' : ''}
-              </p>
-              <div className="notice-meta">
-                {new Date(notice.created_at).toLocaleDateString()}
-              </div>
+          {notices.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon"><HiOutlineSpeakerphone /></div>
+              <h3>No Recent Notices</h3>
+              <p>Campus announcements will appear here.</p>
             </div>
-          ))}
+          ) : (
+            notices.map(notice => (
+              <div key={notice.id} className={`notice-card priority-${notice.priority}`}>
+                <div className="notice-header">
+                  <span className="notice-title">{notice.title}</span>
+                  <span className={`badge badge-${notice.priority}`}>
+                    {notice.priority_display || notice.priority}
+                  </span>
+                </div>
+                <p className="notice-content">
+                  {notice.content?.substring(0, 150)}
+                  {notice.content?.length > 150 ? '...' : ''}
+                </p>
+                <div className="notice-meta">
+                  {new Date(notice.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
+import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './TimetablePage.css';
 
 export default function TimetablePage() {
@@ -615,7 +616,8 @@ export default function TimetablePage() {
           </div>
         </div>
       ) : (
-        <div className="glass-card timetable-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
+        <LocalErrorBoundary>
+          <div className="glass-card timetable-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
           <div className="timetable-grid">
             {/* Header row */}
             <div className="timetable-header">Time</div>
@@ -660,6 +662,7 @@ export default function TimetablePage() {
             ))}
           </div>
         </div>
+      </LocalErrorBoundary>
       )}
 
       {/* Legend */}

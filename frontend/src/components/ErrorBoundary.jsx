@@ -20,16 +20,26 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <HiOutlineExclamationCircle className="error-icon" />
-          <h1>Something went wrong.</h1>
-          <p>We encountered an unexpected error. Please try refreshing the page.</p>
-          <button 
-            className="btn btn-primary" 
-            onClick={() => window.location.reload()}
-          >
-            Refresh Page
-          </button>
+        <div className="error-boundary" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--color-bg-primary)', textAlign: 'center', padding: '2rem' }}>
+          <HiOutlineExclamationCircle className="error-icon" style={{ fontSize: '4rem', color: 'var(--color-accent-red)', marginBottom: '1.5rem' }} />
+          <h1 style={{ marginBottom: '1rem' }}>Something went wrong.</h1>
+          <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem', maxWidth: '400px' }}>
+            We encountered an unexpected error. Please try refreshing the page. If the problem persists, let us know.
+          </p>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => window.location.href = 'mailto:support@smartcampus.edu?subject=Application Error'}
+            >
+              Report Issue
+            </button>
+          </div>
         </div>
       );
     }

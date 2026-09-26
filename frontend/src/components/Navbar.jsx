@@ -1,10 +1,12 @@
 import { useAuth } from '../context/AuthContext';
-import { HiOutlineMenuAlt2 } from 'react-icons/hi';
+import { useTheme } from '../context/ThemeContext';
+import { HiOutlineMenuAlt2, HiOutlineSun, HiOutlineMoon } from 'react-icons/hi';
 import { FiLogOut } from 'react-icons/fi';
 import './Navbar.css';
 
 export default function Navbar({ collapsed, onToggleSidebar, title }) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const getInitials = (name) => {
     if (!name) return '?';
@@ -41,9 +43,20 @@ export default function Navbar({ collapsed, onToggleSidebar, title }) {
 
         <button
           className="navbar-logout"
+          onClick={toggleTheme}
+          title="Toggle Theme"
+          aria-label="Toggle Theme"
+          style={{ marginRight: '8px' }}
+        >
+          {theme === 'dark' ? <HiOutlineSun /> : <HiOutlineMoon />}
+        </button>
+
+        <button
+          className="navbar-logout"
           onClick={logout}
           title="Logout"
           id="logout-btn"
+          aria-label="Logout"
         >
           <FiLogOut />
         </button>

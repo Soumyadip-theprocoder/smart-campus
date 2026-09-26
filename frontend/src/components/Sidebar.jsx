@@ -12,7 +12,7 @@ import {
 import { FiSettings } from 'react-icons/fi';
 import './Sidebar.css';
 
-export default function Sidebar({ collapsed }) {
+export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
   const { isAdmin, isStudent, isFaculty } = useAuth();
 
   const adminLinks = [
@@ -43,7 +43,11 @@ export default function Sidebar({ collapsed }) {
   if (isFaculty) links = facultyLinks;
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <>
+      {mobileOpen && (
+        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
+      )}
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-brand">
         <div className="brand-icon">🎓</div>
         <div className="brand-text">
@@ -62,6 +66,7 @@ export default function Sidebar({ collapsed }) {
             className={({ isActive }) =>
               `sidebar-link ${isActive ? 'active' : ''}`
             }
+            onClick={() => setMobileOpen && setMobileOpen(false)}
             id={`nav-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
           >
             <span className="link-icon">{link.icon}</span>
@@ -69,6 +74,7 @@ export default function Sidebar({ collapsed }) {
           </NavLink>
         ))}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

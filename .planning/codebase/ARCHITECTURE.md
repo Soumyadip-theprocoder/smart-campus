@@ -1,24 +1,31 @@
-# Architecture
+# Architecture & System Design
 
-## Core Architectural Patterns
-The application follows a decoupled Client-Server architecture. 
+The Smart Campus system follows a classic decoupled client-server architecture with heavy asynchronous background processing for intensive workloads.
 
-### 1. Feature-Sliced Frontend
-The React application is organized by features rather than file types (e.g., separating by `attendance`, `dashboard`, `scheduler`). This encapsulation makes it easier to scale domains.
-- **Role-Based Access:** React Router is wrapped with a `<ProtectedRoute>` component that inspects the JWT payload to ensure users only access their designated UI (Admin, Faculty, Student).
-- **Polling Pattern:** For async backend operations (like Timetable generation), the UI uses `setInterval` to poll a `/status/` endpoint until completion.
+## High-Level Architecture
+1. **Frontend (Client):** A Single Page Application (SPA) built with React and Vite. It communicates with the backend exclusively via REST JSON APIs secured by JWT access tokens.
+2. **Backend (API Server):** A monolithic Django + DRF application. It handles request validation, database transactions, and dispatching ML tasks.
+3. **Background Worker Cluster:** A `django-q2` cluster running parallel to the API server.
+4. **Data Persistence:** PostgreSQL is utilized as the persistent data store.
 
-### 2. App-Based Backend
-Django is structured into highly cohesive apps:
-- `accounts`: Handles Custom User models, JWT auth, and Student/Faculty profiles.
-- `attendance`: Handles face engine APIs, QR fallback, and attendance records.
-- `scheduler`: Handles rooms, subjects, timetable generation, and the core CSP algorithm.
-- `communication`: Handles notices and email alerts.
+## Core Workflows
 
-### 3. Background Processing
-The `scheduler` domain is too heavy for standard HTTP request lifecycles. 
-- A `django-q2` worker queue (`qcluster`) runs continuously in the background alongside the `gunicorn` web server.
-- The web server offloads timetable generation to the queue and returns a `task_id`.
+### 1. Facial Recognition Authentication Flow
+1. User requests to log in via Face ID on the frontend.
+2. `react-webcam` captures a base64 frame.
+3. The frame is sent via `POST` to the backend.
+4. The `face_recognition_engine` uses `dlib` to locate the face and extract a 128-d vector.
+5. The backend queries PostgreSQL `pgvector` HNSW index for the nearest matching profile.
+6. If the L2 distance is within the confidence threshold, a JWT is issued.
 
-### 4. Vector Database Recognition
-Instead of looping through all face embeddings in Python memory, the architecture delegates distance calculations to the PostgreSQL database engine using `pgvector` with HNSW indices, allowing extremely fast nearest-neighbor lookups.
+### 2. Timetable Generation (Asynchronous CSP)
+1. Admin triggers timetable generation.
+2. API responds immediately with a `task_id`.
+3. `django-q2` worker picks up the task and runs the Backtracking solver against the Subjects and Rooms tables.
+4. The Frontend polls `/api/scheduler/task-status/{task_id}/` recursively utilizing a protected `useRef` mounted state guard to prevent memory leaks if the user navigates away mid-poll.
+5. Upon completion, the frontend renders the weekly grid.
+
+### 3. Responsive UI Layer
+- All global structural styles are housed in `index.css`.
+- `.data-table` dynamically reflows into a card-based layout on viewports `<768px` by mapping `data-label` attributes to CSS pseudo-elements (`::before`), guaranteeing complete mobile responsiveness without relying on JS breakpoints.
+- Dark and Light mode is managed globally by `ThemeContext`.

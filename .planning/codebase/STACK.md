@@ -1,26 +1,25 @@
 # Tech Stack
 
-## Frontend
-- **Framework:** React 18
-- **Build Tool:** Vite 5
-- **Routing:** React Router v7
-- **Styling:** Vanilla CSS (Glassmorphism design aesthetic)
-- **HTTP Client:** Axios (with interceptors for JWT)
-- **Icons:** React Icons
-- **QR Code:** `html5-qrcode` (scanning), `qrcode.react` (generation)
+## Frontend Ecosystem
+- **Core Framework:** React 18 (Client-side rendered).
+- **Build Tooling:** Vite (ESBuild based).
+- **Routing:** React Router v7 (`BrowserRouter` with `lazy()` + `Suspense`).
+- **Styling:** Vanilla CSS 3 with custom CSS variable design system (`index.css`), natively responsive via Flexbox and Grid.
+- **Charts:** Recharts (AreaChart, PieChart).
+- **Device APIs:** `react-webcam` (for face capture), `html5-qrcode` (for QR code attendance).
+- **Notifications:** `react-hot-toast` for global toast alerts.
+- **Icons:** `react-icons` (Heroicons `HiOutline*`).
 
-## Backend
-- **Framework:** Django 4.2
-- **API Framework:** Django Rest Framework (DRF)
-- **Authentication:** `djangorestframework-simplejwt`
-- **Background Tasks:** `django-q2` (for CSP scheduler and async operations)
-- **Database:** PostgreSQL (production), SQLite (local dev)
-- **Vector Search:** `pgvector` (HNSW indexing for face embeddings)
+## Backend Ecosystem
+- **Core Framework:** Django 4.2.
+- **API Layer:** Django REST Framework (DRF).
+- **Authentication:** `djangorestframework-simplejwt` for secure JSON Web Tokens.
+- **Asynchronous Tasks:** `django-q2` for background queue processing (Timetable Generation, Email Alerts).
+- **Machine Learning / Computer Vision:** `dlib`, `face_recognition`, and `OpenCV` (`cv2`) for local deep metric learning and 128-d face encodings.
+- **Database:** PostgreSQL (Production) / SQLite3 (Local fallback).
+- **Vector Search:** `pgvector` extension for PostgreSQL to perform HNSW exact nearest-neighbor search for face matching.
+- **Mailing:** Django built-in SMTP backend (`django.core.mail`).
 
-## AI / Engines
-- **Face Engine:** OpenCV & `face_recognition` (Python)
-- **Algorithm:** Constraint Satisfaction Problem (CSP) Solver with Minimum Remaining Values (MRV) and Forward Checking.
-
-## Infrastructure
-- **Deployment Platform:** Render (Web Service for backend, Static Site for frontend)
-- **Concurrency:** `start.sh` orchestrates Gunicorn and `qcluster` concurrently.
+## Monorepo Tooling
+- **Package Manager:** `npm` (Frontend), `pip` + `venv` (Backend).
+- **Linting:** ESLint (Frontend).

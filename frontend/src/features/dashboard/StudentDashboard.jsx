@@ -12,7 +12,9 @@ import {
   HiCamera,
   HiOutlineDocumentDownload,
 } from 'react-icons/hi';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Suspense, lazy } from 'react';
+import LocalErrorBoundary from '../../components/LocalErrorBoundary';
+const StudentAttendanceChart = lazy(() => import('./StudentAttendanceChart'));
 import FaceRegistrationModal from '../accounts/FaceRegistrationModal';
 import './StudentDashboard.css';
 
@@ -78,7 +80,19 @@ export default function StudentDashboard() {
   if (loading) {
     return (
       <div className="page-container">
-        <div className="loading-spinner"><div className="spinner" /></div>
+        <div className="page-header" style={{ marginBottom: '2rem' }}>
+          <div className="skeleton" style={{ width: '250px', height: '36px', marginBottom: '8px' }} />
+          <div className="skeleton" style={{ width: '350px', height: '20px' }} />
+        </div>
+        <div className="grid-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="skeleton skeleton-card" style={{ height: '116px' }} />
+          ))}
+        </div>
+        <div className="grid-2" style={{ marginTop: '1.5rem' }}>
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+          <div className="skeleton skeleton-card" style={{ height: '300px' }} />
+        </div>
       </div>
     );
   }
@@ -183,29 +197,11 @@ export default function StudentDashboard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ height: '250px', width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(255,255,255,0.1)" />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                      itemStyle={{ color: 'var(--color-text)' }}
-                      formatter={(value) => [`${value}%`, 'Attendance']}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <LocalErrorBoundary>
+                  <Suspense fallback={<div className="loading-spinner"><div className="spinner" /></div>}>
+                    <StudentAttendanceChart data={chartData} />
+                  </Suspense>
+                </LocalErrorBoundary>
               </div>
               <div className="subject-attendance-list">
                 {report.map((r, i) => (
@@ -249,35 +245,22 @@ export default function StudentDashboard() {
               <p>Enjoy your day off!</p>
             </div>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
-                    <th style={{ padding: '0.5rem' }}>Time</th>
-                    <th style={{ padding: '0.5rem' }}>Subject</th>
-                    <th style={{ padding: '0.5rem' }}>Faculty</th>
-                    <th style={{ padding: '0.5rem' }}>Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {todayClasses.map((cls, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap', color: 'var(--color-accent-blue-light)' }}>
-                        {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
-                      </td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div style={{ fontWeight: 600 }}>{cls.subject_code}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>{cls.subject_name}</div>
-                      </td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>{cls.faculty_name}</td>
-                      <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <div className="badge badge-low">{cls.room_number}</div>
-                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>{cls.building}</div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="today-schedule">
+              {todayClasses.map((cls, i) => (
+                <div key={i} className="schedule-item">
+                  <div className="schedule-time">
+                    {cls.start_time?.substring(0, 5)} - {cls.end_time?.substring(0, 5)}
+                  </div>
+                  <div className="schedule-details">
+                    <div className="schedule-subject">{cls.subject_code}</div>
+                    <div className="schedule-meta">{cls.subject_name}</div>
+                  </div>
+                  <div className="schedule-location" style={{ textAlign: 'right' }}>
+                    <div className="badge badge-low">{cls.room_number}</div>
+                    <div className="schedule-meta">{cls.building}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -289,23 +272,31 @@ export default function StudentDashboard() {
           <h3 className="section-title" style={{ marginBottom: '1rem' }}>
             Recent Notices
           </h3>
-          {notices.map(notice => (
-            <div key={notice.id} className={`notice-card priority-${notice.priority}`}>
-              <div className="notice-header">
-                <span className="notice-title">{notice.title}</span>
-                <span className={`badge badge-${notice.priority}`}>
-                  {notice.priority_display || notice.priority}
-                </span>
-              </div>
-              <p className="notice-content">
-                {notice.content?.substring(0, 150)}
-                {notice.content?.length > 150 ? '...' : ''}
-              </p>
-              <div className="notice-meta">
-                {new Date(notice.created_at).toLocaleDateString()}
-              </div>
+          {notices.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon"><HiOutlineSpeakerphone /></div>
+              <h3>No Recent Notices</h3>
+              <p>Campus announcements will appear here.</p>
             </div>
-          ))}
+          ) : (
+            notices.map(notice => (
+              <div key={notice.id} className={`notice-card priority-${notice.priority}`}>
+                <div className="notice-header">
+                  <span className="notice-title">{notice.title}</span>
+                  <span className={`badge badge-${notice.priority}`}>
+                    {notice.priority_display || notice.priority}
+                  </span>
+                </div>
+                <p className="notice-content">
+                  {notice.content?.substring(0, 150)}
+                  {notice.content?.length > 150 ? '...' : ''}
+                </p>
+                <div className="notice-meta">
+                  {new Date(notice.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
       <FaceRegistrationModal 

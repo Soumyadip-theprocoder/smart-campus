@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { HiX, HiCamera } from 'react-icons/hi';
 import api from '../../api/axios';
+import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './FaceRegistrationModal.css';
 
 const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
@@ -56,7 +57,7 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
   return (
     <div className="modal-overlay">
       <div className="modal-content glass-panel">
-        <button className="modal-close" onClick={onClose}>
+        <button className="modal-close" onClick={onClose} aria-label="Close modal">
           <HiX />
         </button>
         
@@ -67,22 +68,24 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
         {success && <div className="alert success-alert">{success}</div>}
 
         <div className="webcam-container">
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            className="webcam-video"
-            videoConstraints={{
-              width: 400,
-              height: 400,
-              facingMode: "user"
-            }}
-          />
-          {isCapturing && (
-            <div className="webcam-overlay">
-              <div className="spinner"></div>
-            </div>
-          )}
+          <LocalErrorBoundary>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="webcam-video"
+              videoConstraints={{
+                width: 400,
+                height: 400,
+                facingMode: "user"
+              }}
+            />
+            {isCapturing && (
+              <div className="webcam-overlay">
+                <div className="spinner"></div>
+              </div>
+            )}
+          </LocalErrorBoundary>
         </div>
 
         <button 

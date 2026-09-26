@@ -263,6 +263,15 @@ smart-campus/
 └── TESTING.md            # Test suite documentation
 ```
 
+## 📚 Documentation Directory
+
+For deep technical insights, review the detailed architecture and reference documents:
+- [System Architecture](docs/ARCHITECTURE.md) - High-level system design and ML integration details
+- [API Reference](docs/API_REFERENCE.md) - Comprehensive REST endpoint documentation
+- [Database Schema](docs/DATABASE_SCHEMA.md) - PostgreSQL models and vector indexes
+- [Frontend Component Library](docs/FRONTEND.md) - React UI design and state management
+- [Deployment & Workers](docs/DEPLOYMENT.md) - Infrastructure and Django Q2 setup
+
 ---
 
 ## 🛠️ Tech Stack

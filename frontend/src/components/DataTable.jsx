@@ -42,7 +42,7 @@ export default function DataTable({ columns, data, emptyMessage = 'No data avail
               {filteredData.map((row, i) => (
                 <tr key={row.id || i} onClick={() => onRowClick && onRowClick(row)} style={{ cursor: onRowClick ? 'pointer' : 'default' }}>
                   {columns.map((col) => (
-                    <td key={col.key}>
+                    <td key={col.key} data-label={col.label}>
                       {col.render ? col.render(row[col.key], row) : row[col.key]}
                     </td>
                   ))}

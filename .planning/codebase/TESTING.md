@@ -1,13 +1,11 @@
-# Testing Overview
+# Testing Philosophy & Guidelines
 
-## Current Status
-Testing is currently minimal (rated 1-star in the initial Project Review). Test infrastructure exists, but coverage is sparse.
+## Frontend Testing
+- **Visual Validation:** The primary methodology for frontend validation is User Acceptance Testing (UAT) paired with artifact generation via `generate_image` or DOM snapshots. 
+- **Error Boundary Testing:** We explicitly verify that `LocalErrorBoundary` components catch crashes by injecting deliberate runtime errors into chart components during test phases.
+- **Responsiveness Check:** Mobile behavior (`<768px`) is validated by verifying that CSS media queries correctly trigger the card-based layout for data tables.
 
-## Existing Tests
-- `backend/test_login.py`: Verifies JWT authentication flows.
-- `backend/test_generate.py`: Basic test scaffold for the timetable generator.
-
-## Testing Needs (Phase 4 & Phase 5)
-- **Security Tests:** Unit tests needed to verify permission guards (`HasFaceEngineAPIKey`, `IsAdminUser`) properly block unauthorized access to endpoints like `MarkAttendanceView` and `RegisterView`.
-- **Algorithm Tests:** Comprehensive unit tests are needed for the `csp_solver.py` edge cases.
-- **Component Tests:** Frontend error boundary components and toast notifications need regression verification.
+## Backend Testing
+- **Algorithm Verification:** The Timetable Generator (CSP Solver) is tested against constraint satisfaction constraints to ensure zero overlapping classes.
+- **Background Tasks:** Q2 tasks must be verified by inspecting worker logs and database state mutation after the task completes.
+- **Mock Interfaces:** Hardware-dependent workflows (like webcam capture) gracefully fallback to mock data injection APIs if hardware access is unavailable in the environment.

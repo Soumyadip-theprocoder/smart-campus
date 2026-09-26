@@ -1,29 +1,24 @@
 # Milestone Roadmap
 
-### Phase 10: Overall UI/UX Polish (Dark Mode & Mobile)
-- **Status:** Planned
-- **Goal:** Implement system-wide Dark Mode and improve mobile responsiveness.
-- **Scope:** Create a theme context for Dark/Light mode. Refactor complex data tables in Admin and Faculty dashboards to stack nicely on mobile screens. Add ARIA labels for accessibility.
+### Phase 10: UI Rework & Real-World Hardening
+- **Status:** Completed
+- **Goal:** Rework the UI and harden existing features to ensure they are fully operational for real-world use.
+- **Scope:** Fix fragile data filtering, improve error boundaries, ensure responsive design works across all devices, and make existing dashboards (Admin, Student, Faculty) robust.
 
-### Phase 11: Timetable Enhancements (Drag-and-Drop)
-- **Status:** Planned
-- **Goal:** Allow manual overrides of the generated timetable.
-- **Scope:** Introduce `react-beautiful-dnd` or similar to `ManageTimetablePage`. Update the backend to accept manual updates to timetable entries and allow "locking" of specific blocks before the solver runs.
+### Phase 11: Core Stabilization & UX Polish
+- **Status:** Completed
+- **Goal:** Ensure core workflows (attendance, timetable, analytics) are reliable and user-friendly.
+- **Scope:** Enhance error messaging for timetable generation, stabilize async task polling, fix any broken links/buttons, and implement a consistent design system (including Dark Mode).
 
-### Phase 12: Communication & Rich Text
+### Phase 12: Timetable & Attendance Enhancements (Deferred)
 - **Status:** Planned
-- **Goal:** Enhance how notices and alerts are sent out.
-- **Scope:** Integrate `react-quill` for the Notice creation form. Hook up a mock SMS provider (or Twilio sandbox) in the Django backend. Design and implement HTML email templates for attendance warnings.
+- **Goal:** Add manual overrides for timetable and batch uploads for attendance.
+- **Scope:** Drag-and-drop timetable management, specific class locking, and batch image uploads for fallback attendance.
 
-### Phase 13: Advanced Analytics & Dashboards
+### Phase 13: Advanced Analytics & Communication (Deferred)
 - **Status:** Planned
-- **Goal:** Provide granular filtering for the Admin Dashboard.
-- **Scope:** Add Date Pickers for custom ranges. Implement filtering by Department/Semester on the frontend and wire these up as query parameters to the analytics backend endpoints.
-
-### Phase 14: Attendance History & Batch Upload
-- **Status:** Planned
-- **Goal:** Expand attendance capabilities.
-- **Scope:** Create a new route for students to view day-by-day attendance history. Add a fallback to upload multiple images at once for batch attendance processing in case of webcam failure.
+- **Goal:** Provide granular filtering and expand notification methods.
+- **Scope:** Date Pickers for custom ranges, SMS support, Rich Text notice creation.
 
 <details>
 <summary>Archived Milestones</summary>
