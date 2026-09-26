@@ -7,7 +7,7 @@ import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './TimetablePage.css';
 
 /* ── Drag & Drop Components ───────────────────────────────────── */
-const DraggableClassCard = ({ cls, isLocked, color, isAdmin }) => {
+const DraggableClassCard = ({ cls, isLocked, color, isAdmin, onLockToggle, showConfig }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: cls.id,
     disabled: isLocked || !isAdmin
@@ -15,35 +15,47 @@ const DraggableClassCard = ({ cls, isLocked, color, isAdmin }) => {
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-    zIndex: 999
-  } : undefined;
+    zIndex: 999,
+    position: 'relative'
+  } : { position: 'relative' };
 
   return (
     <div
       ref={setNodeRef}
       style={{ ...style, background: isLocked ? undefined : color }}
-      {...listeners}
-      {...attributes}
       className={`class-card ${isLocked ? 'class-card-locked' : ''}`}
     >
-      {isLocked && <span className="lock-icon">🔒</span>}
-      <div className="class-name">{cls.subject_code}</div>
-      <div className="class-room">📍 {cls.room_number}</div>
-      <div className="class-room">{cls.faculty_name}</div>
+      <div 
+        {...listeners} 
+        {...attributes}
+        style={{ flexGrow: 1, cursor: isLocked ? 'default' : 'grab', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div className="class-name">{cls.subject_code}</div>
+        <div className="class-room">📍 {cls.room_number}</div>
+        <div className="class-room">{cls.faculty_name}</div>
+      </div>
+      
+      {showConfig && isAdmin && (
+        <button 
+           style={{ position: 'absolute', top: '-8px', right: '-8px', padding: '2px 4px', fontSize: '12px', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: '50%', cursor: 'pointer', zIndex: 10 }}
+           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLockToggle(cls); }}
+           title={isLocked ? "Unlock" : "Lock"}
+        >
+          {isLocked ? '🔒' : '🔓'}
+        </button>
+      )}
+      {!showConfig && isLocked && <span className="lock-icon">🔒</span>}
     </div>
   );
 };
 
-const DroppableCell = ({ id, showConfig, cls, onLockToggle, children }) => {
+const DroppableCell = ({ id, children }) => {
   const { isOver, setNodeRef } = useDroppable({ id });
 
   return (
     <div
       ref={setNodeRef}
-      className={`timetable-cell ${showConfig && cls ? 'clickable' : ''} ${isOver ? 'drop-target' : ''}`}
-      onClick={() => {
-        if (showConfig && cls) onLockToggle(cls);
-      }}
+      className={`timetable-cell ${isOver ? 'drop-target' : ''}`}
       style={isOver ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : undefined}
     >
       {children}
@@ -698,9 +710,6 @@ export default function TimetablePage() {
                       <DroppableCell 
                         key={`${day}-${time}`} 
                         id={dropId} 
-                        showConfig={showConfig} 
-                        cls={cls} 
-                        onLockToggle={toggleDBLockEntry}
                       >
                         {cls && (
                           <DraggableClassCard 
@@ -708,6 +717,8 @@ export default function TimetablePage() {
                             isLocked={locked} 
                             color={getSubjectColor(cls.subject_code, cls.subject_type)} 
                             isAdmin={isAdmin} 
+                            showConfig={showConfig}
+                            onLockToggle={toggleDBLockEntry}
                           />
                         )}
                       </DroppableCell>

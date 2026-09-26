@@ -81,6 +81,26 @@ class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     queryset = TimetableEntry.objects.all()
 
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        new_time_slot = serializer.validated_data.get("time_slot", instance.time_slot)
+        new_room = serializer.validated_data.get("room", instance.room)
+        
+        # Check constraints if time_slot or room is changing
+        if new_time_slot != instance.time_slot or new_room != instance.room:
+            # 1. Room conflict
+            if TimetableEntry.objects.filter(time_slot=new_time_slot, room=new_room).exclude(id=instance.id).exists():
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({"error": "Room conflict: Another class is scheduled in this room at this time."})
+                
+            # 2. Faculty conflict
+            faculty = instance.subject.faculty
+            if TimetableEntry.objects.filter(time_slot=new_time_slot, subject__faculty=faculty).exclude(id=instance.id).exists():
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({"error": "Faculty conflict: The faculty member is already teaching another class at this time."})
+                
+        serializer.save()
+
 
 class GenerateTimetableView(APIView):
     """
