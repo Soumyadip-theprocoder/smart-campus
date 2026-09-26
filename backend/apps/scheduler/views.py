@@ -88,16 +88,26 @@ class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         # Check constraints if time_slot or room is changing
         if new_time_slot != instance.time_slot or new_room != instance.room:
+            from rest_framework.exceptions import ValidationError
             # 1. Room conflict
             if TimetableEntry.objects.filter(time_slot=new_time_slot, room=new_room).exclude(id=instance.id).exists():
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError({"error": "Room conflict: Another class is scheduled in this room at this time."})
                 
             # 2. Faculty conflict
             faculty = instance.subject.faculty
             if TimetableEntry.objects.filter(time_slot=new_time_slot, subject__faculty=faculty).exclude(id=instance.id).exists():
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError({"error": "Faculty conflict: The faculty member is already teaching another class at this time."})
+                
+            # 3. Max classes per day (hardcoded to 1 for manual move check to match default)
+            subject = instance.subject
+            day = new_time_slot.day
+            classes_on_day = TimetableEntry.objects.filter(time_slot__day=day, subject=subject).exclude(id=instance.id).count()
+            if classes_on_day >= 1:
+                raise ValidationError({"error": f"Max classes per day exceeded: {subject.code} already has a class on {new_time_slot.get_day_display()}."})
+
+            # 4. Room capacity
+            if new_room.capacity < subject.required_capacity:
+                raise ValidationError({"error": f"Room capacity ({new_room.capacity}) is less than required capacity ({subject.required_capacity})."})
                 
         serializer.save()
 

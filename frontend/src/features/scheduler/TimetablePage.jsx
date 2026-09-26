@@ -22,7 +22,7 @@ const DraggableClassCard = ({ cls, isLocked, color, isAdmin, onLockToggle, showC
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, background: isLocked ? undefined : color }}
+      style={{ ...style, background: color }}
       className={`class-card ${isLocked ? 'class-card-locked' : ''}`}
     >
       <div 
@@ -158,9 +158,12 @@ export default function TimetablePage() {
           
           if (statusRes.data.status === 'completed') {
             isComplete = true;
-            toast.success('Timetable generated successfully!');
-            // Reload the page to fetch the new timetable
-            window.location.reload();
+            if (statusRes.data.result?.success === false) {
+                toast.error('Generation failed: ' + statusRes.data.result.error);
+            } else {
+                toast.success('Timetable generated successfully!');
+                window.location.reload();
+            }
           } else if (statusRes.data.status === 'failed') {
             isComplete = true;
             toast.error('Failed to generate timetable: ' + statusRes.data.error);
@@ -261,7 +264,7 @@ export default function TimetablePage() {
       ));
       toast.success('Class moved successfully');
     } catch (err) {
-      toast.error('Failed to move class');
+      toast.error(err.response?.data?.error || 'Failed to move class');
     }
   };
 
