@@ -85,6 +85,7 @@ export default function TimetablePage() {
     preferred_room_types: {},
     avoid_back_to_back: false,
     max_classes_per_day: 1,
+    custom_breaks: ['13:00'],
   });
 
   const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -93,10 +94,10 @@ export default function TimetablePage() {
     THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday',
   };
 
-  /* Derive unique start times dynamically from fetched time slots and always include 13:00 (1 PM) */
+  /* Derive unique start times dynamically from fetched time slots and always include custom breaks */
   const timeSlotTimes = [...new Set([
     ...timeslots.map(ts => ts.start_time?.substring(0, 5)),
-    '13:00'
+    ...(config.custom_breaks || [])
   ])].filter(Boolean).sort();
 
   const formatTime = (timeStr) => {
@@ -109,8 +110,9 @@ export default function TimetablePage() {
   };
 
   const isTimeSlotBreak = (time) => {
+    if ((config.custom_breaks || []).includes(time)) return true;
     const slotsForTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
-    if (slotsForTime.length === 0) return true; // if no slots exist, it is a structural break
+    if (slotsForTime.length === 0) return false;
     return slotsForTime.every(ts => !config.timeslot_ids.includes(ts.id));
   };
 
@@ -601,7 +603,7 @@ export default function TimetablePage() {
                       <span className="option-desc">Select times to universally exclude from generation across all days. These will instantly appear as "BREAK" banners on the timetable.</span>
                     </div>
                     <div className="ts-slot-row" style={{ marginLeft: 0 }}>
-                      {timeSlotTimes.map(time => {
+                      {[...new Set([...Array.from({length: 12}, (_, i) => `${String(i + 8).padStart(2, '0')}:00`), ...timeSlotTimes])].sort().map(time => {
                         const isBreak = isTimeSlotBreak(time);
                         return (
                           <label key={time} className={`ts-slot-chip ${isBreak ? 'selected' : ''}`} style={isBreak ? { borderColor: 'rgba(239, 68, 68, 0.5)', color: 'var(--color-accent-red)', background: 'rgba(239, 68, 68, 0.1)' } : {}}>
@@ -614,14 +616,17 @@ export default function TimetablePage() {
                                 const slotIds = slotsAtTime.map(ts => ts.id);
                                 setConfig(prev => {
                                   let newIds = [...prev.timeslot_ids];
+                                  let newCustomBreaks = [...(prev.custom_breaks || ['13:00'])];
                                   if (checked) {
-                                    // Make it a break: remove these IDs
+                                    // Make it a break: remove DB IDs, add to custom breaks
                                     newIds = newIds.filter(id => !slotIds.includes(id));
+                                    if (!newCustomBreaks.includes(time)) newCustomBreaks.push(time);
                                   } else {
-                                    // Remove break: add these IDs back
+                                    // Remove break: add DB IDs back, remove from custom breaks
                                     newIds = [...new Set([...newIds, ...slotIds])];
+                                    newCustomBreaks = newCustomBreaks.filter(b => b !== time);
                                   }
-                                  return { ...prev, timeslot_ids: newIds };
+                                  return { ...prev, timeslot_ids: newIds, custom_breaks: newCustomBreaks };
                                 });
                               }}
                             />
