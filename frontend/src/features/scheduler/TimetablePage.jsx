@@ -93,10 +93,11 @@ export default function TimetablePage() {
     THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday',
   };
 
-  /* Derive unique start times dynamically from fetched time slots */
-  const timeSlotTimes = [...new Set(
-    timeslots.map(ts => ts.start_time?.substring(0, 5))
-  )].filter(Boolean).sort();
+  /* Derive unique start times dynamically from fetched time slots and always include 13:00 (1 PM) */
+  const timeSlotTimes = [...new Set([
+    ...timeslots.map(ts => ts.start_time?.substring(0, 5)),
+    '13:00'
+  ])].filter(Boolean).sort();
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -109,7 +110,7 @@ export default function TimetablePage() {
 
   const isTimeSlotBreak = (time) => {
     const slotsForTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
-    if (slotsForTime.length === 0) return false;
+    if (slotsForTime.length === 0) return true; // if no slots exist, it is a structural break
     return slotsForTime.every(ts => !config.timeslot_ids.includes(ts.id));
   };
 
