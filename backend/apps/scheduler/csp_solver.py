@@ -143,10 +143,16 @@ class ScheduleCSP:
         self.last_failure_reason = None
         # Assignment: variable_index -> (time_slot_id, room_id)
         self.assignment = {}
+        self.locked_conflict = False
 
-        # Pre-assign locked variables
+        # Pre-assign locked variables and validate them
         for i in self._locked_var_indices:
-            self.assignment[i] = self.domains[i][0]
+            val = self.domains[i][0]
+            if not self.is_consistent(i, val):
+                self.locked_conflict = True
+                self.last_failure_reason = f"Locked entries conflict: {self.last_failure_reason}"
+                break
+            self.assignment[i] = val
 
     def is_consistent(self, var_idx: int, value: tuple) -> bool:
         """Check if assigning value to var_idx is consistent with current assignment."""
@@ -331,6 +337,8 @@ class ScheduleCSP:
         Solve the CSP using backtracking with forward checking.
         Returns assignment dict or None if no solution exists.
         """
+        if getattr(self, 'locked_conflict', False):
+            return None
         return self._backtrack()
 
     def _backtrack(self) -> Optional[dict]:
