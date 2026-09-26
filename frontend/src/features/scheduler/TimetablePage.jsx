@@ -594,6 +594,42 @@ export default function TimetablePage() {
                 <h3 style={{ marginBottom: '1rem' }}>Advanced Settings</h3>
 
                 <div className="advanced-options">
+                  <div className="advanced-option" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <div className="option-info" style={{ marginBottom: '1rem' }}>
+                      <span className="option-label">☕ Global Break Times</span>
+                      <span className="option-desc">Select times to universally exclude from generation across all days. These will instantly appear as "BREAK" banners on the timetable.</span>
+                    </div>
+                    <div className="ts-slot-row" style={{ marginLeft: 0 }}>
+                      {timeSlotTimes.map(time => {
+                        const isBreak = isTimeSlotBreak(time);
+                        return (
+                          <label key={time} className={`ts-slot-chip ${isBreak ? 'selected' : ''}`} style={isBreak ? { borderColor: 'rgba(239, 68, 68, 0.5)', color: 'var(--color-accent-red)', background: 'rgba(239, 68, 68, 0.1)' } : {}}>
+                            <input
+                              type="checkbox"
+                              checked={isBreak}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                const slotsAtTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
+                                const slotIds = slotsAtTime.map(ts => ts.id);
+                                setConfig(prev => {
+                                  let newIds = [...prev.timeslot_ids];
+                                  if (checked) {
+                                    // Make it a break: remove these IDs
+                                    newIds = newIds.filter(id => !slotIds.includes(id));
+                                  } else {
+                                    // Remove break: add these IDs back
+                                    newIds = [...new Set([...newIds, ...slotIds])];
+                                  }
+                                  return { ...prev, timeslot_ids: newIds };
+                                });
+                              }}
+                            />
+                            {formatTime(time)} {isBreak ? '(Break)' : ''}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <label className="advanced-option">
                     <div className="option-toggle">
                       <input
