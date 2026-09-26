@@ -98,6 +98,15 @@ export default function TimetablePage() {
     timeslots.map(ts => ts.start_time?.substring(0, 5))
   )].filter(Boolean).sort();
 
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':');
+    const hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m} ${ampm}`;
+  };
+
   /* ── Load data ──────────────────────────────────────────────────── */
   useEffect(() => {
     loadAll();
@@ -701,7 +710,7 @@ export default function TimetablePage() {
               {timeSlotTimes.map(time => (
                 <React.Fragment key={`row-${time}`}>
                   <div className="timetable-time" key={`time-${time}`}>
-                    {time}
+                    {formatTime(time)}
                   </div>
                   {days.map(day => {
                     const cls = getClassForSlot(day, time);
