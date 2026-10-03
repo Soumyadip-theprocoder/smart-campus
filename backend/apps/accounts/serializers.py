@@ -5,7 +5,8 @@ Serializers for the Accounts app.
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
-from .models import Faculty, Student, User
+from .models import AcademicGroup, Faculty, Student, User
+from apps.scheduler.models import Department
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -14,6 +15,15 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "username", "first_name", "last_name", "role"]
+        read_only_fields = ["id"]
+
+
+class AcademicGroupSerializer(serializers.ModelSerializer):
+    """Serializer for AcademicGroup."""
+
+    class Meta:
+        model = AcademicGroup
+        fields = ["id", "name", "description"]
         read_only_fields = ["id"]
 
 
@@ -30,6 +40,7 @@ class StudentSerializer(serializers.ModelSerializer):
             "user",
             "enrollment_number",
             "department",
+            "groups",
             "semester",
             "face_image",
             "has_face_encoding",
@@ -56,6 +67,7 @@ class FacultySerializer(serializers.ModelSerializer):
             "user",
             "employee_id",
             "department",
+            "groups",
             "designation",
             "max_hours_per_week",
             "availability",
@@ -69,7 +81,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
     enrollment_number = serializers.CharField(required=False, allow_blank=True)
     employee_id = serializers.CharField(required=False, allow_blank=True)
-    department = serializers.CharField(required=True)
+    department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False, allow_null=True)
+    groups = serializers.PrimaryKeyRelatedField(queryset=AcademicGroup.objects.all(), many=True, required=False)
 
     class Meta:
         model = User
@@ -83,6 +96,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             "enrollment_number",
             "employee_id",
             "department",
+            "groups",
         ]
 
     def validate(self, attrs):
@@ -98,7 +112,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         enrollment_number = validated_data.pop("enrollment_number", None)
         employee_id = validated_data.pop("employee_id", None)
-        department = validated_data.pop("department", "")
+        department = validated_data.pop("department", None)
+        groups = validated_data.pop("groups", [])
         password = validated_data.pop("password")
 
         user = User(**validated_data)
@@ -107,17 +122,19 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         # Create associated profile
         if user.role == User.Role.STUDENT:
-            Student.objects.create(
+            profile = Student.objects.create(
                 user=user,
                 enrollment_number=enrollment_number,
                 department=department,
             )
+            profile.groups.set(groups)
         elif user.role == User.Role.FACULTY:
-            Faculty.objects.create(
+            profile = Faculty.objects.create(
                 user=user,
                 employee_id=employee_id,
                 department=department,
             )
+            profile.groups.set(groups)
 
         return user
 

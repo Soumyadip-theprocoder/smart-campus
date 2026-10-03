@@ -19,6 +19,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/admin', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
     { to: '/admin/courses', icon: <HiOutlineAcademicCap />, label: 'Courses' },
     { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
+    { to: '/admin/groups', icon: <HiOutlineUsers />, label: 'Groups' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
     { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
     { to: '/admin/predictive-analytics', icon: <HiOutlineChartBar />, label: 'Predictive Analytics' },

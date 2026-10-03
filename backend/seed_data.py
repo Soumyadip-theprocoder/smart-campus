@@ -24,7 +24,7 @@ from datetime import date, time, timedelta
 from apps.accounts.models import Faculty, Student, User
 from apps.attendance.models import Attendance
 from apps.communication.models import Notice
-from apps.scheduler.models import Room, Subject, TimeSlot
+from apps.scheduler.models import Department, Room, Subject, TimeSlot
 
 
 def seed():
@@ -45,7 +45,7 @@ def seed():
     admin_password = os.environ.get("SEED_ADMIN_PASSWORD", "admin123")
     admin_user.set_password(admin_password)
     admin_user.save()
-    print("✓ Admin user ensured (admin@smartcampus.edu)")
+    print("[OK] Admin user ensured (admin@smartcampus.edu)")
 
     # ── Faculty ─────────────────────────────────────────────────────
     faculty_data = [
@@ -102,16 +102,17 @@ def seed():
         user.set_password(faculty_password)
         user.save()
 
+        dept_obj, _ = Department.objects.get_or_create(name=fd["department"])
         faculty, _ = Faculty.objects.get_or_create(
             user=user,
             defaults={
                 "employee_id": fd["employee_id"],
-                "department": fd["department"],
+                "department": dept_obj,
                 "designation": fd["designation"],
             },
         )
         faculty_objects.append(faculty)
-        print(f"✓ Faculty: {fd['first_name']} {fd['last_name']} ({fd['employee_id']})")
+        print(f"[OK] Faculty: {fd['first_name']} {fd['last_name']} ({fd['employee_id']})")
 
     # ── Students ────────────────────────────────────────────────────
     student_data = [
@@ -221,16 +222,17 @@ def seed():
         user.set_password(student_password)
         user.save()
 
+        dept_obj, _ = Department.objects.get_or_create(name=sd["department"])
         Student.objects.get_or_create(
             user=user,
             defaults={
                 "enrollment_number": sd["enrollment_number"],
-                "department": sd["department"],
+                "department": dept_obj,
                 "semester": sd["semester"],
             },
         )
         print(
-            f"✓ Student: {sd['first_name']} {sd['last_name']} ({sd['enrollment_number']})"
+            f"[OK] Student: {sd['first_name']} {sd['last_name']} ({sd['enrollment_number']})"
         )
 
     # ── Rooms ───────────────────────────────────────────────────────
@@ -278,7 +280,7 @@ def seed():
             room_number=rd["room_number"],
             defaults=rd,
         )
-        print(f"✓ Room: {rd['room_number']} ({rd['building']}, cap: {rd['capacity']})")
+        print(f"[OK] Room: {rd['room_number']} ({rd['building']}, cap: {rd['capacity']})")
 
     # ── Time Slots ──────────────────────────────────────────────────
     # 8 periods per day: 4 morning (9 AM – 1 PM) + 4 afternoon (2 PM – 6 PM)
@@ -305,7 +307,7 @@ def seed():
             )
 
     print(
-        f"✓ Time slots: {len(days)} days × {len(slot_times)} periods = {len(days)*len(slot_times)} total"
+        f"[OK] Time slots: {len(days)} days × {len(slot_times)} periods = {len(days)*len(slot_times)} total"
     )
 
     # ── Subjects ────────────────────────────────────────────────────
@@ -365,7 +367,7 @@ def seed():
             code=sd["code"],
             defaults=sd,
         )
-        print(f"✓ Subject: {sd['code']} — {sd['name']}")
+        print(f"[OK] Subject: {sd['code']} — {sd['name']}")
 
     # ── Sample Notices ──────────────────────────────────────────────
     notices_data = [
@@ -412,10 +414,10 @@ def seed():
             title=nd["title"],
             defaults={**nd, "posted_by": admin_user},
         )
-        print(f"✓ Notice: {nd['title'][:50]}...")
+        print(f"[OK] Notice: {nd['title'][:50]}...")
 
     # ── Attendance Records ──────────────────────────────────────────
-    print("\n📋 Seeding attendance records...")
+    print("\n[OK] Seeding attendance records...")
 
     random.seed(42)  # Deterministic for reproducibility
 
@@ -484,7 +486,7 @@ def seed():
                 if created:
                     attendance_count += 1
 
-    print(f"✓ Attendance records created: {attendance_count}")
+    print(f"[OK] Attendance records created: {attendance_count}")
 
     # Print per-student summary
     for student in students:

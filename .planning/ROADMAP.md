@@ -55,6 +55,11 @@
 - **Goal:** Make timetable breaks dynamic and editable, and make PDF export theme-independent.
 - **Scope:** Fix un-deselectable 1 PM break (remove gap heuristic), data-driven break rows, multi-break editor (discrete + continuous ranges) with persistence, backend honouring of breaks, and consistent light-palette PDF export.
 
+### Phase 12.9: Flexible Department & Grouping System
+- **Status:** Planned
+- **Goal:** Add robust support for grouping students and teachers to facilitate inter-disciplinary classes and accurate department mapping.
+- **Scope:** Create a flexible `AcademicGroup` model, migrate `Student` and `Faculty` `department` text fields to ForeignKeys referencing the `scheduler.Department` model, and provide UI to manage these associations.
+
 ### Phase 13: Advanced Analytics & Communication (Deferred)
 - **Status:** Planned
 - **Goal:** Provide granular filtering and expand notification methods.

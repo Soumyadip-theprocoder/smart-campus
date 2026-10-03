@@ -44,7 +44,7 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
 }
 
 /* ─── Add Faculty Form ─────────────────────────────────────────── */
-function AddFacultyForm({ onSave, saving }) {
+function AddFacultyForm({ onSave, saving, departments = [], groups = [] }) {
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -53,13 +53,19 @@ function AddFacultyForm({ onSave, saving }) {
     password: '',
     employee_id: '',
     department: '',
+    groups: [],
     designation: 'Assistant Professor',
   });
   const [error, setError] = useState('');
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, selectedOptions } = e.target;
+    if (type === 'select-multiple') {
+      const values = Array.from(selectedOptions, option => option.value);
+      setForm(prev => ({ ...prev, [name]: values }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
     setError('');
   };
 
@@ -89,6 +95,7 @@ function AddFacultyForm({ onSave, saving }) {
       role: 'faculty',
       employee_id: form.employee_id,
       department: form.department,
+      groups: form.groups,
     });
   };
 
@@ -170,14 +177,18 @@ function AddFacultyForm({ onSave, saving }) {
       <div className="form-row-2">
         <div className="form-group">
           <label className="form-label">Department *</label>
-          <input
-            className="form-input"
+          <select
+            className="form-select"
             name="department"
             value={form.department}
             onChange={handleChange}
-            placeholder="e.g. Computer Science"
             required
-          />
+          >
+            <option value="">Select a department...</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
           <label className="form-label">Designation</label>
@@ -194,6 +205,22 @@ function AddFacultyForm({ onSave, saving }) {
             <option value="Lecturer">Lecturer</option>
           </select>
         </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Groups (Optional)</label>
+        <select
+          className="form-select"
+          name="groups"
+          value={form.groups}
+          onChange={handleChange}
+          multiple
+          size={3}
+        >
+          {groups.map(g => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '0.25rem' }}>Hold Ctrl/Cmd to select multiple</p>
       </div>
       <button
         type="submit"
@@ -217,17 +244,27 @@ export default function FacultyPage() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  const [departments, setDepartments] = useState([]);
+  const [groups, setGroups] = useState([]);
+
   useEffect(() => {
-    fetchFaculty();
+    fetchData();
   }, []);
 
-  const fetchFaculty = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/auth/faculty/');
-      setFaculty(response.data.results || response.data || []);
+      const [facRes, depRes, grpRes] = await Promise.all([
+        api.get('/api/auth/faculty/'),
+        api.get('/api/scheduler/departments/'),
+        api.get('/api/auth/groups/')
+      ]);
+      setFaculty(facRes.data.results || facRes.data || []);
+      setDepartments(depRes.data.results || depRes.data || []);
+      setGroups(grpRes.data.results || grpRes.data || []);
     } catch (err) {
       console.error(err);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -239,7 +276,7 @@ export default function FacultyPage() {
     try {
       await api.post('/api/auth/register/', formData);
       setModalOpen(false);
-      fetchFaculty();
+      fetchData();
     } catch (err) {
       console.error('Save failed:', err);
       const data = err.response?.data;
@@ -266,7 +303,7 @@ export default function FacultyPage() {
       // Delete user (cascades to faculty profile)
       await api.delete(`/api/auth/faculty/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      fetchFaculty();
+      fetchData();
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete faculty member.');
@@ -286,6 +323,7 @@ export default function FacultyPage() {
     },
     { key: 'employee_id', label: 'Employee ID', render: (val) => <span className="badge badge-low">{val}</span> },
     { key: 'department', label: 'Department', render: (val) => val },
+    { key: 'groups', label: 'Groups', render: (val) => (val && val.length > 0) ? `${val.length} groups` : 'None' },
     { key: 'designation', label: 'Designation', render: (val) => val || 'N/A' },
     { key: 'max_hours_per_week', label: 'Max Hours/Week', render: (val) => <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>🕒 {val || 20}h</span> },
     {
@@ -341,7 +379,7 @@ export default function FacultyPage() {
         onClose={() => setModalOpen(false)}
         title="Add Faculty"
       >
-        <AddFacultyForm onSave={handleSave} saving={saving} />
+        <AddFacultyForm onSave={handleSave} saving={saving} departments={departments} groups={groups} />
       </Modal>
 
       {/* Confirm delete */}

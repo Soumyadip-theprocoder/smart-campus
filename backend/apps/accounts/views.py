@@ -3,21 +3,28 @@ Views for the Accounts app.
 JWT-based authentication and user profile endpoints.
 """
 
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Faculty, Student, User
-from .serializers import (FacultySerializer, LoginSerializer,
+from .models import AcademicGroup, Faculty, Student, User
+from .serializers import (AcademicGroupSerializer, FacultySerializer, LoginSerializer,
                           RegisterSerializer, StudentSerializer,
                           UserSerializer)
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from seed_data import seed  # noqa: E402
+
+
+class AcademicGroupViewSet(viewsets.ModelViewSet):
+    """CRUD operations for Academic Groups."""
+    queryset = AcademicGroup.objects.all()
+    serializer_class = AcademicGroupSerializer
+    permission_classes = [permissions.IsAdminUser]
 
 
 class SeedDatabaseView(APIView):

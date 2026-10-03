@@ -5,6 +5,7 @@ and permission checks on profile endpoints.
 """
 
 from apps.accounts.models import Faculty, Student, User
+from apps.scheduler.models import Department
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
@@ -70,10 +71,11 @@ class UserModelTests(TestCase):
             password="pass",
             role="student",
         )
+        dept = Department.objects.create(name="CS_Student")
         student = Student.objects.create(
             user=user,
             enrollment_number="STU999",
-            department="CS",
+            department=dept,
             semester=3,
         )
         self.assertEqual(student.enrollment_number, "STU999")
@@ -86,10 +88,11 @@ class UserModelTests(TestCase):
             password="pass",
             role="faculty",
         )
+        dept = Department.objects.create(name="CS_Faculty")
         faculty = Faculty.objects.create(
             user=user,
             employee_id="FAC999",
-            department="CS",
+            department=dept,
             designation="Professor",
         )
         self.assertEqual(faculty.employee_id, "FAC999")
@@ -158,8 +161,8 @@ class RegisterAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.register_url = reverse("accounts:register")
-        # Registration is admin-only (RegisterView uses IsAdminUser)
         self.client.force_authenticate(user=_make_admin())
+        self.dept = Department.objects.create(name="CS_Reg")
 
     def test_register_requires_authentication(self):
         self.client.force_authenticate(user=None)
@@ -188,7 +191,7 @@ class RegisterAPITests(TestCase):
                 "last_name": "Student",
                 "role": "student",
                 "enrollment_number": "STU100",
-                "department": "CS",
+                "department": self.dept.id,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -207,7 +210,7 @@ class RegisterAPITests(TestCase):
                 "last_name": "Faculty",
                 "role": "faculty",
                 "employee_id": "FAC100",
-                "department": "CS",
+                "department": self.dept.id,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -223,7 +226,7 @@ class RegisterAPITests(TestCase):
                 "first_name": "Bad",
                 "last_name": "Student",
                 "role": "student",
-                "department": "CS",
+                "department": self.dept.id,
                 # missing enrollment_number
             },
         )
@@ -245,7 +248,7 @@ class RegisterAPITests(TestCase):
                 "last_name": "User",
                 "role": "student",
                 "enrollment_number": "STU200",
-                "department": "CS",
+                "department": self.dept.id,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -265,10 +268,11 @@ class MeAPITests(TestCase):
             last_name="User",
             role="student",
         )
+        self.dept = Department.objects.create(name="CS_Me")
         Student.objects.create(
             user=self.user,
             enrollment_number="STU_ME",
-            department="CS",
+            department=self.dept,
             semester=5,
         )
 
@@ -347,6 +351,7 @@ class RobustnessAccountsTests(TestCase):
         self.register_url = reverse("accounts:register")
         self.login_url = reverse("accounts:login")
         self.client.force_authenticate(user=_make_admin())
+        self.dept = Department.objects.create(name="CS_Rob")
 
     def test_register_invalid_role(self):
         response = self.client.post(
@@ -359,7 +364,7 @@ class RobustnessAccountsTests(TestCase):
                 "last_name": "Role",
                 "role": "hacker",  # invalid role
                 "enrollment_number": "STU_HACK",
-                "department": "CS",
+                "department": self.dept.id,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -388,7 +393,7 @@ class RobustnessAccountsTests(TestCase):
                 "last_name": long_string,
                 "role": "student",
                 "enrollment_number": "STU_LONG",
-                "department": "CS",
+                "department": self.dept.id,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

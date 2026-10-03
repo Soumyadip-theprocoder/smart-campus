@@ -10,6 +10,19 @@ from django.db import models
 from pgvector.django import HnswIndex, VectorField
 
 
+class AcademicGroup(models.Model):
+    """Flexible grouping for interdisciplinary classes or batches."""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "academic_groups"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class User(AbstractUser):
     """Custom user model with role field for RBAC."""
 
@@ -57,7 +70,19 @@ class Student(models.Model):
         related_name="student_profile",
     )
     enrollment_number = models.CharField(max_length=20, unique=True)
-    department = models.CharField(max_length=100)
+    department = models.ForeignKey(
+        'scheduler.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="students",
+        help_text="Primary department",
+    )
+    groups = models.ManyToManyField(
+        AcademicGroup,
+        related_name="students",
+        blank=True,
+    )
     semester = models.PositiveIntegerField(default=1)
     face_encoding = VectorField(
         dimensions=128,
@@ -116,7 +141,19 @@ class Faculty(models.Model):
         related_name="faculty_profile",
     )
     employee_id = models.CharField(max_length=20, unique=True)
-    department = models.CharField(max_length=100)
+    department = models.ForeignKey(
+        'scheduler.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="faculty_members",
+        help_text="Primary department",
+    )
+    groups = models.ManyToManyField(
+        AcademicGroup,
+        related_name="faculty_members",
+        blank=True,
+    )
     designation = models.CharField(max_length=100, default="Assistant Professor")
     max_hours_per_week = models.PositiveIntegerField(default=20)
     availability = models.JSONField(
