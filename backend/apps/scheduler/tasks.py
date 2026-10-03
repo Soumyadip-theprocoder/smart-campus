@@ -1,3 +1,4 @@
+from .breaks import normalize_breaks, slot_overlaps_break
 from .csp_solver import ScheduleCSP
 from .models import Room, Subject, TimeSlot, TimetableEntry, TimetableVersion, Resource
 
@@ -41,6 +42,16 @@ def generate_timetable_task(config):
         ts_qs = ts_qs.filter(id__in=timeslot_ids)
 
     time_slots = list(ts_qs.values("id", "day", "start_time", "end_time"))
+
+    # Never schedule inside a configured break (continuous ranges or several discrete ones).
+    custom_breaks = normalize_breaks(config.get("custom_breaks"))
+    if custom_breaks:
+        time_slots = [
+            ts for ts in time_slots
+            if not slot_overlaps_break(ts["start_time"], ts["end_time"], custom_breaks)
+        ]
+        if not time_slots:
+            return {"success": False, "error": "Every selected time slot falls inside a break."}
 
     # Fetch Resources
     resources = list(Resource.objects.values("id", "name", "quantity"))

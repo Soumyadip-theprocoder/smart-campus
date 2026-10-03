@@ -50,6 +50,11 @@
 - **Goal:** Predict future capacity needs and manage complex student-teacher roles.
 - **Scope:** AI "What-If" Forecasting Simulations and Automated Teaching Assistant (TA) Rostering.
 
+### Phase 12.8: Timetable Break Overhaul & Theme-Stable PDF Export
+- **Status:** Implemented (pending manual UAT)
+- **Goal:** Make timetable breaks dynamic and editable, and make PDF export theme-independent.
+- **Scope:** Fix un-deselectable 1 PM break (remove gap heuristic), data-driven break rows, multi-break editor (discrete + continuous ranges) with persistence, backend honouring of breaks, and consistent light-palette PDF export.
+
 ### Phase 13: Advanced Analytics & Communication (Deferred)
 - **Status:** Planned
 - **Goal:** Provide granular filtering and expand notification methods.

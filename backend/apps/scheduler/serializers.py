@@ -4,6 +4,8 @@ Serializers for the Scheduler app.
 
 from rest_framework import serializers
 
+from .breaks import validate_breaks
+
 from .models import (
     Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings,
     TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest,
@@ -11,7 +13,17 @@ from .models import (
 )
 
 
-class DepartmentSerializer(serializers.ModelSerializer):
+class BreaksValidationMixin:
+    """Accepts legacy ["13:00"] strings and {start, end, label} ranges; stores normalized ranges."""
+
+    def validate_default_breaks(self, value):
+        try:
+            return validate_breaks(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+
+class DepartmentSerializer(BreaksValidationMixin, serializers.ModelSerializer):
     """Serializer for Department."""
 
     class Meta:
@@ -155,7 +167,7 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
 
-class InstitutionSettingsSerializer(serializers.ModelSerializer):
+class InstitutionSettingsSerializer(BreaksValidationMixin, serializers.ModelSerializer):
     """Serializer for InstitutionSettings."""
 
     class Meta:

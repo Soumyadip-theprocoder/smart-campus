@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,10 @@ import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import './TimetablePage.css';
+import {
+  normalizeBreaks, describeRow, slotOverlapsBreak, addBreak,
+  removeHourFromBreaks, isTimeInBreak, toMinutes, fromMinutes, formatClock,
+} from './breakUtils';
 
 /* ── Drag & Drop Components ───────────────────────────────────── */
 const DraggableClassCard = ({ cls, isLocked, color, isAdmin, isFaculty, isOwnClass, onLockToggle, showConfig, onReportAbsence, onFindSwap }) => {
@@ -193,7 +197,7 @@ export default function TimetablePage() {
     balance_faculty_workload: false,
     auto_schedule_office_hours: false,
     exam_mode: false,
-    custom_breaks: institutionSettings?.default_breaks || [],
+    breaks: normalizeBreaks(institutionSettings?.default_breaks),
   });
 
   const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -202,49 +206,66 @@ export default function TimetablePage() {
     THU: 'Thursday', FRI: 'Friday', SAT: 'Saturday',
   };
 
-  /* Derive unique start times dynamically from fetched time slots and always include custom breaks */
-  
+  /* ── Effective hours & breaks (department override -> global settings) ── */
+  const activeDept = departments.find(d => String(d.id) === String(selectedDepartmentId));
+  const effectiveStart = (activeDept?.start_time || institutionSettings?.start_time || '08:00').substring(0, 5);
+  const effectiveEnd = (activeDept?.end_time || institutionSettings?.end_time || '19:00').substring(0, 5);
+
+  /* Rows are derived from the effective hours plus the real time slots. Breaks never add rows
+     and nothing is treated as a break unless it lies inside a configured break range. */
   const generateTimeRange = (start, end) => {
-      const times = [];
-      let current = new Date(`2000-01-01T${start}`);
-      const endTime = new Date(`2000-01-01T${end}`);
-      while (current < endTime) {
-          times.push(current.toTimeString().substring(0, 5));
-          current.setHours(current.getHours() + 1);
-      }
-      return times;
+    const times = [];
+    for (let m = toMinutes(start); m < toMinutes(end); m += 60) times.push(fromMinutes(m));
+    return times;
   };
 
-  const baseTimes = institutionSettings ? generateTimeRange(institutionSettings.start_time, institutionSettings.end_time) : [];
+  const baseTimes = generateTimeRange(effectiveStart, effectiveEnd);
 
   const timeSlotTimes = [...new Set([
     ...baseTimes,
     ...timeslots.map(ts => ts.start_time?.substring(0, 5)),
-    ...(config.custom_breaks || [])
   ])].filter(Boolean).sort();
 
-  const formatTime = (timeStr) => {
-    if (!timeStr) return '';
-    const [h, m] = timeStr.split(':');
-    const hour = parseInt(h, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${m} ${ampm}`;
+  const formatTime = (timeStr) => formatClock(timeStr);
+
+  const breaks = config.breaks || [];
+  const isTimeSlotBreak = (time) => isTimeInBreak(time, breaks);
+
+  /* Breaks as displayed in the grid: hours that already hold a scheduled class are never hidden
+     behind a banner (e.g. a break added after the timetable was generated). */
+  const displayBreaks = timeSlotTimes
+    .filter(t => timetable.some(e => e.start_time?.substring(0, 5) === t))
+    .reduce((acc, t) => removeHourFromBreaks(acc, t), breaks);
+
+  /* Time slot ids that may be used for generation: the user's selection minus anything inside a break */
+  const getEffectiveTimeslotIds = () => timeslots
+    .filter(ts => config.timeslot_ids.includes(ts.id))
+    .filter(ts => !slotOverlapsBreak(ts.start_time, ts.end_time, breaks))
+    .map(ts => ts.id);
+
+  /* Break editing (user edits make the config authoritative over fetched defaults) */
+  const breaksDirtyRef = useRef(false);
+  const updateBreaks = (updater) => {
+    breaksDirtyRef.current = true;
+    setConfig(prev => ({ ...prev, breaks: normalizeBreaks(typeof updater === 'function' ? updater(prev.breaks || []) : updater) }));
   };
 
-  const isTimeSlotBreak = (time) => {
-    if ((config.custom_breaks || []).includes(time)) return true;
-    const slotsForTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
-    if (slotsForTime.length === 0) {
-      // No slot starts at this time: treat it as a break only if it falls in a gap
-      // between the first and last real slot of the day (e.g. a lunch gap).
-      const starts = timeslots.map(ts => ts.start_time?.substring(0, 5)).filter(Boolean).sort();
-      if (starts.length === 0) return false;
-      return time > starts[0] && time < starts[starts.length - 1];
+  const saveBreaksAsDefault = async () => {
+    try {
+      const payload = { default_breaks: normalizeBreaks(config.breaks) };
+      if (activeDept) {
+        const res = await api.patch(`/api/scheduler/departments/${activeDept.id}/`, payload);
+        setDepartments(prev => prev.map(d => d.id === activeDept.id ? { ...d, ...res.data } : d));
+        toast.success(`Saved breaks as default for ${activeDept.name}`);
+      } else {
+        const res = await api.put('/api/scheduler/settings/', payload);
+        setInstitutionSettings(prev => ({ ...prev, ...res.data }));
+        toast.success('Saved breaks as institution default');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.default_breaks?.[0] || 'Failed to save breaks');
     }
-    return slotsForTime.every(ts => !config.timeslot_ids.includes(ts.id));
   };
-
   /* ── Load data ──────────────────────────────────────────────────── */
   useEffect(() => {
     loadAll();
@@ -301,7 +322,7 @@ export default function TimetablePage() {
         subject_ids: subs.map(s => s.id),
         room_ids: rms.map(r => r.id),
         timeslot_ids: tss.map(ts => ts.id),
-        custom_breaks: settings.default_breaks || [],
+        breaks: breaksDirtyRef.current ? prev.breaks : normalizeBreaks(settings.default_breaks),
       }));
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -316,6 +337,14 @@ export default function TimetablePage() {
     setGenerating(true);
     try {
       const payload = { ...config, draft_name: draftName };
+      // Breaks are sent as ranges; time slots inside any break are never offered to the solver.
+      payload.custom_breaks = normalizeBreaks(config.breaks);
+      delete payload.breaks;
+      payload.timeslot_ids = getEffectiveTimeslotIds();
+      if (payload.timeslot_ids.length === 0) {
+        setGenerating(false);
+        return toast.error('No time slots left to schedule: every selected slot falls inside a break.');
+      }
       if (Object.keys(payload.excluded_slots).length === 0) delete payload.excluded_slots;
       if (Object.keys(payload.preferred_room_types).length === 0) delete payload.preferred_room_types;
       if (payload.locked_entries.length === 0) delete payload.locked_entries;
@@ -505,24 +534,60 @@ export default function TimetablePage() {
     }
   };
 
+  /**
+   * Export the timetable to PDF. The capture always uses a fixed light "print" palette
+   * (`.pdf-export-theme`), so the result is identical whether the app is in light or dark mode.
+   */
   const exportToPDF = async () => {
     const element = document.getElementById('timetable-export-wrapper');
     if (!element) return;
     const toastId = toast.loading('Generating PDF...');
     try {
-      const canvas = await html2canvas(element, { scale: 2 });
+      const exportWidth = 1400; // fixed layout width: independent of screen size / media queries
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        windowWidth: exportWidth,
+        width: exportWidth,
+        onclone: (clonedDoc, clonedEl) => {
+          clonedDoc.body.classList.remove('light-theme');
+          clonedEl.classList.add('pdf-export-theme');
+          clonedEl.style.opacity = '1';
+          clonedEl.style.animation = 'none';
+          clonedEl.style.transform = 'none';
+          clonedEl.style.width = `${exportWidth}px`;
+          // Remove interactive controls so the printout is clean.
+          clonedEl.querySelectorAll('.wayfinding-btn, .find-swap-btn, .report-absence-btn, .lock-icon, .class-card button')
+            .forEach(n => n.remove());
+          // Title block
+          const versionName = versions.find(v => String(v.id) === String(selectedVersionId))?.name;
+          const parts = ['Timetable'];
+          if (activeDept) parts.push(activeDept.name);
+          if (versionName) parts.push(versionName);
+          const header = clonedDoc.createElement('div');
+          header.className = 'pdf-export-title';
+          header.textContent = `${parts.join(' - ')}  |  Exported ${new Date().toLocaleDateString()}`;
+          clonedEl.insertBefore(header, clonedEl.firstChild);
+        },
+      });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('l', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const margin = 8;
+      const maxW = pdf.internal.pageSize.getWidth() - margin * 2;
+      const maxH = pdf.internal.pageSize.getHeight() - margin * 2;
+      // Fit to a single page, preserving aspect ratio.
+      const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+      const w = canvas.width * ratio;
+      const h = canvas.height * ratio;
+      pdf.addImage(imgData, 'PNG', margin + (maxW - w) / 2, margin, w, h);
       pdf.save('Timetable.pdf');
       toast.success('PDF Exported!', { id: toastId });
     } catch (err) {
+      console.error('PDF export failed:', err);
       toast.error('Failed to export PDF', { id: toastId });
     }
   };
-
   useEffect(() => {
     const handleWayfinding = (e) => {
       setWayfindingRoom(e.detail);
@@ -775,6 +840,12 @@ export default function TimetablePage() {
                  onChange={(e) => {
                    const newDeptId = e.target.value;
                    setSelectedDepartmentId(newDeptId);
+                    {
+                      const dept = departments.find(d => String(d.id) === String(newDeptId));
+                      const deptBreaks = normalizeBreaks(dept?.default_breaks);
+                      breaksDirtyRef.current = true;
+                      setConfig(prev => ({ ...prev, breaks: deptBreaks.length > 0 ? deptBreaks : normalizeBreaks(institutionSettings?.default_breaks) }));
+                    }
                    if (newDeptId) {
                      const did = parseInt(newDeptId);
                      const filteredSubIds = subjects.filter(s => s.departments?.includes(did) || s.is_elective).map(s => s.id);
@@ -1021,40 +1092,85 @@ export default function TimetablePage() {
                   <div className="advanced-option" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div className="option-info" style={{ marginBottom: '1rem' }}>
                       <span className="option-label">☕ Global Break Times</span>
-                      <span className="option-desc">Select times to universally exclude from generation across all days. These will instantly appear as "BREAK" banners on the timetable.</span>
+                      <span className="option-desc">Add as many breaks as you need. A break can be one slot (10 AM) or a continuous range (12 PM - 3 PM), and you can mix both (e.g. 10 AM, 12 PM-3 PM and 4 PM). Classes are never scheduled inside a break, and each break appears as a BREAK banner on the timetable.</span>
                     </div>
-                    <div className="ts-slot-row" style={{ marginLeft: 0 }}>
-                      {[...new Set([...Array.from({length: 12}, (_, i) => `${String(i + 8).padStart(2, '0')}:00`), ...timeSlotTimes])].sort().map(time => {
-                        const isBreak = isTimeSlotBreak(time);
-                        return (
-                          <label key={time} className={`ts-slot-chip ${isBreak ? 'selected' : ''}`} style={isBreak ? { borderColor: 'rgba(239, 68, 68, 0.5)', color: 'var(--color-accent-red)', background: 'rgba(239, 68, 68, 0.1)' } : {}}>
-                            <input
-                              type="checkbox"
-                              checked={isBreak}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                const slotsAtTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
-                                const slotIds = slotsAtTime.map(ts => ts.id);
-                                setConfig(prev => {
-                                  let newIds = [...prev.timeslot_ids];
-                                  let newCustomBreaks = [...(prev.custom_breaks || [])];
-                                  if (checked) {
-                                    // Make it a break: remove DB IDs, add to custom breaks
-                                    newIds = newIds.filter(id => !slotIds.includes(id));
-                                    if (!newCustomBreaks.includes(time)) newCustomBreaks.push(time);
-                                  } else {
-                                    // Remove break: add DB IDs back, remove from custom breaks
-                                    newIds = [...new Set([...newIds, ...slotIds])];
-                                    newCustomBreaks = newCustomBreaks.filter(b => b !== time);
-                                  }
-                                  return { ...prev, timeslot_ids: newIds, custom_breaks: newCustomBreaks };
-                                });
-                              }}
-                            />
-                            {formatTime(time)} {isBreak ? '(Break)' : ''}
-                          </label>
-                        );
-                      })}
+                    <div className="break-manager" id="break-manager">
+                      <div className="break-quick-row">
+                        <span className="break-quick-label">Quick toggle (1 hour):</span>
+                        <div className="ts-slot-row" style={{ marginLeft: 0 }}>
+                          {timeSlotTimes.map(time => {
+                            const isBreak = isTimeSlotBreak(time);
+                            return (
+                              <label key={time} className={`ts-slot-chip ${isBreak ? 'selected' : ''}`} style={isBreak ? { borderColor: 'rgba(239, 68, 68, 0.5)', color: 'var(--color-accent-red)', background: 'rgba(239, 68, 68, 0.1)' } : {}}>
+                                <input
+                                  type="checkbox"
+                                  checked={isBreak}
+                                  onChange={(e) => {
+                                    if (e.target.checked) updateBreaks(prev => addBreak(prev, time, fromMinutes(toMinutes(time) + 60)));
+                                    else updateBreaks(prev => removeHourFromBreaks(prev, time));
+                                  }}
+                                />
+                                {formatTime(time)} {isBreak ? '(Break)' : ''}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="break-list">
+                        {breaks.length === 0 && <div className="break-empty">No breaks configured. Classes can be scheduled in every slot.</div>}
+                        {breaks.map((b, idx) => {
+                          const hourOptions = [...new Set([...generateTimeRange(effectiveStart, effectiveEnd), b.start, b.end, effectiveEnd])].sort();
+                          const isRange = toMinutes(b.end) - toMinutes(b.start) > 60;
+                          const patchBreak = (patch) => updateBreaks(prev => prev.map((x, i) => {
+                            if (i !== idx) return x;
+                            const next = { ...x, ...patch };
+                            if (toMinutes(next.end) <= toMinutes(next.start)) next.end = fromMinutes(toMinutes(next.start) + 60);
+                            return next;
+                          }));
+                          return (
+                            <div className="break-row" key={`${b.start}-${idx}`}>
+                              <span className="break-badge">{isRange ? 'Continuous' : 'Single'}</span>
+                              <select className="form-select break-select" value={b.start} aria-label="Break start" onChange={(e) => patchBreak({ start: e.target.value })}>
+                                {hourOptions.filter(t => t !== effectiveEnd || t === b.start).map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                              </select>
+                              <span className="break-to">to</span>
+                              <select className="form-select break-select" value={b.end} aria-label="Break end" onChange={(e) => patchBreak({ end: e.target.value })}>
+                                {hourOptions.filter(t => toMinutes(t) > toMinutes(b.start)).map(t => <option key={t} value={t}>{formatTime(t)}</option>)}
+                              </select>
+                              <input
+                                type="text"
+                                className="form-input break-label-input"
+                                placeholder="Label (e.g. Lunch)"
+                                value={b.label || ''}
+                                maxLength={30}
+                                onChange={(e) => patchBreak({ label: e.target.value })}
+                              />
+                              <button type="button" className="btn btn-sm btn-secondary break-remove" title="Remove break" onClick={() => updateBreaks(prev => prev.filter((_, i) => i !== idx))}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="break-actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => {
+                            const free = timeSlotTimes.find(t => !isTimeSlotBreak(t));
+                            if (!free) return toast.error('Every hour is already a break.');
+                            updateBreaks(prev => addBreak(prev, free, fromMinutes(toMinutes(free) + 60)));
+                          }}
+                        >
+                          ＋ Add Break
+                        </button>
+                        <button type="button" className="btn btn-sm btn-secondary" onClick={saveBreaksAsDefault}>
+                          💾 Save as default{activeDept ? ` for ${activeDept.name}` : ''}
+                        </button>
+                        <button type="button" className="btn btn-sm btn-secondary" disabled={breaks.length === 0} onClick={() => updateBreaks([])}>
+                          Clear all
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <label className="advanced-option">
@@ -1245,15 +1361,21 @@ export default function TimetablePage() {
 
               {/* Time slot rows */}
               {timeSlotTimes.map(time => {
-                const isBreak = isTimeSlotBreak(time);
+                const row = describeRow(time, timeSlotTimes, displayBreaks);
+                // Continuous breaks render once (first row) and span all covered rows.
+                if (row.isBreak && !row.isFirstRow) return null;
+                const isBreak = row.isBreak;
                 return (
                 <React.Fragment key={`row-${time}`}>
-                  <div className="timetable-time" key={`time-${time}`}>
-                    {formatTime(time)}
+                  <div className="timetable-time" key={`time-${time}`} style={isBreak && row.span > 1 ? { gridRow: `span ${row.span}` } : undefined}>
+                    {isBreak && row.span > 1 ? (
+                      <span style={{ textAlign: 'center', lineHeight: 1.5 }}>{formatTime(row.range.start)}<br />to<br />{formatTime(row.range.end)}</span>
+                    ) : formatTime(time)}
                   </div>
                   {isBreak ? (
-                    <div className="timetable-break" style={{ gridColumn: 'span 6', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-glass)', color: 'var(--color-text-muted)', letterSpacing: '0.25em', textTransform: 'uppercase', fontSize: '0.85rem', fontWeight: 600, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
-                       BREAK
+                    <div className="timetable-break" style={{ gridRow: `span ${row.span}` }}>
+                      <span className="break-title">Break</span>
+                      {row.label && <span className="break-sub">{row.label}</span>}
                     </div>
                   ) : (
                     days.map(day => {
