@@ -23,7 +23,7 @@ export default function StudentAttendanceChart({ data }) {
           ))}
         </Pie>
         <Tooltip 
-          contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+          contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
           itemStyle={{ color: 'var(--color-text)' }}
           formatter={(value) => [`${value}%`, 'Attendance']}
         />

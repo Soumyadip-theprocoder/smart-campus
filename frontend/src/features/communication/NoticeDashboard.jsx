@@ -275,7 +275,7 @@ export default function NoticeDashboard() {
                       onClick={() => setOpenMenuId(isMenuOpen ? null : notice.id)}
                       style={{
                         background: 'none',
-                        border: '1px solid rgba(255,255,255,0.08)',
+                        border: '1px solid var(--color-border)',
                         borderRadius: '6px',
                         padding: '0.35rem 0.5rem',
                         cursor: 'pointer',
@@ -300,7 +300,7 @@ export default function NoticeDashboard() {
                           right: 0,
                           top: 'calc(100% + 4px)',
                           background: 'var(--color-bg-elevated, #1e1e2e)',
-                          border: '1px solid rgba(255,255,255,0.1)',
+                          border: '1px solid var(--color-border)',
                           borderRadius: '8px',
                           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                           zIndex: 100,

@@ -361,7 +361,7 @@ export default function StudentDashboard() {
             <p>Select any accommodations you require for your classes.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
               {amenities.map(a => (
-                <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'var(--color-bg-glass)', borderRadius: '4px' }}>
                   <input
                     type="checkbox"
                     checked={accessNeeds.includes(a.name)}

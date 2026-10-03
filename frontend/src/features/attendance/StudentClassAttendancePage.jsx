@@ -131,7 +131,7 @@ export default function StudentClassAttendancePage() {
           <span>Missed (Absent)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-          <div style={{ width: 16, height: 16, borderRadius: 4, background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)' }} />
+          <div style={{ width: 16, height: 16, borderRadius: 4, background: 'var(--color-bg-glass)', border: '1px solid var(--color-border)' }} />
           <span>Did Not Happen / Future</span>
         </div>
       </div>
@@ -193,7 +193,7 @@ export default function StudentClassAttendancePage() {
                     textColor = 'var(--color-accent-red)';
                     icon = '✗';
                   } else {
-                    bgStyle = { background: 'rgba(255, 255, 255, 0.05)', borderLeft: '3px solid rgba(255,255,255,0.2)', opacity: status === 'future' ? 0.7 : 1 };
+                    bgStyle = { background: 'var(--color-bg-glass)', borderLeft: '3px solid rgba(255,255,255,0.2)', opacity: status === 'future' ? 0.7 : 1 };
                     textColor = 'var(--color-text-muted)';
                     icon = '-';
                   }

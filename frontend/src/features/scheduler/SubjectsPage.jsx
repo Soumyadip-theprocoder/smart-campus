@@ -194,7 +194,7 @@ function CourseForm({ initial, faculty, amenitiesList, onSave, saving }) {
         <label className="form-label">Required Amenities</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
           {amenitiesList.map(a => (
-            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
+            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-bg-glass)', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
               <input 
                 type="checkbox" 
                 checked={form.amenities.includes(a.id)}

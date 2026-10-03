@@ -242,7 +242,7 @@ export default function AttendancePage() {
       {showQRGenerator && (
         <div className="scanner-modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          background: 'var(--color-bg-hover)', zIndex: 9999,
           display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}>
           <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '400px', width: '100%', position: 'relative' }}>
@@ -260,7 +260,7 @@ export default function AttendancePage() {
       {showScanner && (
         <div className="scanner-modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          background: 'var(--color-bg-hover)', zIndex: 9999,
           display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}>
           <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '500px', width: '100%', position: 'relative' }}>
@@ -271,7 +271,7 @@ export default function AttendancePage() {
             <h2 style={{ marginBottom: '1rem' }}>Face ID Scanner</h2>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>Align face within the outline.</p>
             
-            <div style={{ position: 'relative', width: '100%', height: '300px', backgroundColor: '#000', borderRadius: '12px', overflow: 'hidden' }}>
+            <div style={{ position: 'relative', width: '100%', height: '300px', backgroundColor: 'var(--color-bg-elevated)', borderRadius: '12px', overflow: 'hidden' }}>
               <Webcam
                 audio={false}
                 ref={webcamRef}
@@ -326,7 +326,7 @@ export default function AttendancePage() {
       {showBatchUpload && (
         <div className="scanner-modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          background: 'var(--color-bg-hover)', zIndex: 9999,
           display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}>
           <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '500px', width: '100%', position: 'relative' }}>

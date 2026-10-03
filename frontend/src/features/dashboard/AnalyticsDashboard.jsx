@@ -61,7 +61,7 @@ export default function AnalyticsDashboard() {
                 <XAxis dataKey="department" stroke="var(--color-text-muted)" />
                 <YAxis stroke="var(--color-text-muted)" domain={[0, 100]} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
                   itemStyle={{ color: 'var(--color-accent-emerald)' }}
                 />
                 <Area 
@@ -89,7 +89,7 @@ export default function AnalyticsDashboard() {
                 <XAxis dataKey="subject_code" stroke="var(--color-text-muted)" />
                 <YAxis stroke="var(--color-text-muted)" domain={[0, 100]} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
                   itemStyle={{ color: 'var(--color-accent-blue)' }}
                 />
                 <Bar dataKey="percentage" fill="var(--color-accent-blue)" radius={[4, 4, 0, 0]} />

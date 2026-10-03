@@ -55,7 +55,7 @@ const DraggableClassCard = ({ cls, isLocked, color, isAdmin, isFaculty, isOwnCla
           // Dispatch custom event to open wayfinding
           document.dispatchEvent(new CustomEvent('open-wayfinding', { detail: cls.room_number }));
         }}
-        style={{ position: 'absolute', bottom: '4px', right: '4px', fontSize: '10px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', color: 'inherit' }}
+        style={{ position: 'absolute', bottom: '4px', right: '4px', fontSize: '10px', background: 'var(--color-bg-glass)', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', color: 'inherit' }}
       >
         🗺️
       </button>
@@ -1245,7 +1245,7 @@ export default function TimetablePage() {
                     {formatTime(time)}
                   </div>
                   {isBreak ? (
-                    <div className="timetable-break" style={{ gridColumn: 'span 6', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.02)', color: 'var(--color-text-muted)', letterSpacing: '0.25em', textTransform: 'uppercase', fontSize: '0.85rem', fontWeight: 600, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+                    <div className="timetable-break" style={{ gridColumn: 'span 6', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-bg-glass)', color: 'var(--color-text-muted)', letterSpacing: '0.25em', textTransform: 'uppercase', fontSize: '0.85rem', fontWeight: 600, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
                        BREAK
                     </div>
                   ) : (
@@ -1315,7 +1315,7 @@ export default function TimetablePage() {
               const entry = timetable.find(t => t.subject_code === code);
               return (
                 <div className="legend-item" key={code}>
-                  <div style={{ position: 'relative', width: '1rem', height: '1rem', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
+                  <div style={{ position: 'relative', width: '1rem', height: '1rem', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--color-border)', cursor: 'pointer' }}>
                     <input
                       type="color"
                       value={customColors[code] || '#5b6cf9'}
@@ -1343,7 +1343,7 @@ export default function TimetablePage() {
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>The following classes need coverage. Click 'Accept' to substitute.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
              {pendingSubstitutes.map(sub => (
-                 <div key={sub.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                 <div key={sub.id} style={{ padding: '1rem', background: 'var(--color-bg-glass)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                     <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{sub.faculty_name}'s Class</div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>📅 {sub.date}</div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', fontStyle: 'italic' }}>"{sub.reason}"</div>
@@ -1361,7 +1361,7 @@ export default function TimetablePage() {
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Faculty have requested to move these classes.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
              {pendingSwaps.map(swap => (
-                 <div key={swap.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                 <div key={swap.id} style={{ padding: '1rem', background: 'var(--color-bg-glass)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                     <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{swap.requester_name}</div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
                        Wants to move {swap.target_entry_details?.subject?.code} to {swap.requested_time_slot_details?.day} {swap.requested_time_slot_details?.start_time}
@@ -1380,7 +1380,7 @@ export default function TimetablePage() {
           <div className="modal-content glass-card" onClick={e => e.stopPropagation()}>
             <h3>🗺️ Wayfinding: {wayfindingRoom}</h3>
             <p>Campus map locating room {wayfindingRoom} would appear here.</p>
-            <div style={{ width: '100%', height: '200px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1rem' }}>
+            <div style={{ width: '100%', height: '200px', background: 'var(--color-bg-glass)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1rem' }}>
               📍 [Map Placeholder]
             </div>
             <button className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => setWayfindingRoom(null)}>Close</button>
@@ -1492,7 +1492,7 @@ export default function TimetablePage() {
                  ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                        {swapSuggestions.map((s, idx) => (
-                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '4px' }}>
+                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--color-bg-glass)', padding: '0.75rem', borderRadius: '4px' }}>
                                <span>{s.description}</span>
                                <button className="btn btn-sm btn-primary" onClick={() => executeSmartSwap(s)}>Move Here</button>
                            </div>

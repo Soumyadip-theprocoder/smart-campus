@@ -136,7 +136,7 @@ export default function FacultySubjectsPage() {
                   {isExpanded && (
                     <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', animation: 'fadeIn 0.3s ease' }}>
                       
-                      <div style={{ marginBottom: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
+                      <div style={{ marginBottom: '1.5rem', background: 'var(--color-bg-hover)', padding: '1rem', borderRadius: '8px' }}>
                         <h4 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Overall Subject Attendance</h4>
                         <div className="subject-progress" style={{ margin: '0.5rem 0' }}>
                           <div className="progress-bar">

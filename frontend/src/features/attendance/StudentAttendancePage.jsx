@@ -101,7 +101,7 @@ export default function StudentAttendancePage() {
       {showScanner && (
         <div className="scanner-modal-overlay" style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+          background: 'var(--color-bg-hover)', zIndex: 9999,
           display: 'flex', justifyContent: 'center', alignItems: 'center'
         }}>
           <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '500px', width: '90%', position: 'relative' }}>
