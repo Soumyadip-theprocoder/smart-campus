@@ -2,6 +2,9 @@
 
 /* ─── CSS Design System ────────────────────────────────────────── */
 :root {
+  /* Tell the browser this is a dark UI so native controls (select popups, scrollbars) match */
+  color-scheme: dark;
+
   /* Primary palette */
   --color-bg-primary: #0a0e1a;
   --color-bg-secondary: #111827;
@@ -9,6 +12,7 @@
   --color-bg-glass: rgba(255, 255, 255, 0.05);
   --color-bg-hover: rgba(255, 255, 255, 0.08);
   --color-bg-input: rgba(255, 255, 255, 0.06);
+  --color-bg-elevated: #1e1e2e; /* menus, popovers */
 
   /* Accent colors */
   --color-accent-blue: #3b82f6;
@@ -63,6 +67,8 @@
 }
 
 body.light-theme {
+  color-scheme: light;
+
   /* Primary palette */
   --color-bg-primary: #f8fafc;
   --color-bg-secondary: #ffffff;
@@ -70,6 +76,7 @@ body.light-theme {
   --color-bg-glass: rgba(0, 0, 0, 0.03);
   --color-bg-hover: rgba(0, 0, 0, 0.05);
   --color-bg-input: rgba(0, 0, 0, 0.02);
+  --color-bg-elevated: #ffffff;
 
   /* Gradients */
   --gradient-dark: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
@@ -419,6 +426,18 @@ a:hover {
   background-repeat: no-repeat;
   background-position: right 1rem center;
   padding-right: 2.5rem;
+}
+
+/* Native dropdown lists are drawn by the browser. Options would otherwise inherit the
+   select's translucent background, making text unreadable in dark mode. */
+select option,
+select optgroup {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+select option:disabled {
+  color: var(--color-text-muted);
 }
 
 /* ─── Data Table ───────────────────────────────────────────────── */

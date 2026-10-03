@@ -4,10 +4,12 @@ import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 import LocalErrorBoundary from '../../components/LocalErrorBoundary';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import './TimetablePage.css';
 
 /* ── Drag & Drop Components ───────────────────────────────────── */
-const DraggableClassCard = ({ cls, isLocked, color, isAdmin, onLockToggle, showConfig }) => {
+const DraggableClassCard = ({ cls, isLocked, color, isAdmin, isFaculty, isOwnClass, onLockToggle, showConfig, onReportAbsence, onFindSwap }) => {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: cls.id,
     disabled: isLocked || !isAdmin
@@ -30,9 +32,9 @@ const DraggableClassCard = ({ cls, isLocked, color, isAdmin, onLockToggle, showC
         {...attributes}
         style={{ flexGrow: 1, cursor: isLocked ? 'default' : 'grab', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
       >
-        <div className="class-name">{cls.subject_code}</div>
+        <div className="class-name" style={{ fontSize: cls.event_type === 'office_hours' ? '0.9rem' : undefined }}>{cls.subject_code || cls.event_title}</div>
         <div className="class-room">📍 {cls.room_number}</div>
-        <div className="class-room">{cls.faculty_name}</div>
+        {cls.faculty_name && <div className="class-room">{cls.faculty_name}</div>}
       </div>
       
       {showConfig && isAdmin && (
@@ -41,22 +43,81 @@ const DraggableClassCard = ({ cls, isLocked, color, isAdmin, onLockToggle, showC
            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLockToggle(cls); }}
            title={isLocked ? "Unlock" : "Lock"}
         >
-          {isLocked ? '🔒' : '🔓'}
+           {isLocked ? '🔒' : '🔓'}
         </button>
       )}
       {!showConfig && isLocked && <span className="lock-icon">🔒</span>}
+      <button 
+        className="wayfinding-btn"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Dispatch custom event to open wayfinding
+          document.dispatchEvent(new CustomEvent('open-wayfinding', { detail: cls.room_number }));
+        }}
+        style={{ position: 'absolute', bottom: '4px', right: '4px', fontSize: '10px', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', color: 'inherit' }}
+      >
+        🗺️
+      </button>
+
+      {isFaculty && isOwnClass && (
+        <button
+          className="report-absence-btn"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onReportAbsence(cls);
+          }}
+          style={{ position: 'absolute', bottom: '4px', left: '4px', fontSize: '10px', background: 'var(--color-accent-red)', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', color: 'white' }}
+          title="Report Absence for this class"
+        >
+          🚨
+        </button>
+      )}
+
+      {(isAdmin || (isFaculty && isOwnClass)) && (
+        <button
+          className="find-swap-btn"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFindSwap(cls);
+          }}
+          style={{ position: 'absolute', bottom: '4px', left: (isFaculty && isOwnClass) ? '28px' : '4px', fontSize: '10px', background: 'var(--color-accent-blue)', border: 'none', borderRadius: '4px', padding: '2px 4px', cursor: 'pointer', color: 'white' }}
+          title={isAdmin ? "Find Smart Swap" : "Request Swap"}
+        >
+          🔄
+        </button>
+      )}
     </div>
   );
 };
 
-const DroppableCell = ({ id, children }) => {
+const DroppableCell = ({ id, isValidDrop, children }) => {
   const { isOver, setNodeRef } = useDroppable({ id });
+
+  let bg = undefined;
+  let borderColor = undefined;
+  if (isOver) {
+    bg = isValidDrop === false ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+    borderColor = isValidDrop === false ? 'var(--color-accent-red)' : 'var(--color-accent-emerald)';
+  } else if (isValidDrop === true) {
+    bg = 'rgba(16, 185, 129, 0.05)';
+    borderColor = 'rgba(16, 185, 129, 0.5)';
+  } else if (isValidDrop === false) {
+    bg = 'rgba(239, 68, 68, 0.02)';
+    borderColor = 'rgba(239, 68, 68, 0.2)';
+  }
 
   return (
     <div
       ref={setNodeRef}
       className={`timetable-cell ${isOver ? 'drop-target' : ''}`}
-      style={isOver ? { backgroundColor: 'rgba(255, 255, 255, 0.1)' } : undefined}
+      style={{
+        backgroundColor: bg || undefined,
+        border: borderColor ? `1px dashed ${borderColor}` : undefined,
+        transition: 'all 0.2s ease'
+      }}
     >
       {children}
     </div>
@@ -68,12 +129,56 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const { isAdmin } = useAuth();
+  const { user, isAdmin, isFaculty } = useAuth();
+  const userFullName = user ? `${user.first_name} ${user.last_name}` : '';
 
   /* ── Reference data for configuration ───────────────────────────── */
   const [subjects, setSubjects] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [timeslots, setTimeslots] = useState([]);
+  const [institutionSettings, setInstitutionSettings] = useState({ start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] });
+
+  /* ── Filter state ───────────────────────────────────────────────── */
+  const [filterType, setFilterType] = useState('all'); // all, faculty, room
+  const [filterValue, setFilterValue] = useState('');
+
+  /* ── Department & Resource state ────────────────────────────────── */
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
+  const [resources, setResources] = useState([]);
+
+  /* ── Mobile/Wayfinding state ────────────────────────────────────── */
+  const [mobileDay, setMobileDay] = useState('MON');
+  const [wayfindingRoom, setWayfindingRoom] = useState(null);
+
+  /* ── Drag and Drop Active Item ──────────────────────────────────── */
+  const [activeDragItem, setActiveDragItem] = useState(null);
+
+  /* ── Smart Swaps state ──────────────────────────────────────────── */
+  const [showSmartSwapModal, setShowSmartSwapModal] = useState(false);
+  const [swapClass, setSwapClass] = useState(null);
+  const [swapSuggestions, setSwapSuggestions] = useState([]);
+  const [pendingSwaps, setPendingSwaps] = useState([]);
+  const [swapReason, setSwapReason] = useState('');
+
+  /* ── Add Event state ────────────────────────────────────────────── */
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [addEventSlot, setAddEventSlot] = useState(null);
+  const [newEvent, setNewEvent] = useState({ title: '', color: '#3b82f6', room: '' });
+
+  /* ── Sandbox Version state ──────────────────────────────────────── */
+  const [versions, setVersions] = useState([]);
+  const [selectedVersionId, setSelectedVersionId] = useState('');
+  const [draftName, setDraftName] = useState('New Draft');
+
+  /* ── Report Absence state ───────────────────────────────────────── */
+  const [showAbsenceModal, setShowAbsenceModal] = useState(false);
+  const [absenceClass, setAbsenceClass] = useState(null);
+  const [absenceReason, setAbsenceReason] = useState('');
+
+  /* ── Substitute Requests state ──────────────────────────────────── */
+  const [pendingSubstitutes, setPendingSubstitutes] = useState([]);
+
 
   /* ── Generator config state ─────────────────────────────────────── */
   const [config, setConfig] = useState({
@@ -85,7 +190,10 @@ export default function TimetablePage() {
     preferred_room_types: {},
     avoid_back_to_back: false,
     max_classes_per_day: 1,
-    custom_breaks: ['13:00'],
+    balance_faculty_workload: false,
+    auto_schedule_office_hours: false,
+    exam_mode: false,
+    custom_breaks: institutionSettings?.default_breaks || ['13:00'],
   });
 
   const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -95,7 +203,22 @@ export default function TimetablePage() {
   };
 
   /* Derive unique start times dynamically from fetched time slots and always include custom breaks */
+  
+  const generateTimeRange = (start, end) => {
+      const times = [];
+      let current = new Date(`2000-01-01T${start}`);
+      const endTime = new Date(`2000-01-01T${end}`);
+      while (current < endTime) {
+          times.push(current.toTimeString().substring(0, 5));
+          current.setHours(current.getHours() + 1);
+      }
+      return times;
+  };
+
+  const baseTimes = institutionSettings ? generateTimeRange(institutionSettings.start_time, institutionSettings.end_time) : [];
+
   const timeSlotTimes = [...new Set([
+    ...baseTimes,
     ...timeslots.map(ts => ts.start_time?.substring(0, 5)),
     ...(config.custom_breaks || [])
   ])].filter(Boolean).sort();
@@ -124,21 +247,47 @@ export default function TimetablePage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ttRes, subRes, roomRes, tsRes] = await Promise.all([
-        api.get('/api/scheduler/timetable/'),
+      const [ttRes, subRes, roomRes, tsRes, settingsRes, versionsRes, deptRes, resRes] = await Promise.all([
+        api.get(`/api/scheduler/timetable/${selectedVersionId ? `?version=${selectedVersionId}` : ''}`),
         api.get('/api/scheduler/subjects/'),
         api.get('/api/scheduler/rooms/'),
         api.get('/api/scheduler/timeslots/'),
+        api.get('/api/scheduler/settings/').catch(() => ({ data: { start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] }})),
+        api.get('/api/scheduler/versions/'),
+        api.get('/api/scheduler/departments/').catch(() => ({ data: { results: [] } })),
+        api.get('/api/scheduler/resources/').catch(() => ({ data: { results: [] } }))
       ]);
       const tt = ttRes.data.results || ttRes.data || [];
       const subs = subRes.data.results || subRes.data || [];
       const rms = roomRes.data.results || roomRes.data || [];
       const tss = tsRes.data.results || tsRes.data || [];
+      const settings = settingsRes.data || { start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] };
+      const vers = versionsRes.data.results || versionsRes.data || [];
+      const depts = deptRes.data.results || deptRes.data || [];
+      const ress = resRes.data.results || resRes.data || [];
 
       setTimetable(tt);
       setSubjects(subs);
       setRooms(rms);
       setTimeslots(tss);
+      setInstitutionSettings(settings);
+      setVersions(vers);
+      setDepartments(depts);
+      setResources(ress);
+
+      if (isFaculty || isAdmin) {
+          api.get('/api/scheduler/absences/').then(res => {
+              setPendingSubstitutes((res.data.results || res.data || []).filter(a => a.status === 'pending' && a.faculty_name !== userFullName));
+          }).catch(console.error);
+          api.get('/api/scheduler/swaps/').then(res => {
+              setPendingSwaps((res.data.results || res.data || []).filter(s => s.status === 'pending'));
+          }).catch(console.error);
+      }
+
+      if (!selectedVersionId && vers.length > 0) {
+          const published = vers.find(v => v.is_published);
+          if (published) setSelectedVersionId(published.id);
+      }
 
       // Initialize config with all selected
       setConfig(prev => ({
@@ -156,9 +305,10 @@ export default function TimetablePage() {
 
   /* ── Generate with config ───────────────────────────────────────── */
   const handleGenerate = async () => {
+    if (!draftName.trim()) return toast.error("Please provide a Draft Name");
     setGenerating(true);
     try {
-      const payload = { ...config };
+      const payload = { ...config, draft_name: draftName };
       if (Object.keys(payload.excluded_slots).length === 0) delete payload.excluded_slots;
       if (Object.keys(payload.preferred_room_types).length === 0) delete payload.preferred_room_types;
       if (payload.locked_entries.length === 0) delete payload.locked_entries;
@@ -190,7 +340,9 @@ export default function TimetablePage() {
       } else {
         setTimetable(response.data.timetable || []);
         setShowConfig(false);
+        if (response.data.version_id) setSelectedVersionId(response.data.version_id);
         toast(response.data.message);
+        loadAll(); // Reload versions
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to generate timetable.');
@@ -259,7 +411,12 @@ export default function TimetablePage() {
     return entry.is_locked;
   };
 
+  const handleDragStart = (event) => {
+    setActiveDragItem(event.active.id);
+  };
+
   const handleDragEnd = async (event) => {
+    setActiveDragItem(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     
@@ -292,30 +449,198 @@ export default function TimetablePage() {
     return saved ? JSON.parse(saved) : {};
   });
 
-  const handleColorChange = (subjectCode, color) => {
+  const handleColorChange = async (subjectCode, color) => {
     const newColors = { ...customColors, [subjectCode]: color };
     setCustomColors(newColors);
     localStorage.setItem('timetableColors', JSON.stringify(newColors));
+    
+    const subject = subjects.find(s => s.code === subjectCode);
+    if (subject) {
+      try {
+        await api.patch(`/api/scheduler/subjects/${subject.id}/`, { color_code: color });
+      } catch (err) {
+        console.error('Failed to update subject color', err);
+      }
+    }
   };
 
   const getClassForSlot = (day, time) => {
-    return timetable.find(
-      entry => entry.day === day && entry.start_time?.substring(0, 5) === time
-    );
+    return timetable.find(entry => {
+      if (entry.day !== day || entry.start_time?.substring(0, 5) !== time) return false;
+      if (filterType === 'faculty' && filterValue && entry.faculty_name !== filterValue) return false;
+      if (filterType === 'room' && filterValue && entry.room_number !== filterValue) return false;
+      if (filterType === 'resource' && filterValue) {
+        // If the entry's subject or room requires this resource, show it
+        const room = rooms.find(r => r.room_number === entry.room_number);
+        const subject = subjects.find(s => s.code === entry.subject_code);
+        const resId = parseInt(filterValue);
+        const hasRes = (room?.amenities?.includes(resId)) || (subject?.amenities?.includes(resId));
+        if (!hasRes) return false;
+      }
+      return true;
+    });
   };
 
   const getTimeslotForDayTime = (day, time) => {
     return timeslots.find(ts => ts.day === day && ts.start_time?.substring(0, 5) === time);
   };
 
-  const getSubjectColor = (subjectCode, subjectType) => {
-    if (customColors[subjectCode]) return customColors[subjectCode];
-    switch (subjectType?.toLowerCase()) {
+  const getSubjectColor = (cls) => {
+    if (cls.event_color) return cls.event_color;
+    if (cls.subject_code && customColors[cls.subject_code]) return customColors[cls.subject_code];
+    const subject = subjects.find(s => s.code === cls.subject_code);
+    if (subject?.color_code) return subject.color_code;
+    switch (cls.subject_type?.toLowerCase()) {
       case "lecture":  return "var(--gradient-primary)";
       case "lab":      return "var(--gradient-emerald)";
       case "seminar":  return "var(--gradient-pink)";
       default:         return "var(--gradient-dark)";
     }
+  };
+
+  const exportToPDF = async () => {
+    const element = document.getElementById('timetable-export-wrapper');
+    if (!element) return;
+    const toastId = toast.loading('Generating PDF...');
+    try {
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('Timetable.pdf');
+      toast.success('PDF Exported!', { id: toastId });
+    } catch (err) {
+      toast.error('Failed to export PDF', { id: toastId });
+    }
+  };
+
+  useEffect(() => {
+    const handleWayfinding = (e) => {
+      setWayfindingRoom(e.detail);
+    };
+    document.addEventListener('open-wayfinding', handleWayfinding);
+    return () => document.removeEventListener('open-wayfinding', handleWayfinding);
+  }, []);
+
+  useEffect(() => {
+      loadAll();
+  }, [selectedVersionId]);
+
+  const handlePublishVersion = async () => {
+      if (!selectedVersionId) return;
+      try {
+          await api.patch(`/api/scheduler/versions/${selectedVersionId}/`, { is_published: true });
+          toast.success("Timetable version published successfully!");
+          loadAll();
+      } catch (err) {
+          toast.error("Failed to publish version");
+      }
+  };
+
+  const handleReportAbsence = async () => {
+    if (!absenceReason) return toast.error("Reason is required");
+    try {
+        // Find date for next occurrence of this day (simplified)
+        const date = new Date().toISOString().split('T')[0]; // Current date as placeholder
+        await api.post('/api/scheduler/absences/', {
+            date: date,
+            reason: `For class ${absenceClass.subject_code} at ${absenceClass.time_slot}: ${absenceReason}`,
+            timetable_entry: absenceClass.id
+        });
+        toast.success("Absence reported & substitute request broadcasted!");
+        setShowAbsenceModal(false);
+        setAbsenceReason('');
+        loadAll(); // Reload to show in substitute list if testing
+    } catch (err) {
+        toast.error("Failed to report absence");
+    }
+  };
+
+  const handleAcceptSubstitute = async (absenceId) => {
+    try {
+        await api.patch(`/api/scheduler/absences/${absenceId}/`, {
+            status: 'approved', // For testing, auto-approve
+            substitute_id: user.id // Needs proper backend mapping but okay for mock
+        });
+        toast.success("You have accepted the substitute request!");
+        loadAll();
+    } catch (err) {
+        toast.error("Failed to accept substitute request");
+    }
+  };
+
+  const handleFindSwap = async (cls) => {
+      setSwapClass(cls);
+      setShowSmartSwapModal(true);
+      if (isAdmin) {
+          try {
+              const res = await api.get(`/api/scheduler/timetable/${cls.id}/smart-swaps/`);
+              setSwapSuggestions(res.data.suggestions || []);
+          } catch (err) {
+              toast.error("Failed to fetch smart swaps");
+          }
+      }
+  };
+
+  const executeSmartSwap = async (suggestion) => {
+      try {
+          await api.patch(`/api/scheduler/timetable/${swapClass.id}/`, {
+              time_slot: suggestion.target_slot_id
+          });
+          toast.success("Smart swap executed!");
+          setShowSmartSwapModal(false);
+          loadAll();
+      } catch (err) {
+          toast.error("Failed to execute swap");
+      }
+  };
+
+  const requestSmartSwap = async (targetSlotId) => {
+      try {
+          await api.post(`/api/scheduler/swaps/`, {
+              target_entry: swapClass.id,
+              requested_time_slot: targetSlotId,
+              reason: swapReason
+          });
+          toast.success("Swap request sent to admin!");
+          setShowSmartSwapModal(false);
+          loadAll();
+      } catch (err) {
+          toast.error("Failed to request swap");
+      }
+  };
+
+  const approveSwapRequest = async (swapId) => {
+      try {
+          await api.patch(`/api/scheduler/swaps/${swapId}/`, { status: 'approved' });
+          toast.success("Swap request approved and applied!");
+          loadAll();
+      } catch (err) {
+          toast.error("Failed to approve swap");
+      }
+  };
+
+  /* ── Fairness Metric ────────────────────────────────────────────── */
+  const getWorkloadMetric = () => {
+     if (timetable.length === 0) return "N/A";
+     const counts = {};
+     timetable.forEach(t => {
+         if (t.event_type === 'office_hours') return;
+         if (!t.faculty_name) return;
+         const key = `${t.faculty_name}-${t.day}`;
+         counts[key] = (counts[key] || 0) + 1;
+     });
+     const values = Object.values(counts);
+     if (values.length === 0) return "N/A";
+     const max = Math.max(...values);
+     const avg = (values.reduce((a,b)=>a+b,0)/values.length).toFixed(1);
+     // Score from 0 to 100 based on standard deviation or max diff. 
+     // Simple metric: if max > avg by a lot, score is lower.
+     const diff = max - avg;
+     const score = Math.max(0, 100 - (diff * 20)).toFixed(0);
+     return `${score}/100 (Max ${max}/day)`;
   };
 
   /* ── Group time slots by day ────────────────────────────────────── */
@@ -343,15 +668,79 @@ export default function TimetablePage() {
           <h1>Class Timetable</h1>
           <p>Weekly schedule generated by the constraint satisfaction algorithm</p>
         </div>
-        {isAdmin && (
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowConfig(!showConfig)}
-              id="btn-configure-generator"
-            >
-              ⚙️ {showConfig ? 'Hide Config' : 'Configure'}
-            </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <select 
+             className="form-select" 
+             style={{ width: 'auto' }}
+             value={filterType}
+             onChange={(e) => {
+               setFilterType(e.target.value);
+               setFilterValue('');
+             }}
+          >
+            <option value="all">All Classes</option>
+            <option value="faculty">Filter by Faculty</option>
+            <option value="room">Filter by Room</option>
+            <option value="resource">Filter by Resource</option>
+          </select>
+          {filterType === 'faculty' && (
+            <select className="form-select" style={{ width: 'auto' }} value={filterValue} onChange={(e) => setFilterValue(e.target.value)}>
+              <option value="">Select Faculty...</option>
+              {[...new Set(timetable.map(t => t.faculty_name).filter(Boolean))].map(f => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          )}
+          {filterType === 'room' && (
+            <select className="form-select" style={{ width: 'auto' }} value={filterValue} onChange={(e) => setFilterValue(e.target.value)}>
+              <option value="">Select Room...</option>
+              {[...new Set(timetable.map(t => t.room_number).filter(Boolean))].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          )}
+          {filterType === 'resource' && (
+            <select className="form-select" style={{ width: 'auto' }} value={filterValue} onChange={(e) => setFilterValue(e.target.value)}>
+              <option value="">Select Resource/Amenity...</option>
+              {resources.map(r => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          )}
+
+          <button className="btn btn-secondary" onClick={exportToPDF}>
+            📥 Export PDF
+          </button>
+          
+          {isAdmin && (
+            <>
+              {versions.length > 0 && (
+                 <select 
+                   className="form-select" 
+                   style={{ width: 'auto', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'var(--color-accent-blue)', color: 'var(--color-accent-blue-light)', fontWeight: 'bold' }}
+                   value={selectedVersionId}
+                   onChange={(e) => setSelectedVersionId(e.target.value)}
+                 >
+                   <option value="">-- Select Sandbox Version --</option>
+                   {versions.map(v => (
+                      <option key={v.id} value={v.id}>{v.name} {v.is_published ? '(Live)' : '(Draft)'}</option>
+                   ))}
+                 </select>
+              )}
+              
+              {selectedVersionId && !versions.find(v => v.id == selectedVersionId)?.is_published && (
+                  <button className="btn btn-primary" style={{ background: 'var(--color-accent-emerald)', borderColor: 'var(--color-accent-emerald)' }} onClick={handlePublishVersion}>
+                      🚀 Publish Draft
+                  </button>
+              )}
+
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowConfig(!showConfig)}
+                id="btn-configure-generator"
+              >
+                ⚙️ {showConfig ? 'Hide Config' : 'New Sandbox Draft'}
+              </button>
             <button
               className="btn btn-primary"
               onClick={() => showConfig ? handleGenerate() : setShowConfig(true)}
@@ -360,8 +749,9 @@ export default function TimetablePage() {
             >
               {generating ? '⏳ Generating...' : '⚡ Generate'}
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Configuration Panel ─────────────────────────────────────── */}
@@ -370,6 +760,30 @@ export default function TimetablePage() {
           <div className="config-header">
             <h2>🎛️ Generator Configuration</h2>
             <p>Fine-tune which resources to include and set scheduling constraints</p>
+            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <label style={{ fontWeight: 600 }}>Target Department:</label>
+              <select 
+                 className="form-select"
+                 value={selectedDepartmentId}
+                 onChange={(e) => {
+                   const newDeptId = e.target.value;
+                   setSelectedDepartmentId(newDeptId);
+                   if (newDeptId) {
+                     const did = parseInt(newDeptId);
+                     const filteredSubIds = subjects.filter(s => s.departments?.includes(did) || s.is_elective).map(s => s.id);
+                     const filteredRoomIds = rooms.filter(r => r.departments?.includes(did) || !r.departments || r.departments.length === 0).map(r => r.id);
+                     setConfig(prev => ({ ...prev, subject_ids: filteredSubIds, room_ids: filteredRoomIds }));
+                   } else {
+                     setConfig(prev => ({ ...prev, subject_ids: subjects.map(s => s.id), room_ids: rooms.map(r => r.id) }));
+                   }
+                 }}
+              >
+                 <option value="">All Departments (Global)</option>
+                 {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                 ))}
+              </select>
+            </div>
           </div>
 
           {/* Config tabs */}
@@ -650,6 +1064,51 @@ export default function TimetablePage() {
                       <span className="option-desc">Prevent scheduling consecutive sessions for the same faculty member</span>
                     </div>
                   </label>
+                  
+                  <label className="advanced-option">
+                    <div className="option-toggle">
+                      <input
+                        type="checkbox"
+                        checked={config.balance_faculty_workload}
+                        onChange={(e) => setConfig(prev => ({ ...prev, balance_faculty_workload: e.target.checked }))}
+                      />
+                      <span className="toggle-slider" />
+                    </div>
+                    <div className="option-info">
+                      <span className="option-label">Balance Faculty Workload</span>
+                      <span className="option-desc">Avoid giving any single faculty member an extreme concentration of classes on a single day</span>
+                    </div>
+                  </label>
+
+                  <label className="advanced-option">
+                    <div className="option-toggle">
+                      <input
+                        type="checkbox"
+                        checked={config.auto_schedule_office_hours}
+                        onChange={(e) => setConfig(prev => ({ ...prev, auto_schedule_office_hours: e.target.checked }))}
+                      />
+                      <span className="toggle-slider" />
+                    </div>
+                    <div className="option-info">
+                      <span className="option-label">Auto-Schedule Office Hours</span>
+                      <span className="option-desc">Automatically create 1 Office Hour block per faculty in their free time slots</span>
+                    </div>
+                  </label>
+
+                  <label className="advanced-option">
+                    <div className="option-toggle">
+                      <input
+                        type="checkbox"
+                        checked={config.exam_mode}
+                        onChange={(e) => setConfig(prev => ({ ...prev, exam_mode: e.target.checked }))}
+                      />
+                      <span className="toggle-slider" />
+                    </div>
+                    <div className="option-info">
+                      <span className="option-label">Exam Mode (Beta)</span>
+                      <span className="option-desc">Generate an exam schedule (1 session per subject) instead of a weekly class schedule</span>
+                    </div>
+                  </label>
 
                   <div className="advanced-option">
                     <div className="option-info">
@@ -712,14 +1171,30 @@ export default function TimetablePage() {
                       <span className="summary-label">Back-to-back</span>
                       <span className="summary-value">{config.avoid_back_to_back ? 'Avoided' : 'Allowed'}</span>
                     </div>
+                    <div className="summary-item">
+                      <span className="summary-label">Fairness Score</span>
+                      <span className="summary-value" style={{ color: 'var(--color-accent-emerald)', fontWeight: 600 }}>{getWorkloadMetric()}</span>
+                    </div>
+                    {config.exam_mode && (
+                      <div className="summary-item">
+                        <span className="summary-label">Mode</span>
+                        <span className="summary-value" style={{ color: 'var(--color-accent-red)', fontWeight: 600 }}>EXAM</span>
+                      </div>
+                    )}
                   </div>
+                  
+                  <div style={{ marginTop: '1rem' }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Draft Name</label>
+                    <input type="text" className="form-input" style={{ width: '100%' }} value={draftName} onChange={e => setDraftName(e.target.value)} />
+                  </div>
+
                   <button
                     className="btn btn-primary btn-lg"
                     onClick={handleGenerate}
                     disabled={generating || config.subject_ids.length === 0}
                     style={{ width: '100%', marginTop: '1.25rem' }}
                   >
-                    {generating ? '⏳ Generating...' : `⚡ Generate Timetable (${config.subject_ids.length} subjects)`}
+                    {generating ? '⏳ Generating Draft...' : `⚡ Generate Draft (${config.subject_ids.length} subjects)`}
                   </button>
                 </div>
               </div>
@@ -743,13 +1218,20 @@ export default function TimetablePage() {
         </div>
       ) : (
         <LocalErrorBoundary>
-          <div className="glass-card timetable-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
+          {/* Mobile Day Selector */}
+          <div className="mobile-day-selector">
+            <button className="btn btn-sm btn-secondary" onClick={() => setMobileDay(days[Math.max(0, days.indexOf(mobileDay) - 1)])}>&lt; Prev</button>
+            <span style={{ fontWeight: 'bold' }}>{dayLabels[mobileDay]}</span>
+            <button className="btn btn-sm btn-secondary" onClick={() => setMobileDay(days[Math.min(days.length - 1, days.indexOf(mobileDay) + 1)])}>Next &gt;</button>
+          </div>
+
+          <div id="timetable-export-wrapper" className="glass-card timetable-wrapper animate-fade-in-up" style={{ opacity: 0 }}>
           <div className="timetable-grid">
-            <DndContext onDragEnd={handleDragEnd}>
+            <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               {/* Header row */}
               <div className="timetable-header">Time</div>
               {days.map(day => (
-                <div className="timetable-header" key={day}>
+                <div className={`timetable-header ${day === mobileDay ? 'mobile-active' : 'mobile-hidden'}`} key={day}>
                   {dayLabels[day]}
                 </div>
               ))}
@@ -773,22 +1255,46 @@ export default function TimetablePage() {
                       const ts = getTimeslotForDayTime(day, time);
                       const dropId = ts ? `${day}-${time}-${ts.id}` : `${day}-${time}-unknown`;
                       
+                      let isValidDrop = null;
+                      const activeEntry = activeDragItem ? timetable.find(t => t.id === activeDragItem) : null;
+                      if (activeEntry && ts) {
+                        const timeConflicts = timetable.filter(t => t.day === day && t.start_time?.substring(0, 5) === time && t.id !== activeEntry.id);
+                        const facultyConflict = timeConflicts.some(t => t.faculty_name === activeEntry.faculty_name);
+                        // If cell already has a class in this filtered view OR faculty conflict, it's invalid
+                        if (cls || facultyConflict) {
+                           isValidDrop = false;
+                        } else {
+                           isValidDrop = true;
+                        }
+                      }
+
                       return (
-                        <DroppableCell 
-                          key={`${day}-${time}`} 
-                          id={dropId} 
-                        >
-                          {cls && (
-                            <DraggableClassCard 
-                              cls={cls} 
-                              isLocked={locked} 
-                              color={getSubjectColor(cls.subject_code, cls.subject_type)} 
-                              isAdmin={isAdmin} 
-                              showConfig={showConfig}
-                              onLockToggle={toggleDBLockEntry}
-                            />
-                          )}
-                        </DroppableCell>
+                        <div className={`${day === mobileDay ? 'mobile-active' : 'mobile-hidden'}`} key={`${day}-${time}`} onClick={() => {
+                          if (!cls && isAdmin && ts) {
+                            setAddEventSlot(ts);
+                            setShowAddEventModal(true);
+                          }
+                        }}>
+                          <DroppableCell id={dropId} isValidDrop={isValidDrop}>
+                            {cls && (
+                              <DraggableClassCard 
+                                cls={cls} 
+                                isLocked={locked} 
+                                color={getSubjectColor(cls)} 
+                                isAdmin={isAdmin} 
+                                isFaculty={isFaculty}
+                                isOwnClass={cls.faculty_name === userFullName}
+                                showConfig={showConfig}
+                                onLockToggle={toggleDBLockEntry}
+                                onReportAbsence={(c) => {
+                                  setAbsenceClass(c);
+                                  setShowAbsenceModal(true);
+                                }}
+                                onFindSwap={handleFindSwap}
+                              />
+                            )}
+                          </DroppableCell>
+                        </div>
                       );
                     })
                   )}
@@ -805,7 +1311,7 @@ export default function TimetablePage() {
         <div className="glass-card timetable-legend animate-fade-in-up stagger-3" style={{ opacity: 0, marginTop: '1.5rem', padding: '1.5rem' }}>
           <h3 className="section-title" style={{ marginBottom: '1rem' }}>Subjects</h3>
           <div className="legend-items">
-            {[...new Set(timetable.map(t => t.subject_code))].map(code => {
+            {[...new Set(timetable.filter(t => t.subject_code).map(t => t.subject_code))].map(code => {
               const entry = timetable.find(t => t.subject_code === code);
               return (
                 <div className="legend-item" key={code}>
@@ -818,7 +1324,7 @@ export default function TimetablePage() {
                       title="Change color"
                     />
                     <div
-                      style={{ position: 'absolute', inset: 0, background: getSubjectColor(code, entry?.subject_type), pointerEvents: 'none' }}
+                      style={{ position: 'absolute', inset: 0, background: getSubjectColor(entry), pointerEvents: 'none' }}
                     />
                   </div>
                   <span className="legend-code">{code}</span>
@@ -826,6 +1332,192 @@ export default function TimetablePage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Substitute Requests Panel */}
+      {(isFaculty || isAdmin) && pendingSubstitutes.length > 0 && (
+        <div className="glass-card animate-fade-in-up stagger-4" style={{ opacity: 0, marginTop: '1.5rem', padding: '1.5rem', borderLeft: '4px solid var(--color-accent-emerald)' }}>
+          <h3 className="section-title" style={{ marginBottom: '1rem' }}>🙋 Substitute Requests</h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>The following classes need coverage. Click 'Accept' to substitute.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+             {pendingSubstitutes.map(sub => (
+                 <div key={sub.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{sub.faculty_name}'s Class</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>📅 {sub.date}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', fontStyle: 'italic' }}>"{sub.reason}"</div>
+                    <button className="btn btn-sm btn-primary" style={{ marginTop: '1rem', width: '100%', background: 'var(--color-accent-emerald)', borderColor: 'var(--color-accent-emerald)' }} onClick={() => handleAcceptSubstitute(sub.id)}>Accept Request</button>
+                 </div>
+             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Swaps Panel */}
+      {isAdmin && pendingSwaps.length > 0 && (
+        <div className="glass-card animate-fade-in-up stagger-4" style={{ opacity: 0, marginTop: '1.5rem', padding: '1.5rem', borderLeft: '4px solid var(--color-accent-blue)' }}>
+          <h3 className="section-title" style={{ marginBottom: '1rem' }}>🔄 Pending Swap Requests</h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Faculty have requested to move these classes.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+             {pendingSwaps.map(swap => (
+                 <div key={swap.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{swap.requester_name}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                       Wants to move {swap.target_entry_details?.subject?.code} to {swap.requested_time_slot_details?.day} {swap.requested_time_slot_details?.start_time}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '0.5rem', fontStyle: 'italic' }}>"{swap.reason}"</div>
+                    <button className="btn btn-sm btn-primary" style={{ marginTop: '1rem', width: '100%', background: 'var(--color-accent-blue)', borderColor: 'var(--color-accent-blue)' }} onClick={() => approveSwapRequest(swap.id)}>Approve Swap</button>
+                 </div>
+             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Wayfinding Modal */}
+      {wayfindingRoom && (
+        <div className="modal-overlay" onClick={() => setWayfindingRoom(null)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()}>
+            <h3>🗺️ Wayfinding: {wayfindingRoom}</h3>
+            <p>Campus map locating room {wayfindingRoom} would appear here.</p>
+            <div style={{ width: '100%', height: '200px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '1rem' }}>
+              📍 [Map Placeholder]
+            </div>
+            <button className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => setWayfindingRoom(null)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Add Event Modal */}
+      {showAddEventModal && addEventSlot && (
+        <div className="modal-overlay" onClick={() => setShowAddEventModal(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '400px' }}>
+            <h3>➕ Add Custom Event</h3>
+            <p>Time: {addEventSlot.day} {formatTime(addEventSlot.start_time)}</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Event Title" 
+                value={newEvent.title}
+                onChange={e => setNewEvent({...newEvent, title: e.target.value})}
+              />
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Room / Location" 
+                value={newEvent.room}
+                onChange={e => setNewEvent({...newEvent, room: e.target.value})}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <label>Color:</label>
+                <input 
+                  type="color" 
+                  value={newEvent.color}
+                  onChange={e => setNewEvent({...newEvent, color: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddEventModal(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
+                if (!newEvent.title) return toast.error('Title is required');
+                try {
+                  const res = await api.post('/api/scheduler/timetable/', {
+                    day: addEventSlot.day,
+                    start_time: addEventSlot.start_time,
+                    end_time: addEventSlot.end_time,
+                    time_slot: addEventSlot.id,
+                    event_title: newEvent.title,
+                    event_color: newEvent.color,
+                    event_type: 'custom',
+                    room_number: newEvent.room,
+                    is_locked: true // Custom events are locked by default
+                  });
+                  setTimetable([...timetable, res.data]);
+                  setShowAddEventModal(false);
+                  setNewEvent({ title: '', color: '#3b82f6', room: '' });
+                  toast.success('Event added!');
+                } catch (err) {
+                  toast.error('Failed to add event');
+                }
+              }}>Save Event</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Absence Modal */}
+      {showAbsenceModal && absenceClass && (
+        <div className="modal-overlay" onClick={() => setShowAbsenceModal(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()}>
+            <h3>🚨 Report Absence</h3>
+            <p>You are reporting an absence for: <strong>{absenceClass.subject_code}</strong> ({absenceClass.room_number})</p>
+            <p>Time: {absenceClass.day} {formatTime(absenceClass.start_time)}</p>
+            
+            <div style={{ marginTop: '1rem' }}>
+              <label>Reason for absence:</label>
+              <textarea 
+                className="form-input" 
+                style={{ width: '100%', height: '80px', marginTop: '0.5rem' }} 
+                placeholder="e.g. Unwell, attending conference..."
+                value={absenceReason}
+                onChange={(e) => setAbsenceReason(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAbsenceModal(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1, background: 'var(--color-accent-red)', borderColor: 'var(--color-accent-red)' }} onClick={handleReportAbsence}>Broadcast Request</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Swap Modal */}
+      {showSmartSwapModal && swapClass && (
+        <div className="modal-overlay" onClick={() => setShowSmartSwapModal(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '450px' }}>
+            <h3>🔄 {isAdmin ? 'Smart Swaps' : 'Request Swap'}</h3>
+            <p>Moving: <strong>{swapClass.subject_code}</strong> ({swapClass.room_number})</p>
+            <p>Current: {swapClass.day} {formatTime(swapClass.start_time)}</p>
+            
+            {isAdmin ? (
+               <div style={{ marginTop: '1rem' }}>
+                 <h4>Suggested Moves:</h4>
+                 {swapSuggestions.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Loading or no swaps found...</p>
+                 ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                       {swapSuggestions.map((s, idx) => (
+                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '4px' }}>
+                               <span>{s.description}</span>
+                               <button className="btn btn-sm btn-primary" onClick={() => executeSmartSwap(s)}>Move Here</button>
+                           </div>
+                       ))}
+                    </div>
+                 )}
+               </div>
+            ) : (
+               <div style={{ marginTop: '1rem' }}>
+                 <label>Request new timeslot:</label>
+                 <select className="form-select" style={{ width: '100%', marginBottom: '1rem' }} onChange={(e) => setSwapClass({...swapClass, targetSlotId: e.target.value})}>
+                    <option value="">-- Select Target Timeslot --</option>
+                    {timeslots.map(ts => (
+                       <option key={ts.id} value={ts.id}>{ts.day} {ts.start_time}</option>
+                    ))}
+                 </select>
+                 
+                 <label>Reason:</label>
+                 <input type="text" className="form-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="e.g. Need a larger block" value={swapReason} onChange={e => setSwapReason(e.target.value)} />
+                 
+                 <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => requestSmartSwap(swapClass.targetSlotId)}>Submit Swap Request</button>
+               </div>
+            )}
+
+            <button className="btn btn-secondary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => setShowSmartSwapModal(false)}>Close</button>
           </div>
         </div>
       )}

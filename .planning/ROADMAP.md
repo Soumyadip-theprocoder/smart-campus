@@ -10,10 +10,45 @@
 - **Goal:** Ensure core workflows (attendance, timetable, analytics) are reliable and user-friendly.
 - **Scope:** Enhance error messaging for timetable generation, stabilize async task polling, fix any broken links/buttons, and implement a consistent design system (including Dark Mode).
 
-### Phase 12: Timetable & Attendance Enhancements (Deferred)
-- **Status:** Planned
+### Phase 12: Timetable & Attendance Enhancements
+- **Status:** Completed
 - **Goal:** Add manual overrides for timetable and batch uploads for attendance.
 - **Scope:** Drag-and-drop timetable management, specific class locking, and batch image uploads for fallback attendance.
+
+### Phase 12.1: Dynamic & Feature-Rich Timetable
+- **Status:** Completed
+- **Goal:** Expand timetable flexibility, dynamism, and user experience.
+- **Scope:** Dynamic institution hours, persistent subject colors, export to PDF, personalized filtering, and ad-hoc event scheduling.
+
+### Phase 12.2: Operations & Sandbox Environment
+- **Status:** Completed
+- **Goal:** Provide safe drafting environments and real-time operational workflows.
+- **Scope:** Sandbox versioning (Draft/Publish), Scenario comparisons & Rollback, Faculty Absence Reporting, Substitute Request Broadcasting, and Push Alerts.
+
+### Phase 12.3: AI Scheduling & Advanced Swaps
+- **Status:** Completed
+- **Goal:** Introduce AI-assisted conflict resolution and fairness balancing.
+- **Scope:** AI Smart Swaps, Safe Drop Zones, Natural Language commands, Swap Approval workflows, Faculty Fairness Balancer, and Office Hour auto-injection.
+
+### Phase 12.4: Extended Modules & Sync
+- **Status:** Completed
+- **Goal:** Deliver specialized scheduling modes and external integrations.
+- **Scope:** Academic Calendar Sync (Blackout dates), Exam & Invigilation Mode, and 1-Click Calendar Sync (iCal).
+
+### Phase 12.5: Multi-Department Architecture
+- **Status:** Completed
+- **Goal:** Partition the timetable UI and AI generation by Department for massive scale.
+- **Scope:** Department-specific hours/breaks, scoped AI generation, department selector UI, and Cross-Department Shared Electives.
+
+### Phase 12.6: Resource Logistics & Accreditation Analytics
+- **Status:** Completed
+- **Goal:** Track physical inventory constraints and automate compliance reporting.
+- **Scope:** Physical Equipment tracking (AI constraints), Student Accessibility Routing, and automated Accreditation Reporting (contact hours, lab ratios).
+
+### Phase 12.7: Predictive Analytics & TA Logistics
+- **Status:** Planned
+- **Goal:** Predict future capacity needs and manage complex student-teacher roles.
+- **Scope:** AI "What-If" Forecasting Simulations and Automated Teaching Assistant (TA) Rostering.
 
 ### Phase 13: Advanced Analytics & Communication (Deferred)
 - **Status:** Planned

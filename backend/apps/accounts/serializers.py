@@ -33,6 +33,10 @@ class StudentSerializer(serializers.ModelSerializer):
             "semester",
             "face_image",
             "has_face_encoding",
+            "accessibility_needs",
+            "is_ta",
+            "ta_max_hours_per_week",
+            "ta_qualified_subjects",
         ]
         read_only_fields = ["id"]
 

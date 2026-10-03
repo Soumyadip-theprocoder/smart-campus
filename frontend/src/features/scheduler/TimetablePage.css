@@ -596,3 +596,48 @@
     align-items: flex-start;
   }
 }
+
+/* ─── Modals ───────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-content {
+  padding: 2rem;
+  max-width: 90vw;
+  width: 500px;
+}
+
+/* ─── Mobile View ──────────────────────────────────────────────── */
+.mobile-day-selector {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: var(--color-bg-glass);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .mobile-day-selector {
+    display: flex;
+  }
+  .timetable-grid {
+    grid-template-columns: 80px 1fr !important; /* Only time + 1 day */
+  }
+  .timetable-break {
+    grid-column: span 2 !important;
+  }
+  .mobile-hidden {
+    display: none !important;
+  }
+}

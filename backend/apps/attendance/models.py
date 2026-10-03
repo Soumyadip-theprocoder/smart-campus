@@ -15,6 +15,7 @@ class Attendance(models.Model):
 
     class Method(models.TextChoices):
         FACE_RECOGNITION = "face_recognition", "Face Recognition"
+        QR_SCAN = "qr_scan", "QR Scan"
         MANUAL = "manual", "Manual"
 
     student = models.ForeignKey(

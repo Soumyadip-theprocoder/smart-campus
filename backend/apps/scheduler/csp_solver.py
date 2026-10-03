@@ -35,11 +35,13 @@ class ScheduleCSP:
         subjects: list,
         rooms: list,
         time_slots: list,
+        resources: list = None,
         locked_entries: list = None,
         excluded_slots: dict = None,
         preferred_room_types: dict = None,
         avoid_back_to_back: bool = False,
         max_classes_per_day: int = 1,
+        balance_faculty_workload: bool = False,
     ):
         """
         Args:
@@ -61,15 +63,18 @@ class ScheduleCSP:
         self.subjects = subjects
         self.rooms = rooms
         self.time_slots = time_slots
+        self.resources = resources or []
         self.locked_entries = locked_entries or []
         self.excluded_slots = excluded_slots or {}
         self.preferred_room_types = preferred_room_types or {}
         self.avoid_back_to_back = avoid_back_to_back
         self.max_classes_per_day = max_classes_per_day
+        self.balance_faculty_workload = balance_faculty_workload
 
         # Build lookup maps
         self._ts_map = {ts["id"]: ts for ts in time_slots}
         self._room_map = {r["id"]: r for r in rooms}
+        self._resource_map = {r["id"]: r for r in self.resources}
 
         # Build preferred rooms lookup
         self.preferred_rooms = {}
@@ -102,6 +107,7 @@ class ScheduleCSP:
                         "faculty_id": subj["faculty_id"],
                         "required_capacity": subj["required_capacity"],
                         "elective_group_id": subj.get("elective_group_id"),
+                        "resource_ids": subj.get("resource_ids", []),
                         "session_index": session_idx,
                     }
                 )
@@ -199,6 +205,17 @@ class ScheduleCSP:
                         self.last_failure_reason = f"Max classes per day ({self.max_classes_per_day}) exceeded for {var['subject_code']}."
                         return False
 
+            if self.balance_faculty_workload:
+                ts_day = self._get_timeslot_day(ts_id)
+                assigned_day = self._get_timeslot_day(assigned_ts)
+                if ts_day == assigned_day and assigned_var["faculty_id"] == var["faculty_id"]:
+                    faculty_count = sum(1 for idx, val in self.assignment.items()
+                                        if self.variables[idx]["faculty_id"] == var["faculty_id"]
+                                        and self._get_timeslot_day(val[0]) == ts_day)
+                    if faculty_count >= 3:
+                        self.last_failure_reason = f"Faculty workload balance: faculty has >=3 classes on {ts_day}."
+                        return False
+
             # Advanced Soft/Hard constraints for consecutive slots
             if self._are_consecutive(ts_id, assigned_ts):
                 is_same_faculty = assigned_var["faculty_id"] == var["faculty_id"]
@@ -222,6 +239,22 @@ class ScheduleCSP:
                 if self.avoid_back_to_back and is_same_faculty:
                     self.last_failure_reason = f"Avoid back-to-back classes for faculty of {var['subject_code']}."
                     return False
+        
+        # Constraint 9: Resource pool capacity limit
+        if var.get("resource_ids"):
+            for res_id in var["resource_ids"]:
+                # Count how many of this resource are used in this timeslot
+                res_used = 1 # The current var uses 1
+                for assigned_idx, assigned_val in self.assignment.items():
+                    if assigned_val[0] == ts_id:
+                        assigned_v = self.variables[assigned_idx]
+                        if res_id in assigned_v.get("resource_ids", []):
+                            res_used += 1
+                if res_id in self._resource_map:
+                    if res_used > self._resource_map[res_id]["quantity"]:
+                        self.last_failure_reason = f"Resource pool '{self._resource_map[res_id]['name']}' exhausted in this timeslot."
+                        return False
+                        
         return True
 
     def _get_timeslot_day(self, ts_id: int) -> str:

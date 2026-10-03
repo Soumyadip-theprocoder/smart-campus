@@ -1,11 +1,12 @@
-# Third-Party Integrations
+# INTEGRATIONS
 
-## Core Dependencies
-1. **django-q2:** Used extensively for managing the asynchronous task queue. Essential for running the heavy `generate_timetable` Backtracking CSP solver and the `predict_attendance_shortages` predictive algorithm in the background without blocking the main DRF thread.
-2. **djangorestframework-simplejwt:** Issues JSON Web Tokens (JWT) for stateless authentication.
-3. **pgvector:** PostgreSQL extension used to store 128-dimensional face encodings. Allows for extremely fast exact nearest-neighbor search during face-recognition logins.
-4. **dlib / face_recognition:** Core ML libraries providing the pre-trained Convolutional Neural Networks (CNNs) used to detect bounding boxes and extract feature vectors from webcam snapshots.
-5. **Recharts:** Used in the frontend Admin and Student dashboards to render predictive analytics and attendance pies. Loaded asynchronously via `React.lazy()` to reduce initial bundle size.
+## Third-Party APIs and Services
+- **Calendar Apps (Apple, Google, Outlook)**: Supported via 1-Click Calendar Sync (iCal `.ics` feed endpoint) exporting `RRULE` mapped classes and `EXDATE` blackout dates.
+- None explicitly required via external API at this time, though the app relies on Docker container environments and is prepared for Render deployment.
 
-## External Services
-1. **SMTP Provider (e.g. Gmail / SendGrid):** Integrated via Django's `core.mail` module. The Q2 worker dispatches automated shortage warning emails to students through this service.
+## Internal Subsystems
+- **Face Recognition Engine**: An internal service/module for extracting facial embeddings using OpenCV and potentially `face-recognition`/`dlib` (though heavy dependencies might be constrained by RAM in production).
+- **QR Code Scanning**: Utilizes HTML5-QRCode and qrcode.react in the frontend for barcode/QR based operations.
+
+## Webhooks
+- Not identified in current scanning.

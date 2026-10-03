@@ -9,6 +9,7 @@ from apps.accounts.models import Faculty, Student, User
 from apps.attendance.models import Attendance
 from apps.attendance.services import get_low_attendance_students
 from apps.scheduler.models import Subject
+from django.core.signing import dumps
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -177,50 +178,39 @@ class AttendanceAPITests(TestCase):
         response = self.client.get(reverse("attendance:list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data.get("results", response.data)
-        # Should only see their own record
-        for record in results:
-            self.assertEqual(
-                record["student_name"],
-                "Test User" if "student_name" in record else True,
-                True,
-            )
+        # Should only see their own record, never the other student's
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["enrollment_number"], "STU_T2")
+
+    def _qr_token(self):
+        return dumps({"subject_id": self.subject.id})
 
     def test_mark_attendance(self):
+        """A student scanning a valid QR token is marked present."""
+        self.client.force_authenticate(user=self.stu_user)
         response = self.client.post(
             reverse("attendance:mark"),
-            {
-                "enrollment_number": "STU_T2",
-                "subject_id": self.subject.id,
-                "date": str(date.today()),
-                "method": "manual",
-            },
+            {"token": self._qr_token()},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            Attendance.objects.filter(
-                student=self.student,
-                subject=self.subject,
-                date=date.today(),
-            ).exists()
-        )
-
-    def test_mark_attendance_duplicate(self):
-        """Second mark on the same day should return 200, not create duplicate."""
-        Attendance.objects.create(
+        record = Attendance.objects.get(
             student=self.student,
             subject=self.subject,
             date=date.today(),
-            status="present",
         )
-        response = self.client.post(
-            reverse("attendance:mark"),
-            {
-                "enrollment_number": "STU_T2",
-                "subject_id": self.subject.id,
-                "date": str(date.today()),
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(record.status, Attendance.Status.PRESENT)
+        self.assertEqual(record.method, Attendance.Method.QR_SCAN)
+
+    def test_mark_attendance_duplicate(self):
+        """Scanning twice on the same day must not create a second record."""
+        self.client.force_authenticate(user=self.stu_user)
+        token = self._qr_token()
+        for _ in range(2):
+            response = self.client.post(reverse("attendance:mark"), {"token": token})
+            self.assertIn(
+                response.status_code,
+                (status.HTTP_200_OK, status.HTTP_201_CREATED),
+            )
         self.assertEqual(
             Attendance.objects.filter(
                 student=self.student,
@@ -230,16 +220,21 @@ class AttendanceAPITests(TestCase):
             1,
         )
 
-    def test_mark_attendance_invalid_student(self):
+    def test_mark_attendance_requires_authentication(self):
         response = self.client.post(
             reverse("attendance:mark"),
-            {
-                "enrollment_number": "DOESNOTEXIST",
-                "subject_id": self.subject.id,
-                "date": str(date.today()),
-            },
+            {"token": self._qr_token()},
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_mark_attendance_non_student_forbidden(self):
+        """Only students may mark their own attendance via QR."""
+        self.client.force_authenticate(user=self.fac_user)
+        response = self.client.post(
+            reverse("attendance:mark"),
+            {"token": self._qr_token()},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_attendance_summary(self):
         Attendance.objects.create(
@@ -382,41 +377,33 @@ class RobustnessAttendanceTests(TestCase):
             sessions_per_week=3,
         )
 
-    def test_mark_attendance_future_date(self):
-        # We don't have a future date validation yet, but it's good to test how it behaves
-        future_date = date.today() + timedelta(days=5)
+    def test_mark_attendance_tampered_token(self):
+        """A token with a bad signature is rejected."""
+        self.client.force_authenticate(user=self.stu_user)
         response = self.client.post(
             reverse("attendance:mark"),
-            {
-                "enrollment_number": "STU_R1",
-                "subject_id": self.subject.id,
-                "date": str(future_date),
-                "method": "manual",
-            },
+            {"token": "not-a-valid-signed-token"},
         )
-        # Assuming the API allows it since there's no validator, it should be 201
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_mark_attendance_invalid_method(self):
-        response = self.client.post(
-            reverse("attendance:mark"),
-            {
-                "enrollment_number": "STU_R1",
-                "subject_id": self.subject.id,
-                "date": str(date.today()),
-                "method": "magic",  # invalid choice
-            },
-        )
-        # Should be 400 since serializer enforces choices
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("method", response.data)
+        self.assertIn("error", response.data)
 
-    def test_mark_attendance_missing_fields(self):
+    def test_mark_attendance_missing_token(self):
+        self.client.force_authenticate(user=self.stu_user)
         response = self.client.post(reverse("attendance:mark"), {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("enrollment_number", response.data)
-        self.assertIn("subject_id", response.data)
-        self.assertIn("date", response.data)
+        self.assertIn("error", response.data)
+
+    def test_mark_attendance_expired_token(self):
+        """QR tokens are only valid for a few seconds."""
+        from unittest import mock
+
+        self.client.force_authenticate(user=self.stu_user)
+        # Mint a token timestamped long ago so it is already past max_age
+        with mock.patch("django.core.signing.time.time", return_value=1_000_000):
+            token = dumps({"subject_id": self.subject.id})
+        response = self.client.post(reverse("attendance:mark"), {"token": token})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Attendance.objects.count(), 0)
 
     def test_get_report_invalid_student(self):
         self.client.force_authenticate(user=self.fac_user)

@@ -112,11 +112,18 @@ export default function FacultyDashboard() {
 
   return (
     <div className="page-container">
-      <div className="page-header">
-        <h1>Welcome, Prof. {user?.last_name}! 👋</h1>
-        <p>
-          {profile?.profile?.employee_id} · {profile?.profile?.department} · {profile?.profile?.designation}
-        </p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1>Welcome, Prof. {user?.last_name}! 👋</h1>
+          <p>
+            {profile?.profile?.employee_id} · {profile?.profile?.department} · {profile?.profile?.designation}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <a href={`http://localhost:8000/api/scheduler/ical/${user?.id}/`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+            📅 Sync to Calendar (iCal)
+          </a>
+        </div>
       </div>
 
       {/* Stat Cards */}

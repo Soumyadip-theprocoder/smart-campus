@@ -28,6 +28,10 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+  const [amenities, setAmenities] = useState([]);
+  const [accessNeeds, setAccessNeeds] = useState([]);
 
   useEffect(() => {
     loadStudentData();
@@ -36,13 +40,16 @@ export default function StudentDashboard() {
   const loadStudentData = async () => {
     setLoading(true);
     try {
-      const [meRes, noticesRes, timetableRes] = await Promise.all([
+      const [meRes, noticesRes, timetableRes, amRes] = await Promise.all([
         api.get('/api/auth/me/'),
         api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } })),
         api.get('/api/scheduler/timetable/').catch(() => ({ data: { results: [] } })),
+        api.get('/api/scheduler/amenities/').catch(() => ({ data: { results: [] } }))
       ]);
 
       setProfile(meRes.data);
+      setAmenities(amRes.data.results || amRes.data || []);
+      setAccessNeeds(meRes.data.profile?.accessibility_needs || []);
 
       // Load attendance report if we have a student profile
       if (meRes.data.profile?.id) {
@@ -119,6 +126,17 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleSaveAccess = async () => {
+    try {
+      await api.put('/api/auth/me/', { accessibility_needs: accessNeeds });
+      toast.success('Accessibility preferences saved!');
+      setIsAccessModalOpen(false);
+      loadStudentData();
+    } catch (e) {
+      toast.error('Failed to save accessibility preferences.');
+    }
+  };
+
   const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
   const chartData = report.map((r, index) => ({
     name: r.subject_code,
@@ -141,9 +159,15 @@ export default function StudentDashboard() {
               <HiCamera className="btn-icon" /> Register Face Data
             </button>
           )}
+          <button className="btn btn-secondary" onClick={() => setIsAccessModalOpen(true)}>
+            ♿ Accessibility
+          </button>
           <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
             <HiOutlineDocumentDownload className="btn-icon" /> {downloadingPdf ? 'Exporting...' : 'Download PDF Report'}
           </button>
+          <a href={`http://localhost:8000/api/scheduler/ical/${user?.id}/`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+            📅 Sync to Calendar (iCal)
+          </a>
         </div>
       </div>
 
@@ -266,6 +290,32 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {profile?.profile?.is_ta && (
+        <div className="section" style={{ marginTop: '1.5rem' }}>
+          <div className="glass-card animate-fade-in-up" style={{ opacity: 0, padding: '1.5rem' }}>
+            <h3 className="section-title" style={{ marginBottom: '1rem' }}>
+              👨‍🏫 Teaching Assistant Overview
+            </h3>
+            <div className="grid-2">
+              <StatCard
+                icon={<HiOutlineAcademicCap />}
+                label="Max TA Hours / Week"
+                value={profile.profile.ta_max_hours_per_week || 10}
+                gradient="blue"
+                delay={1}
+              />
+              <StatCard
+                icon={<HiOutlineClipboardCheck />}
+                label="Qualified Subjects"
+                value={profile.profile.ta_qualified_subjects?.length || 0}
+                gradient="purple"
+                delay={2}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recent Notices */}
       <div className="section" style={{ marginTop: '1.5rem' }}>
         <div className="glass-card animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.35s', padding: '1.5rem' }}>
@@ -304,6 +354,33 @@ export default function StudentDashboard() {
         onClose={() => setIsFaceModalOpen(false)} 
         onSuccess={loadStudentData}
       />
+      {isAccessModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAccessModalOpen(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()}>
+            <h3>♿ Accessibility Preferences</h3>
+            <p>Select any accommodations you require for your classes.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+              {amenities.map(a => (
+                <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                  <input
+                    type="checkbox"
+                    checked={accessNeeds.includes(a.name)}
+                    onChange={(e) => {
+                      if (e.target.checked) setAccessNeeds([...accessNeeds, a.name]);
+                      else setAccessNeeds(accessNeeds.filter(n => n !== a.name));
+                    }}
+                  />
+                  {a.name} - <span style={{fontSize: '0.8rem', color: 'var(--color-text-muted)'}}>{a.description || 'Accommodation'}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button className="btn btn-secondary" onClick={() => setIsAccessModalOpen(false)} style={{flex: 1}}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSaveAccess} style={{flex: 1}}>Save Preferences</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

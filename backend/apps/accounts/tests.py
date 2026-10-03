@@ -5,10 +5,22 @@ and permission checks on profile endpoints.
 """
 
 from apps.accounts.models import Faculty, Student, User
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+
+
+def _make_admin(email="regadmin@campus.edu", username="regadmin"):
+    """Create an admin user allowed to hit admin-only endpoints (e.g. register)."""
+    return User.objects.create_user(
+        email=email,
+        username=username,
+        password="adminpass",
+        role="admin",
+        is_staff=True,
+    )
 
 
 class UserModelTests(TestCase):
@@ -88,6 +100,7 @@ class LoginAPITests(TestCase):
     """Tests for the login endpoint."""
 
     def setUp(self):
+        cache.clear()  # reset the login throttle between tests
         self.client = APIClient()
         self.login_url = reverse("accounts:login")
         self.user = User.objects.create_user(
@@ -145,6 +158,24 @@ class RegisterAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.register_url = reverse("accounts:register")
+        # Registration is admin-only (RegisterView uses IsAdminUser)
+        self.client.force_authenticate(user=_make_admin())
+
+    def test_register_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.register_url, {})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_register_forbidden_for_non_admin(self):
+        student = User.objects.create_user(
+            email="plain@campus.edu",
+            username="plain",
+            password="pass",
+            role="student",
+        )
+        self.client.force_authenticate(user=student)
+        response = self.client.post(self.register_url, {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_register_student_success(self):
         response = self.client.post(
@@ -257,6 +288,7 @@ class JWTTokenTests(TestCase):
     """Tests for JWT token flow (login -> use access -> refresh)."""
 
     def setUp(self):
+        cache.clear()  # reset the login throttle between tests
         self.client = APIClient()
         self.login_url = reverse("accounts:login")
         self.refresh_url = reverse("accounts:token_refresh")
@@ -310,9 +342,11 @@ class RobustnessAccountsTests(TestCase):
     """Tests for edge cases and boundary conditions in accounts."""
 
     def setUp(self):
+        cache.clear()  # reset the login throttle between tests
         self.client = APIClient()
         self.register_url = reverse("accounts:register")
         self.login_url = reverse("accounts:login")
+        self.client.force_authenticate(user=_make_admin())
 
     def test_register_invalid_role(self):
         response = self.client.post(

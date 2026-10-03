@@ -44,17 +44,30 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
 }
 
 /* ─── Room Form ────────────────────────────────────────────────── */
-function RoomForm({ initial, onSave, saving }) {
+function RoomForm({ initial, amenitiesList, onSave, saving }) {
   const [form, setForm] = useState({
     room_number: initial?.room_number || '',
     building: initial?.building || '',
     room_type: initial?.room_type || 'lecture',
     capacity: initial?.capacity || 30,
+    amenities: initial?.amenities || [],
   });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAmenityChange = (amenityId) => {
+    setForm(prev => {
+      const isSelected = prev.amenities.includes(amenityId);
+      return {
+        ...prev,
+        amenities: isSelected 
+          ? prev.amenities.filter(id => id !== amenityId)
+          : [...prev.amenities, amenityId]
+      };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -112,6 +125,21 @@ function RoomForm({ initial, onSave, saving }) {
           <option value="seminar">Seminar Room</option>
         </select>
       </div>
+      <div className="form-group" style={{ marginTop: '1rem' }}>
+        <label className="form-label">Amenities</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+          {amenitiesList.map(a => (
+            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={form.amenities.includes(a.id)}
+                onChange={() => handleAmenityChange(a.id)}
+              />
+              {a.name}
+            </label>
+          ))}
+        </div>
+      </div>
       <button
         type="submit"
         className="btn btn-primary btn-lg"
@@ -127,6 +155,7 @@ function RoomForm({ initial, onSave, saving }) {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export default function RoomsPage() {
   const [rooms, setRooms] = useState([]);
+  const [amenitiesList, setAmenitiesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* Modal state */
@@ -142,8 +171,12 @@ export default function RoomsPage() {
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/scheduler/rooms/');
-      setRooms(response.data.results || response.data || []);
+      const [roomsRes, amenitiesRes] = await Promise.all([
+        api.get('/api/scheduler/rooms/'),
+        api.get('/api/scheduler/amenities/').catch(() => ({ data: { results: [] } }))
+      ]);
+      setRooms(roomsRes.data.results || roomsRes.data || []);
+      setAmenitiesList(amenitiesRes.data.results || amenitiesRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -227,6 +260,21 @@ export default function RoomsPage() {
       }
     },
     {
+      key: 'amenities',
+      label: 'Amenities',
+      render: (val) => {
+        if (!val || val.length === 0) return <span className="badge badge-low">None</span>;
+        return (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {val.map(id => {
+              const am = amenitiesList.find(a => a.id === id);
+              return <span key={id} className="badge badge-medium">{am ? am.name : id}</span>;
+            })}
+          </div>
+        );
+      }
+    },
+    {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (
@@ -277,6 +325,7 @@ export default function RoomsPage() {
       >
         <RoomForm
           initial={editingItem}
+          amenitiesList={amenitiesList}
           onSave={handleSave}
           saving={saving}
         />

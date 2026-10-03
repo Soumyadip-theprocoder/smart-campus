@@ -70,6 +70,25 @@ class Student(models.Model):
         blank=True,
         null=True,
     )
+    accessibility_needs = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of needs like ["Wheelchair Access"]',
+    )
+    is_ta = models.BooleanField(
+        default=False,
+        help_text="Whether this student is also a Teaching Assistant",
+    )
+    ta_max_hours_per_week = models.PositiveIntegerField(
+        default=10,
+        help_text="Maximum hours per week the student can TA",
+    )
+    ta_qualified_subjects = models.ManyToManyField(
+        'scheduler.Subject',
+        blank=True,
+        related_name='qualified_tas',
+        help_text="Subjects this TA is qualified to teach",
+    )
 
     class Meta:
         db_table = "students"

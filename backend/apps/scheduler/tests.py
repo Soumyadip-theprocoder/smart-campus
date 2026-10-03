@@ -304,6 +304,7 @@ class CSPSolverEdgeCaseTests(TestCase):
         self.assertEqual(len(timetable), 0)
 
     def test_conflicting_locked_entries(self):
+        """A lock referencing a non-existent subject is ignored gracefully."""
         subjects = [
             {
                 "id": 1,
@@ -316,17 +317,48 @@ class CSPSolverEdgeCaseTests(TestCase):
         rooms = [{"id": 1, "room_number": "R1", "capacity": 20}]
         slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
 
-        # Two subjects locked to the same room and same time
         locked = [
             {"subject_id": 1, "room_id": 1, "time_slot_id": 1},
             {
                 "subject_id": 2,
                 "room_id": 1,
                 "time_slot_id": 1,
-            },  # Subject 2 doesn't exist but let's simulate a bad lock
+            },  # Subject 2 doesn't exist: this lock must be ignored, not crash
         ]
 
         csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
-        # Should either ignore the invalid lock, fail gracefully, or return empty
         timetable = csp.get_timetable()
-        self.assertEqual(len(timetable), 0)
+        # The valid lock is honoured and the bogus one is dropped
+        self.assertEqual(len(timetable), 1)
+        self.assertEqual(timetable[0]["subject_id"], 1)
+        self.assertEqual(timetable[0]["room_id"], 1)
+        self.assertEqual(timetable[0]["time_slot_id"], 1)
+
+    def test_locked_entries_double_booking_room(self):
+        """Two real subjects locked into the same room and slot cannot be solved."""
+        subjects = [
+            {
+                "id": 1,
+                "code": "S1",
+                "faculty_id": 1,
+                "sessions_per_week": 1,
+                "required_capacity": 10,
+            },
+            {
+                "id": 2,
+                "code": "S2",
+                "faculty_id": 2,
+                "sessions_per_week": 1,
+                "required_capacity": 10,
+            },
+        ]
+        rooms = [{"id": 1, "room_number": "R1", "capacity": 20}]
+        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
+        locked = [
+            {"subject_id": 1, "room_id": 1, "time_slot_id": 1},
+            {"subject_id": 2, "room_id": 1, "time_slot_id": 1},
+        ]
+
+        csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
+        self.assertEqual(csp.get_timetable(), [])
+        self.assertTrue(csp.locked_conflict)

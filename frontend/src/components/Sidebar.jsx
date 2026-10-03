@@ -21,6 +21,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
     { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
+    { to: '/admin/predictive-analytics', icon: <HiOutlineChartBar />, label: 'Predictive Analytics' },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetables' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notifications' },
   ];

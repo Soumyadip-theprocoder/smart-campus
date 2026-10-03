@@ -44,7 +44,7 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
 }
 
 /* ─── Course / Subject Form ────────────────────────────────────── */
-function CourseForm({ initial, faculty, onSave, saving }) {
+function CourseForm({ initial, faculty, amenitiesList, onSave, saving }) {
   const [form, setForm] = useState({
     code: initial?.code || '',
     name: initial?.name || '',
@@ -54,11 +54,24 @@ function CourseForm({ initial, faculty, onSave, saving }) {
     sessions_per_week: initial?.sessions_per_week || 3,
     subject_type: initial?.subject_type || 'lecture',
     description: initial?.description || '',
+    amenities: initial?.amenities || [],
   });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleAmenityChange = (amenityId) => {
+    setForm(prev => {
+      const isSelected = prev.amenities.includes(amenityId);
+      return {
+        ...prev,
+        amenities: isSelected 
+          ? prev.amenities.filter(id => id !== amenityId)
+          : [...prev.amenities, amenityId]
+      };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -177,6 +190,21 @@ function CourseForm({ initial, faculty, onSave, saving }) {
           style={{ resize: 'vertical' }}
         />
       </div>
+      <div className="form-group" style={{ marginTop: '1rem' }}>
+        <label className="form-label">Required Amenities</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+          {amenitiesList.map(a => (
+            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={form.amenities.includes(a.id)}
+                onChange={() => handleAmenityChange(a.id)}
+              />
+              {a.name}
+            </label>
+          ))}
+        </div>
+      </div>
       <button
         type="submit"
         className="btn btn-primary btn-lg"
@@ -193,6 +221,7 @@ function CourseForm({ initial, faculty, onSave, saving }) {
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState([]);
   const [faculty, setFaculty] = useState([]);
+  const [amenitiesList, setAmenitiesList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* Modal state */
@@ -208,12 +237,14 @@ export default function SubjectsPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [subRes, facRes] = await Promise.all([
+      const [subRes, facRes, amRes] = await Promise.all([
         api.get('/api/scheduler/subjects/'),
         api.get('/api/auth/faculty/'),
+        api.get('/api/scheduler/amenities/').catch(() => ({ data: { results: [] } }))
       ]);
       setSubjects(subRes.data.results || subRes.data || []);
       setFaculty(facRes.data.results || facRes.data || []);
+      setAmenitiesList(amRes.data.results || amRes.data || []);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -276,6 +307,21 @@ export default function SubjectsPage() {
     { key: 'sessions_per_week', label: 'Sessions/Week', render: (val) => <span className="badge badge-medium">{val}</span> },
     { key: 'required_capacity', label: 'Capacity', render: (val) => <span className="badge badge-medium">{val}</span> },
     {
+      key: 'amenities',
+      label: 'Req. Amenities',
+      render: (val) => {
+        if (!val || val.length === 0) return <span className="badge badge-low">None</span>;
+        return (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {val.map(id => {
+              const am = amenitiesList.find(a => a.id === id);
+              return <span key={id} className="badge badge-medium">{am ? am.name : id}</span>;
+            })}
+          </div>
+        );
+      }
+    },
+    {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (
@@ -327,6 +373,7 @@ export default function SubjectsPage() {
         <CourseForm
           initial={editingItem}
           faculty={faculty}
+          amenitiesList={amenitiesList}
           onSave={handleSave}
           saving={saving}
         />

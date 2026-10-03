@@ -16,9 +16,8 @@ from .serializers import (FacultySerializer, LoginSerializer,
                           UserSerializer)
 import sys
 from pathlib import Path
-import os
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from seed_data import seed
+from seed_data import seed  # noqa: E402
 
 
 class SeedDatabaseView(APIView):
@@ -102,6 +101,15 @@ class MeView(APIView):
             data["profile"] = FacultySerializer(user.faculty_profile).data
 
         return Response(data)
+
+    def put(self, request):
+        user = request.user
+        if user.is_student and hasattr(user, "student_profile"):
+            needs = request.data.get("accessibility_needs")
+            if isinstance(needs, list):
+                user.student_profile.accessibility_needs = needs
+                user.student_profile.save()
+        return self.get(request)
 
 
 class StudentListView(generics.ListAPIView):

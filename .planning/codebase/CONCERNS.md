@@ -1,18 +1,6 @@
-# Open Technical Concerns & Tech Debt
+# CONCERNS
 
-## Active Concerns
-
-### 1. Database Indexing Scale
-- The HNSW index for `pgvector` relies heavily on exact nearest-neighbor search. As the student face vector database grows into the tens of thousands, tuning the `m` and `ef_construction` parameters in PostgreSQL will become necessary to maintain `<100ms` facial recognition latency.
-
-### 2. Timetable Generation Complexity
-- The current Backtracking CSP solver runs in $O(N!)$ time. While Forward Checking trims the search space, dense scheduling scenarios (many subjects, limited rooms) may still cause the solver to time out.
-- **Future Action:** Refactor the solver to implement a Metaheuristic approach (e.g., Genetic Algorithms or Simulated Annealing) to guarantee a "good enough" schedule within a fixed time bound rather than failing on perfect optimization.
-
-### 3. Frontend Bundle Size
-- `recharts` is heavy. While we have mitigated initial load times using `React.lazy()` chunking, the user still pays the network cost when navigating to the dashboard for the first time.
-- **Future Action:** Explore migrating to lighter charting libraries or pre-fetching chunks via Service Workers.
-
-### 4. Facial Recognition Security (Spoofing)
-- The current `dlib` bounding box algorithm verifies facial features but lacks Liveness Detection. 
-- **Future Action:** Integrate an anti-spoofing mechanism (e.g., blink detection or 3D depth analysis via mobile sensors) to prevent students from holding up photos to bypass attendance.
+## Technical Debt & Risks
+1. **Memory Limits for Face Recognition**: The `face-recognition` (dlib) dependency requires significant RAM (8GB+ to compile). It is currently commented out or noted as disabled for Render production due to these constraints. An OpenCV headless alternative is used, which may have lower accuracy.
+2. **Environment Configuration**: Secrets and `.env` files must be carefully managed. The `backend/.env.example` should be the only commited file, no real `.env` should be in git.
+3. **Database Migrations**: When deploying to production with `pgvector`, the extension must be successfully created on the target database, which requires superuser privileges or a managed service that supports it natively.

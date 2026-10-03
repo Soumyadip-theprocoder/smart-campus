@@ -6,6 +6,8 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import IsAdminRole
+
 from .email_service import send_attendance_alerts, send_notice_email
 from .models import Notice
 from .serializers import CreateNoticeSerializer, NoticeSerializer
@@ -20,9 +22,9 @@ class NoticeListView(generics.ListAPIView):
 
 
 class CreateNoticeView(APIView):
-    """Create a new notice and optionally send email notifications."""
+    """Create a new notice and optionally send email notifications (admin only)."""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAdminRole]
 
     def post(self, request):
         serializer = CreateNoticeSerializer(data=request.data)
