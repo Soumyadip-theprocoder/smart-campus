@@ -8,15 +8,21 @@ The system uses PostgreSQL as the primary database, utilizing specialized extens
 - **`User` (AbstractUser)**
   - `email` (PK/Unique)
   - `role` (Choices: admin, student, faculty)
+- **`AcademicGroup`**
+  - `name` (Unique), `description`
 - **`StudentProfile`**
   - `user` (OneToOne)
   - `enrollment_number` (Unique)
-  - `department`, `semester`
+  - `department` (ForeignKey to scheduler.Department)
+  - `groups` (ManyToManyField to AcademicGroup)
+  - `semester`, `is_ta`, `ta_max_hours_per_week`
   - `face_encoding` (VectorField / JSONField fallback)
 - **`FacultyProfile`**
   - `user` (OneToOne)
   - `employee_id` (Unique)
-  - `department`, `designation`
+  - `department` (ForeignKey to scheduler.Department)
+  - `groups` (ManyToManyField to AcademicGroup)
+  - `designation`, `max_hours_per_week`
 
 ### Scheduler (`apps/scheduler/models.py`)
 - **`Subject`**

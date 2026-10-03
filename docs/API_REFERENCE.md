@@ -12,6 +12,7 @@ All endpoints (except login/register) require an `Authorization: Bearer <token>`
 - `POST /api/auth/register/`: Creates a new user profile.
 - `GET /api/auth/me/`: Retrieves the currently authenticated user's profile and metadata.
 - `POST /api/auth/token/refresh/`: Issues a new access token using a valid refresh token.
+- `GET /api/auth/groups/`: Lists and manages `AcademicGroup`s for interdisciplinary classes.
 
 ## Analytics & Reporting (`/api/analytics/`)
 - `GET /api/analytics/overview/`: Returns aggregated KPI stats (total students, active classes, campus attendance percentage).
@@ -23,7 +24,10 @@ All endpoints (except login/register) require an `Authorization: Bearer <token>`
 - `GET /api/scheduler/timetable/`: Retrieves the active generated timetable.
 - `POST /api/scheduler/generate/`: Triggers the async CSP solver to generate a new timetable. Returns `{ task_id: "uuid" }`.
 - `GET /api/scheduler/task-status/<task_id>/`: Polling endpoint to check the progress of the async timetable generation.
-
+- `GET /api/scheduler/swaps/`: Manages timetable swap requests.
+- `GET /api/scheduler/analytics/accreditation/`: Generates accreditation analytics for faculty workloads and room utilization.
+- `POST /api/scheduler/analytics/forecast/`: Predicts capacity needs based on simulated growth.
+- `GET /api/scheduler/ical/<user_id>/`: Retrieves the user's timetable as a downloadable `.ics` feed.
 ## Attendance (`/api/attendance/`)
 - `GET /api/attendance/`: Lists paginated attendance records.
 - `POST /api/attendance/mark/`: Manually overrides or submits an attendance record.

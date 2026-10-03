@@ -39,5 +39,6 @@ Displays high-level KPIs with animated entry delays (`animate-fade-in-up`) and g
 
 ## Performance Optimizations
 - **Code Splitting:** All major routes in `App.jsx` are dynamically imported using `React.lazy()` and wrapped in `<Suspense>`.
-- **Bundle Shrinking:** Heavy dependencies (like `recharts` and `html2pdf.js`) are segmented into separate chunks via Vite's chunking algorithm, accelerating the initial Time-To-Interactive (TTI).
+- **Bundle Shrinking:** Heavy dependencies (like `recharts`, `html2canvas`, and `jspdf`) are segmented into separate chunks via Vite's chunking algorithm, accelerating the initial Time-To-Interactive (TTI).
 - **Asynchronous Polling:** Long-running backend operations (timetable generation) don't lock the UI. The frontend utilizes a non-blocking `setTimeout` polling loop to check `/api/scheduler/task-status/`.
+- **Drag and Drop Engine:** Timetable management relies on `@dnd-kit/core` and `@dnd-kit/sortable` for robust, accessible drag-and-drop interactions.

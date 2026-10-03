@@ -13,7 +13,8 @@
 │   ├── public/                 # Static assets
 │   ├── src/                    # React components, contexts, and hooks
 │   ├── package.json            # Node dependencies
-│   └── vite.config.js          # Vite configuration
+│   ├── vite.config.js          # Vite configuration
+│   └── test_frontend.py        # Python-based frontend testing script
 ├── docs/                       # Project documentation
 ├── docker-compose.yml          # Container configuration for DB
 └── render.yaml                 # Deployment configuration

@@ -1,10 +1,9 @@
 # Phase State
 
-**Current Phase:** Phase 12.7
-**Status:** Planning
+**Current Phase:** Phase 12.8
+**Status:** Implemented (pending manual UAT)
 
 ### Recent Activity
-- Completed Phase 12.6 (Resource Logistics & Accreditation Analytics).
-- Implemented Resource pools, Amenities, and accessibility tracking.
-- Added Accreditation analytics endpoint and CSV support.
-- Note: Database server was unreachable; migrations are pending.
+- Implemented Phase 12.8 (Timetable Break Overhaul & Theme-Stable PDF Export).
+- Fixed un-deselectable 1 PM break and added data-driven break rows.
+- Phase 12.6 completed; note that database server was unreachable, migrations are pending.
