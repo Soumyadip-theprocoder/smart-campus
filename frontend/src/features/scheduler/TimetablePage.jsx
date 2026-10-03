@@ -136,7 +136,7 @@ export default function TimetablePage() {
   const [subjects, setSubjects] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [timeslots, setTimeslots] = useState([]);
-  const [institutionSettings, setInstitutionSettings] = useState({ start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] });
+  const [institutionSettings, setInstitutionSettings] = useState({ start_time: '08:00', end_time: '19:00', default_breaks: [] });
 
   /* ── Filter state ───────────────────────────────────────────────── */
   const [filterType, setFilterType] = useState('all'); // all, faculty, room
@@ -193,7 +193,7 @@ export default function TimetablePage() {
     balance_faculty_workload: false,
     auto_schedule_office_hours: false,
     exam_mode: false,
-    custom_breaks: institutionSettings?.default_breaks || ['13:00'],
+    custom_breaks: institutionSettings?.default_breaks || [],
   });
 
   const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -235,7 +235,13 @@ export default function TimetablePage() {
   const isTimeSlotBreak = (time) => {
     if ((config.custom_breaks || []).includes(time)) return true;
     const slotsForTime = timeslots.filter(ts => ts.start_time?.substring(0, 5) === time);
-    if (slotsForTime.length === 0) return false;
+    if (slotsForTime.length === 0) {
+      // No slot starts at this time: treat it as a break only if it falls in a gap
+      // between the first and last real slot of the day (e.g. a lunch gap).
+      const starts = timeslots.map(ts => ts.start_time?.substring(0, 5)).filter(Boolean).sort();
+      if (starts.length === 0) return false;
+      return time > starts[0] && time < starts[starts.length - 1];
+    }
     return slotsForTime.every(ts => !config.timeslot_ids.includes(ts.id));
   };
 
@@ -252,7 +258,7 @@ export default function TimetablePage() {
         api.get('/api/scheduler/subjects/'),
         api.get('/api/scheduler/rooms/'),
         api.get('/api/scheduler/timeslots/'),
-        api.get('/api/scheduler/settings/').catch(() => ({ data: { start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] }})),
+        api.get('/api/scheduler/settings/').catch(() => ({ data: { start_time: '08:00', end_time: '19:00', default_breaks: [] }})),
         api.get('/api/scheduler/versions/'),
         api.get('/api/scheduler/departments/').catch(() => ({ data: { results: [] } })),
         api.get('/api/scheduler/resources/').catch(() => ({ data: { results: [] } }))
@@ -261,7 +267,7 @@ export default function TimetablePage() {
       const subs = subRes.data.results || subRes.data || [];
       const rms = roomRes.data.results || roomRes.data || [];
       const tss = tsRes.data.results || tsRes.data || [];
-      const settings = settingsRes.data || { start_time: '08:00', end_time: '19:00', default_breaks: ['13:00'] };
+      const settings = settingsRes.data || { start_time: '08:00', end_time: '19:00', default_breaks: [] };
       const vers = versionsRes.data.results || versionsRes.data || [];
       const depts = deptRes.data.results || deptRes.data || [];
       const ress = resRes.data.results || resRes.data || [];
@@ -295,6 +301,7 @@ export default function TimetablePage() {
         subject_ids: subs.map(s => s.id),
         room_ids: rms.map(r => r.id),
         timeslot_ids: tss.map(ts => ts.id),
+        custom_breaks: settings.default_breaks || [],
       }));
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -1030,7 +1037,7 @@ export default function TimetablePage() {
                                 const slotIds = slotsAtTime.map(ts => ts.id);
                                 setConfig(prev => {
                                   let newIds = [...prev.timeslot_ids];
-                                  let newCustomBreaks = [...(prev.custom_breaks || ['13:00'])];
+                                  let newCustomBreaks = [...(prev.custom_breaks || [])];
                                   if (checked) {
                                     // Make it a break: remove DB IDs, add to custom breaks
                                     newIds = newIds.filter(id => !slotIds.includes(id));
