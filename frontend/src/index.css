@@ -80,6 +80,21 @@ body.light-theme {
 
   /* Gradients */
   --gradient-dark: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  
+  /* Vibrant Accents & Gradients for Light Mode */
+  --color-accent-blue: #3b82f6; /* Base blue */
+  --color-accent-blue-light: #2563eb; /* Darker for text contrast */
+  --color-accent-emerald: #10b981;
+  --color-accent-emerald-light: #059669;
+  --color-accent-purple: #8b5cf6;
+  --color-accent-orange: #f59e0b;
+  --color-accent-red: #ef4444;
+  --color-accent-pink: #ec4899;
+
+  --gradient-primary: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-emerald: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  --gradient-sunset: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+  --gradient-pink: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
 
   /* Text colors */
   --color-text-primary: #0f172a;
