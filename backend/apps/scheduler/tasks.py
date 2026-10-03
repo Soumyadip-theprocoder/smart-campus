@@ -35,29 +35,32 @@ def generate_timetable_task(config):
 
     rooms = list(room_qs.values("id", "room_number", "capacity", "room_type"))
 
-    # Filter time slots
-    ts_qs = TimeSlot.objects.all()
+    # Get all time slots for the solver's reference map, to avoid KeyError on locked entries
+    all_time_slots = list(TimeSlot.objects.all().values("id", "day", "start_time", "end_time"))
+    
     timeslot_ids = config.get("timeslot_ids")
-    if timeslot_ids:
-        ts_qs = ts_qs.filter(id__in=timeslot_ids)
+    timeslot_ids_set = set(timeslot_ids) if timeslot_ids else {ts["id"] for ts in all_time_slots}
 
-    time_slots = list(ts_qs.values("id", "day", "start_time", "end_time"))
-
-    # Never schedule inside a configured break (continuous ranges or several discrete ones).
     custom_breaks = normalize_breaks(config.get("custom_breaks"))
-    if custom_breaks:
-        time_slots = [
-            ts for ts in time_slots
-            if not slot_overlaps_break(ts["start_time"], ts["end_time"], custom_breaks)
-        ]
-        if not time_slots:
-            return {"success": False, "error": "Every selected time slot falls inside a break."}
+    
+    valid_time_slots = []
+    for ts in all_time_slots:
+        if ts["id"] not in timeslot_ids_set:
+            continue
+        if custom_breaks and slot_overlaps_break(ts["start_time"], ts["end_time"], custom_breaks):
+            continue
+        valid_time_slots.append(ts)
+
+    if not valid_time_slots:
+        return {"success": False, "error": "Every selected time slot falls inside a break or none selected."}
+        
+    invalid_ts_ids = {ts["id"] for ts in all_time_slots} - {ts["id"] for ts in valid_time_slots}
 
     # Fetch Resources
     resources = list(Resource.objects.values("id", "name", "quantity"))
 
     # Validate
-    if not subjects or not rooms or not time_slots:
+    if not subjects or not rooms or not valid_time_slots:
         return {"success": False, "error": "Missing subjects, rooms, or time slots."}
 
     # Parse advanced constraints
@@ -92,13 +95,23 @@ def generate_timetable_task(config):
     excluded_slots_int = {
         int(k): [int(x) for x in v] for k, v in excluded_slots.items()
     }
+    
+    # Exclude invalid time slots for all subjects so the solver won't use them
+    if invalid_ts_ids:
+        invalid_ts_list = list(invalid_ts_ids)
+        for s in subjects:
+            sid = s["id"]
+            if sid not in excluded_slots_int:
+                excluded_slots_int[sid] = []
+            excluded_slots_int[sid].extend(invalid_ts_list)
+            
     pref_room_types_int = {int(k): v for k, v in preferred_room_types.items()}
 
     # Run CSP solver
     solver = ScheduleCSP(
         subjects,
         rooms,
-        time_slots,
+        all_time_slots,
         resources=resources,
         locked_entries=locked_entries,
         excluded_slots=excluded_slots_int,
@@ -155,7 +168,7 @@ def generate_timetable_task(config):
         for fac_id in faculty_ids:
             busy_slots = {e.time_slot_id for e in entries if getattr(e, "subject_id", None) and next((s for s in subjects if s["id"] == e.subject_id), {}).get("faculty_id") == fac_id}
             assigned = False
-            for ts in time_slots:
+            for ts in valid_time_slots:
                 if ts["id"] in busy_slots:
                     continue
                 for room in rooms:
