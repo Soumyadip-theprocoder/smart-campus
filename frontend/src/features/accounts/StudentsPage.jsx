@@ -54,9 +54,6 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
     enrollment_number: initialData?.enrollment_number || '',
     department: initialData?.department || '',
     semester: initialData?.semester || 1,
-    marks_10th: initialData?.marks_10th || '',
-    marks_12th: initialData?.marks_12th || '',
-    cgpa_semesters: initialData?.cgpa_semesters ? JSON.stringify(initialData.cgpa_semesters) : '{}',
   });
   const [error, setError] = useState('');
 
@@ -88,15 +85,6 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
       setError('Please fill all required fields.');
       return;
     }
-    let parsedCgpa = {};
-    if (form.cgpa_semesters && form.cgpa_semesters.trim() !== '{}') {
-      try {
-        parsedCgpa = JSON.parse(form.cgpa_semesters);
-      } catch (err) {
-        setError('Invalid JSON format in Semester-wise CGPA. Use {"1": 8.5} etc.');
-        return;
-      }
-    }
 
     onSave({
       email: form.email,
@@ -107,10 +95,7 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
       role: 'student',
       enrollment_number: form.enrollment_number,
       department: form.department,
-      semester: form.semester,
-      marks_10th: form.marks_10th || null,
-      marks_12th: form.marks_12th || null,
-      cgpa_semesters: parsedCgpa,
+      semester: parseInt(form.semester) || 1,
     });
   };
 
@@ -218,6 +203,66 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
           />
         </div>
       </div>
+      <button
+        type="submit"
+        className="btn btn-primary btn-lg"
+        style={{ width: '100%', marginTop: '0.5rem' }}
+        disabled={saving}
+      >
+        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Student')}
+      </button>
+    </form>
+  );
+}
+
+/* ─── Edit Marks Form ─────────────────────────────────────────── */
+function EditMarksForm({ initialData, onSave, saving }) {
+  const [form, setForm] = useState({
+    marks_10th: initialData?.marks_10th || '',
+    marks_12th: initialData?.marks_12th || '',
+    cgpa_semesters: initialData?.cgpa_semesters || {},
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCgpaChange = (sem, value) => {
+    setForm((prev) => ({
+      ...prev,
+      cgpa_semesters: {
+        ...prev.cgpa_semesters,
+        [sem]: value
+      }
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    let parsedCgpa = { ...form.cgpa_semesters };
+    const maxSem = (parseInt(initialData?.semester) || 1) - 1;
+    
+    // Clean up CGPA object: remove empty values and semesters >= current
+    Object.keys(parsedCgpa).forEach(key => {
+      if (parseInt(key) > maxSem || !parsedCgpa[key]) {
+        delete parsedCgpa[key];
+      } else {
+        parsedCgpa[key] = parseFloat(parsedCgpa[key]);
+      }
+    });
+
+    onSave({
+      marks_10th: form.marks_10th ? parseFloat(form.marks_10th) : null,
+      marks_12th: form.marks_12th ? parseFloat(form.marks_12th) : null,
+      cgpa_semesters: parsedCgpa,
+    });
+  };
+
+  const semesterCount = parseInt(initialData?.semester) || 1;
+
+  return (
+    <form onSubmit={handleSubmit}>
       <div className="form-row-2">
         <div className="form-group">
           <label className="form-label">10th Marks (%)</label>
@@ -246,14 +291,31 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
       </div>
       <div className="form-group">
         <label className="form-label">Semester-wise CGPA</label>
-        <textarea
-          className="form-input"
-          name="cgpa_semesters"
-          value={form.cgpa_semesters}
-          onChange={handleChange}
-          rows={2}
-          placeholder='e.g. {"1": 8.5, "2": 9.0}'
-        />
+        {semesterCount > 1 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+            {Array.from({ length: semesterCount - 1 }, (_, i) => i + 1).map(sem => (
+              <div key={sem}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem', display: 'block' }}>
+                  Sem {sem} CGPA
+                </label>
+                <input
+                  className="form-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="10"
+                  value={form.cgpa_semesters[sem] || ''}
+                  onChange={(e) => handleCgpaChange(sem, e.target.value)}
+                  placeholder="e.g. 8.5"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+            N/A (Student is in 1st semester)
+          </div>
+        )}
       </div>
       <button
         type="submit"
@@ -261,7 +323,7 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
         style={{ width: '100%', marginTop: '0.5rem' }}
         disabled={saving}
       >
-        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Student')}
+        {saving ? 'Saving...' : 'Save Marks'}
       </button>
     </form>
   );
@@ -275,6 +337,7 @@ export default function StudentsPage() {
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
+  const [editingMarks, setEditingMarks] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -306,12 +369,9 @@ export default function StudentsPage() {
     setSaving(true);
     try {
       if (editingStudent) {
-        // Students typically have a nested user profile, so an update might need to be sent
-        // to a specific student endpoint or handled carefully.
-        // Assuming /api/auth/students/{id}/ allows PUT
         const payload = { ...formData };
         if (!payload.password) delete payload.password;
-        await api.put(`/api/auth/students/${editingStudent.id}/`, payload);
+        await api.patch(`/api/auth/students/${editingStudent.id}/`, payload);
         toast.success('Student updated successfully');
       } else {
         if (!formData.password) formData.password = 'campus@123';
@@ -335,6 +395,21 @@ export default function StudentsPage() {
       } else {
         toast.error('Failed to save. Please try again.');
       }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMarks = async (marksData) => {
+    setSaving(true);
+    try {
+      await api.patch(`/api/auth/students/${editingMarks.id}/`, marksData);
+      toast.success('Marks updated successfully');
+      setEditingMarks(null);
+      fetchData();
+    } catch (err) {
+      console.error('Save failed:', err);
+      toast.error('Failed to save marks. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -378,6 +453,12 @@ export default function StudentsPage() {
             onClick={(e) => { e.stopPropagation(); setEditingStudent(row); setModalOpen(true); }}
           >
             Edit
+          </button>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={(e) => { e.stopPropagation(); setEditingMarks(row); }}
+          >
+            Marks
           </button>
           <button
             className="btn btn-sm btn-danger"
@@ -428,6 +509,15 @@ export default function StudentsPage() {
         title={editingStudent ? "Edit Student" : "Add Student"}
       >
         <AddStudentForm initialData={editingStudent} onSave={handleSave} saving={saving} departments={departments} />
+      </Modal>
+
+      {/* Edit Marks Modal */}
+      <Modal
+        open={!!editingMarks}
+        onClose={() => setEditingMarks(null)}
+        title={`Edit Marks - ${editingMarks?.user?.first_name} ${editingMarks?.user?.last_name}`}
+      >
+        {editingMarks && <EditMarksForm initialData={editingMarks} onSave={handleSaveMarks} saving={saving} />}
       </Modal>
 
       {/* Confirm delete */}
