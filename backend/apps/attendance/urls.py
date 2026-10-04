@@ -13,6 +13,9 @@ urlpatterns = [
     path("mark/", views.MarkAttendanceView.as_view(), name="mark"),
     path("generate-qr-token/", views.GenerateQRTokenView.as_view(), name="generate-qr-token"),
     path("recognize/", views.TriggerFaceRecognitionView.as_view(), name="recognize"),
+    path("sessions/start/", views.AttendanceSessionStartView.as_view(), name="session-start"),
+    path("sessions/<int:session_id>/process-frame/", views.AttendanceSessionProcessFrameView.as_view(), name="session-process-frame"),
+    path("sessions/<int:session_id>/end/", views.AttendanceSessionEndView.as_view(), name="session-end"),
     path("batch-upload/", views.BatchUploadView.as_view(), name="batch-upload"),
     path(
         "report/<int:student_id>/", views.AttendanceReportView.as_view(), name="report"

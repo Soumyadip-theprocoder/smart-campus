@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
 import QRCodeGenerator from './QRCodeGenerator';
+import LiveAttendanceModal from './LiveAttendanceModal';
 import './AttendancePage.css';
 
 export default function AttendancePage() {
@@ -12,6 +13,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [showScanner, setShowScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [showLiveSession, setShowLiveSession] = useState(false);
   const [showBatchUpload, setShowBatchUpload] = useState(false);
   const [scanning, setScanning] = useState(false);
   const webcamRef = useRef(null);
@@ -216,7 +218,14 @@ export default function AttendancePage() {
                   style={{ borderColor: 'var(--color-accent-emerald)', color: 'var(--color-accent-emerald)' }}
                   onClick={() => setShowScanner(true)}
                 >
-                  🤖 Face ID
+                  🤖 Single Scan
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ borderColor: 'var(--color-accent-emerald)', color: 'var(--color-accent-emerald)' }}
+                  onClick={() => setShowLiveSession(true)}
+                >
+                  🎥 Live Session
                 </button>
                 <button
                   className="btn btn-secondary"
@@ -255,6 +264,14 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+
+      {/* Live Session Modal */}
+      <LiveAttendanceModal 
+        isOpen={showLiveSession} 
+        onClose={() => setShowLiveSession(false)} 
+        subjectId={filters.subject_id}
+        onSessionEnd={loadAttendance}
+      />
 
       {/* Face ID Scanner Modal */}
       {showScanner && (

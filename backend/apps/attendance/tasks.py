@@ -13,7 +13,7 @@ import requests
 from django.conf import settings
 from django.core.files.storage import default_storage
 
-from apps.accounts.models import Student
+from apps.accounts.models import Student, FaceSample
 from apps.attendance.models import Attendance
 from apps.scheduler.models import Subject
 from pgvector.django import L2Distance
@@ -26,7 +26,7 @@ def process_batch_images_task(subject_id, file_paths):
     recognized_count = 0
     errors = []
     
-    tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.5)
+    tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.6)
     face_engine_url = getattr(settings, "FACE_ENGINE_URL", None)
     
     try:
@@ -68,13 +68,36 @@ def process_batch_images_task(subject_id, file_paths):
                 errors.append(f"{os.path.basename(file_path)}: Failed to get encoding.")
                 continue
 
-            best_match = (
+            # Search FaceSample table (primary source of truth)
+            best_sample = (
+                FaceSample.objects.filter(face_encoding__isnull=False)
+                .select_related("student__user")
+                .annotate(distance=L2Distance("face_encoding", encoding_list))
+                .filter(distance__lte=tolerance)
+                .order_by("distance")
+                .first()
+            )
+
+            # Fallback: legacy Student.face_encoding
+            best_student_match = (
                 Student.objects.filter(face_encoding__isnull=False)
                 .annotate(distance=L2Distance("face_encoding", encoding_list))
                 .filter(distance__lte=tolerance)
                 .order_by("distance")
                 .first()
             )
+
+            # Pick whichever match has the lower distance
+            best_match = None
+            if best_sample and best_student_match:
+                if best_sample.distance <= best_student_match.distance:
+                    best_match = best_sample.student
+                else:
+                    best_match = best_student_match
+            elif best_sample:
+                best_match = best_sample.student
+            elif best_student_match:
+                best_match = best_student_match
             
             if best_match:
                 # Mark attendance

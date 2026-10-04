@@ -43,17 +43,20 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
   );
 }
 
-/* ─── Add Faculty Form ─────────────────────────────────────────── */
-function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
+/* ─── Add Student Form ─────────────────────────────────────────── */
+function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
   const [form, setForm] = useState({
     first_name: initialData?.user?.first_name || '',
     last_name: initialData?.user?.last_name || '',
     email: initialData?.user?.email || '',
     username: initialData?.user?.username || '',
     password: '',
-    employee_id: initialData?.employee_id || '',
+    enrollment_number: initialData?.enrollment_number || '',
     department: initialData?.department || '',
-    designation: initialData?.designation || 'Assistant Professor',
+    semester: initialData?.semester || 1,
+    marks_10th: initialData?.marks_10th || '',
+    marks_12th: initialData?.marks_12th || '',
+    cgpa_semesters: initialData?.cgpa_semesters ? JSON.stringify(initialData.cgpa_semesters) : '{}',
   });
   const [error, setError] = useState('');
 
@@ -81,20 +84,33 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.email || !form.first_name || !form.last_name || !form.employee_id || !form.department) {
+    if (!form.email || !form.first_name || !form.last_name || !form.enrollment_number || !form.department) {
       setError('Please fill all required fields.');
       return;
     }
+    let parsedCgpa = {};
+    if (form.cgpa_semesters && form.cgpa_semesters.trim() !== '{}') {
+      try {
+        parsedCgpa = JSON.parse(form.cgpa_semesters);
+      } catch (err) {
+        setError('Invalid JSON format in Semester-wise CGPA. Use {"1": 8.5} etc.');
+        return;
+      }
+    }
+
     onSave({
       email: form.email,
       username: form.username,
       password: form.password || undefined,
       first_name: form.first_name,
       last_name: form.last_name,
-      role: 'faculty',
-      employee_id: form.employee_id,
+      role: 'student',
+      enrollment_number: form.enrollment_number,
       department: form.department,
-      designation: form.designation,
+      semester: form.semester,
+      marks_10th: form.marks_10th || null,
+      marks_12th: form.marks_12th || null,
+      cgpa_semesters: parsedCgpa,
     });
   };
 
@@ -145,19 +161,19 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
           name="email"
           value={form.email}
           onChange={handleEmailChange}
-          placeholder="e.g. john.doe@university.edu"
+          placeholder="e.g. john.doe@student.edu"
           required
         />
       </div>
       <div className="form-row-2">
         <div className="form-group">
-          <label className="form-label">Employee ID *</label>
+          <label className="form-label">Enrollment Number *</label>
           <input
             className="form-input"
-            name="employee_id"
-            value={form.employee_id}
+            name="enrollment_number"
+            value={form.enrollment_number}
             onChange={handleChange}
-            placeholder="e.g. FAC-001"
+            placeholder="e.g. STU-001"
             required
           />
         </div>
@@ -190,20 +206,54 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Designation</label>
-          <select
-            className="form-select"
-            name="designation"
-            value={form.designation}
+          <label className="form-label">Semester</label>
+          <input
+            className="form-input"
+            type="number"
+            min="1"
+            max="10"
+            name="semester"
+            value={form.semester}
             onChange={handleChange}
-          >
-            <option value="Assistant Professor">Assistant Professor</option>
-            <option value="Associate Professor">Associate Professor</option>
-            <option value="Professor">Professor</option>
-            <option value="HOD">HOD</option>
-            <option value="Lecturer">Lecturer</option>
-          </select>
+          />
         </div>
+      </div>
+      <div className="form-row-2">
+        <div className="form-group">
+          <label className="form-label">10th Marks (%)</label>
+          <input
+            className="form-input"
+            type="number"
+            step="0.01"
+            name="marks_10th"
+            value={form.marks_10th}
+            onChange={handleChange}
+            placeholder="e.g. 85.50"
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">12th Marks (%)</label>
+          <input
+            className="form-input"
+            type="number"
+            step="0.01"
+            name="marks_12th"
+            value={form.marks_12th}
+            onChange={handleChange}
+            placeholder="e.g. 90.00"
+          />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Semester-wise CGPA</label>
+        <textarea
+          className="form-input"
+          name="cgpa_semesters"
+          value={form.cgpa_semesters}
+          onChange={handleChange}
+          rows={2}
+          placeholder='e.g. {"1": 8.5, "2": 9.0}'
+        />
       </div>
       <button
         type="submit"
@@ -211,20 +261,20 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
         style={{ width: '100%', marginTop: '0.5rem' }}
         disabled={saving}
       >
-        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Faculty')}
+        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Student')}
       </button>
     </form>
   );
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export default function FacultyPage() {
-  const [faculty, setFaculty] = useState([]);
+export default function StudentsPage() {
+  const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingFaculty, setEditingFaculty] = useState(null);
+  const [editingStudent, setEditingStudent] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -237,11 +287,11 @@ export default function FacultyPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [facRes, depRes] = await Promise.all([
-        api.get('/api/auth/faculty/'),
+      const [stuRes, depRes] = await Promise.all([
+        api.get('/api/auth/students/'),
         api.get('/api/scheduler/departments/')
       ]);
-      setFaculty(facRes.data.results || facRes.data || []);
+      setStudents(stuRes.data.results || stuRes.data || []);
       setDepartments(depRes.data.results || depRes.data || []);
     } catch (err) {
       console.error(err);
@@ -251,22 +301,25 @@ export default function FacultyPage() {
     }
   };
 
-  /* ── Add/Edit faculty via endpoint ───────────────────────── */
+  /* ── Add/Edit student via endpoint ───────────────────────── */
   const handleSave = async (formData) => {
     setSaving(true);
     try {
-      if (editingFaculty) {
+      if (editingStudent) {
+        // Students typically have a nested user profile, so an update might need to be sent
+        // to a specific student endpoint or handled carefully.
+        // Assuming /api/auth/students/{id}/ allows PUT
         const payload = { ...formData };
         if (!payload.password) delete payload.password;
-        await api.put(`/api/auth/faculty/${editingFaculty.id}/`, payload);
-        toast.success('Faculty updated successfully');
+        await api.put(`/api/auth/students/${editingStudent.id}/`, payload);
+        toast.success('Student updated successfully');
       } else {
         if (!formData.password) formData.password = 'campus@123';
         await api.post('/api/auth/register/', formData);
-        toast.success('Faculty added successfully');
+        toast.success('Student added successfully');
       }
       setModalOpen(false);
-      setEditingFaculty(null);
+      setEditingStudent(null);
       fetchData();
     } catch (err) {
       console.error('Save failed:', err);
@@ -287,17 +340,17 @@ export default function FacultyPage() {
     }
   };
 
-  /* ── Delete faculty ──────────────────────────────────────────── */
+  /* ── Delete student ──────────────────────────────────────────── */
   const handleDelete = async () => {
     if (!confirmDelete) return;
     try {
-      // Delete user (cascades to faculty profile)
-      await api.delete(`/api/auth/faculty/${confirmDelete.id}/`);
+      // Delete user (cascades to student profile)
+      await api.delete(`/api/auth/students/${confirmDelete.id}/`);
       setConfirmDelete(null);
       fetchData();
     } catch (err) {
       console.error('Delete failed:', err);
-      toast.error('Failed to delete faculty member.');
+      toast.error('Failed to delete student.');
     }
   };
 
@@ -312,10 +365,9 @@ export default function FacultyPage() {
         </div>
       )
     },
-    { key: 'employee_id', label: 'Employee ID', render: (val) => <span className="badge badge-low">{val}</span> },
-    { key: 'department', label: 'Department', render: (val) => departments.find(d => d.id === val)?.name || val },
-    { key: 'designation', label: 'Designation', render: (val) => val || 'N/A' },
-    { key: 'max_hours_per_week', label: 'Max Hours/Week', render: (val) => <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>🕒 {val || 20}h</span> },
+    { key: 'enrollment_number', label: 'Enrollment No', render: (val) => <span className="badge badge-low">{val}</span> },
+    { key: 'department', label: 'Department', render: (val, row) => departments.find(d => d.id === val)?.name || val },
+    { key: 'semester', label: 'Semester', render: (val) => val || 'N/A' },
     {
       key: 'actions',
       label: 'Actions',
@@ -323,7 +375,7 @@ export default function FacultyPage() {
         <div className="action-btns">
           <button
             className="btn btn-sm btn-secondary"
-            onClick={(e) => { e.stopPropagation(); setEditingFaculty(row); setModalOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); setEditingStudent(row); setModalOpen(true); }}
           >
             Edit
           </button>
@@ -344,38 +396,38 @@ export default function FacultyPage() {
     <div className="page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>Faculty</h1>
-          <p>Manage faculty members and their information. Add, edit, and organize teaching staff.</p>
+          <h1>Students</h1>
+          <p>Manage student records. Add, edit, and organize students.</p>
         </div>
-        <button className="btn btn-primary" id="btn-add-faculty" onClick={() => { setEditingFaculty(null); setModalOpen(true); }}>+ Add Faculty</button>
+        <button className="btn btn-primary" id="btn-add-student" onClick={() => { setEditingStudent(null); setModalOpen(true); }}>+ Add Student</button>
       </div>
 
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
         <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-accent-emerald)' }}>
-            👥
+          <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)' }}>
+            👨‍🎓
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Faculty</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{faculty.length} faculty members registered</span>
+            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Students</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{students.length} students registered</span>
           </div>
         </div>
 
         <DataTable
           columns={columns}
-          data={faculty}
-          searchKey="employee_id"
-          emptyMessage="No faculty registered yet."
+          data={students}
+          searchKey="enrollment_number"
+          emptyMessage="No students registered yet."
         />
       </div>
 
       {/* Add/Edit Modal */}
       <Modal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setEditingFaculty(null); }}
-        title={editingFaculty ? "Edit Faculty" : "Add Faculty"}
+        onClose={() => { setModalOpen(false); setEditingStudent(null); }}
+        title={editingStudent ? "Edit Student" : "Add Student"}
       >
-        <AddFacultyForm initialData={editingFaculty} onSave={handleSave} saving={saving} departments={departments} />
+        <AddStudentForm initialData={editingStudent} onSave={handleSave} saving={saving} departments={departments} />
       </Modal>
 
       {/* Confirm delete */}

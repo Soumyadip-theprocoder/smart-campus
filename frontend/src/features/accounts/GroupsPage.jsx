@@ -47,7 +47,6 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
 function GroupForm({ initialData, onSave, saving }) {
   const [form, setForm] = useState({
     name: initialData?.name || '',
-    description: initialData?.description || '',
   });
   const [error, setError] = useState('');
 
@@ -92,24 +91,13 @@ function GroupForm({ initialData, onSave, saving }) {
           required
         />
       </div>
-      <div className="form-group">
-        <label className="form-label">Description</label>
-        <textarea
-          className="form-input"
-          name="description"
-          value={form.description}
-          onChange={handleChange}
-          placeholder="Optional description"
-          rows="3"
-        />
-      </div>
       <button
         type="submit"
         className="btn btn-primary btn-lg"
         style={{ width: '100%', marginTop: '0.5rem' }}
         disabled={saving}
       >
-        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Group')}
+        {saving ? 'Saving...' : (initialData ? 'Save Changes' : 'Add Department')}
       </button>
     </form>
   );
@@ -133,11 +121,11 @@ export default function GroupsPage() {
   const fetchGroups = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/auth/groups/');
+      const response = await api.get('/api/scheduler/departments/');
       setGroups(response.data.results || response.data || []);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load groups');
+      toast.error('Failed to load departments');
     } finally {
       setLoading(false);
     }
@@ -147,18 +135,18 @@ export default function GroupsPage() {
     setSaving(true);
     try {
       if (editingGroup) {
-        await api.put(`/api/auth/groups/${editingGroup.id}/`, formData);
-        toast.success('Group updated successfully');
+        await api.put(`/api/scheduler/departments/${editingGroup.id}/`, formData);
+        toast.success('Department updated successfully');
       } else {
-        await api.post('/api/auth/groups/', formData);
-        toast.success('Group created successfully');
+        await api.post('/api/scheduler/departments/', formData);
+        toast.success('Department created successfully');
       }
       setModalOpen(false);
       setEditingGroup(null);
       fetchGroups();
     } catch (err) {
       console.error('Save failed:', err);
-      toast.error(err.response?.data?.name?.[0] || 'Failed to save group.');
+      toast.error(err.response?.data?.name?.[0] || 'Failed to save department.');
     } finally {
       setSaving(false);
     }
@@ -167,13 +155,13 @@ export default function GroupsPage() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
     try {
-      await api.delete(`/api/auth/groups/${confirmDelete.id}/`);
+      await api.delete(`/api/scheduler/departments/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      toast.success('Group deleted');
+      toast.success('Department deleted');
       fetchGroups();
     } catch (err) {
       console.error('Delete failed:', err);
-      toast.error('Failed to delete group.');
+      toast.error('Failed to delete department.');
     }
   };
 
@@ -190,10 +178,9 @@ export default function GroupsPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Group Name',
+      label: 'Department Name',
       render: (val) => <div style={{ fontWeight: 600 }}>{val}</div>
     },
-    { key: 'description', label: 'Description', render: (val) => val || <span style={{ color: 'var(--color-text-muted)' }}>No description</span> },
     {
       key: 'actions',
       label: 'Actions',
@@ -222,10 +209,10 @@ export default function GroupsPage() {
     <div className="page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>Academic Groups</h1>
+          <h1>Departments</h1>
           <p>Manage flexible groupings for interdisciplinary classes, labs, and student batches.</p>
         </div>
-        <button className="btn btn-primary" id="btn-add-group" onClick={openCreateModal}>+ Add Group</button>
+        <button className="btn btn-primary" id="btn-add-group" onClick={openCreateModal}>+ Add Department</button>
       </div>
 
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
@@ -233,14 +220,14 @@ export default function GroupsPage() {
           columns={columns}
           data={groups}
           searchKey="name"
-          emptyMessage="No groups created yet."
+          emptyMessage="No departments created yet."
         />
       </div>
 
       <Modal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditingGroup(null); }}
-        title={editingGroup ? "Edit Group" : "Add Group"}
+        title={editingGroup ? "Edit Department" : "Add Department"}
       >
         <GroupForm 
           initialData={editingGroup} 

@@ -38,10 +38,15 @@ class StudentSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
+            "first_name",
+            "last_name",
+            "email",
             "enrollment_number",
             "department",
-            "groups",
             "semester",
+            "marks_10th",
+            "marks_12th",
+            "cgpa_semesters",
             "face_image",
             "has_face_encoding",
             "accessibility_needs",
@@ -52,7 +57,30 @@ class StudentSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def get_has_face_encoding(self, obj):
-        return obj.face_encoding is not None
+        # Check both legacy Student.face_encoding and FaceSample entries
+        if obj.face_encoding is not None:
+            return True
+        return obj.face_samples.exists()
+
+    first_name = serializers.CharField(write_only=True, required=False)
+    last_name = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(write_only=True, required=False)
+
+    def update(self, instance, validated_data):
+        user_data = {}
+        if 'first_name' in validated_data:
+            user_data['first_name'] = validated_data.pop('first_name')
+        if 'last_name' in validated_data:
+            user_data['last_name'] = validated_data.pop('last_name')
+        if 'email' in validated_data:
+            user_data['email'] = validated_data.pop('email')
+
+        if user_data:
+            for attr, value in user_data.items():
+                setattr(instance.user, attr, value)
+            instance.user.save()
+
+        return super().update(instance, validated_data)
 
 
 class FacultySerializer(serializers.ModelSerializer):
@@ -65,14 +93,36 @@ class FacultySerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
+            "first_name",
+            "last_name",
+            "email",
             "employee_id",
             "department",
-            "groups",
             "designation",
             "max_hours_per_week",
             "availability",
         ]
         read_only_fields = ["id"]
+
+    first_name = serializers.CharField(write_only=True, required=False)
+    last_name = serializers.CharField(write_only=True, required=False)
+    email = serializers.EmailField(write_only=True, required=False)
+
+    def update(self, instance, validated_data):
+        user_data = {}
+        if 'first_name' in validated_data:
+            user_data['first_name'] = validated_data.pop('first_name')
+        if 'last_name' in validated_data:
+            user_data['last_name'] = validated_data.pop('last_name')
+        if 'email' in validated_data:
+            user_data['email'] = validated_data.pop('email')
+
+        if user_data:
+            for attr, value in user_data.items():
+                setattr(instance.user, attr, value)
+            instance.user.save()
+
+        return super().update(instance, validated_data)
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -82,7 +132,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     enrollment_number = serializers.CharField(required=False, allow_blank=True)
     employee_id = serializers.CharField(required=False, allow_blank=True)
     department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False, allow_null=True)
-    groups = serializers.PrimaryKeyRelatedField(queryset=AcademicGroup.objects.all(), many=True, required=False)
+    semester = serializers.IntegerField(required=False, default=1)
+    marks_10th = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    marks_12th = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
+    cgpa_semesters = serializers.JSONField(required=False, default=dict)
 
     class Meta:
         model = User
@@ -96,7 +149,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             "enrollment_number",
             "employee_id",
             "department",
-            "groups",
+            "semester",
+            "marks_10th",
+            "marks_12th",
+            "cgpa_semesters",
         ]
 
     def validate(self, attrs):
@@ -113,7 +169,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         enrollment_number = validated_data.pop("enrollment_number", None)
         employee_id = validated_data.pop("employee_id", None)
         department = validated_data.pop("department", None)
-        groups = validated_data.pop("groups", [])
+        semester = validated_data.pop("semester", 1)
+        marks_10th = validated_data.pop("marks_10th", None)
+        marks_12th = validated_data.pop("marks_12th", None)
+        cgpa_semesters = validated_data.pop("cgpa_semesters", {})
         password = validated_data.pop("password")
 
         user = User(**validated_data)
@@ -126,15 +185,17 @@ class RegisterSerializer(serializers.ModelSerializer):
                 user=user,
                 enrollment_number=enrollment_number,
                 department=department,
+                semester=semester,
+                marks_10th=marks_10th,
+                marks_12th=marks_12th,
+                cgpa_semesters=cgpa_semesters,
             )
-            profile.groups.set(groups)
         elif user.role == User.Role.FACULTY:
             profile = Faculty.objects.create(
                 user=user,
                 employee_id=employee_id,
                 department=department,
             )
-            profile.groups.set(groups)
 
         return user
 

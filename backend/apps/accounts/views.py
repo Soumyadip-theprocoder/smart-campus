@@ -127,8 +127,8 @@ class StudentListView(generics.ListAPIView):
     queryset = Student.objects.select_related("user").all()
 
 
-class StudentDetailView(generics.RetrieveAPIView):
-    """Get a single student's details."""
+class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Get, update, or delete a single student's details."""
 
     serializer_class = StudentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -143,8 +143,8 @@ class FacultyListView(generics.ListAPIView):
     queryset = Faculty.objects.select_related("user").all()
 
 
-class FacultyDetailView(generics.RetrieveDestroyAPIView):
-    """Retrieve or delete a faculty member."""
+class FacultyDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update, or delete a faculty member."""
 
     serializer_class = FacultySerializer
     permission_classes = [permissions.IsAdminUser]
@@ -155,25 +155,36 @@ class FacultyDetailView(generics.RetrieveDestroyAPIView):
         instance.user.delete()
 
 
-class FaceRegistrationView(APIView):
-    """Register face data for a student via uploaded image."""
+from .models import FaceSample
 
+class FaceSampleListCreateView(APIView):
+    """List or register face samples for a student."""
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
-    def post(self, request):
-        user = request.user
-        if not user.is_student or not hasattr(user, "student_profile"):
-            return Response(
-                {"error": "Only students can register face data."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+    def get(self, request, student_id):
+        # Allow admins, faculty, or the student themselves
+        if not (request.user.is_admin or request.user.is_faculty or 
+               (request.user.is_student and request.user.student_profile.id == student_id)):
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        
+        samples = FaceSample.objects.filter(student_id=student_id)
+        data = [{"id": s.id, "created_at": s.created_at, "image_url": s.image.url if s.image else None} for s in samples]
+        return Response(data)
+
+    def post(self, request, student_id):
+        if not (request.user.is_admin or request.user.is_faculty or 
+               (request.user.is_student and request.user.student_profile.id == student_id)):
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
 
         file_obj = request.FILES.get("face_image")
         if not file_obj:
-            return Response(
-                {"error": "No image provided."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "No image provided."}, status=status.HTTP_400_BAD_REQUEST)
 
         from django.conf import settings
         import requests
@@ -181,89 +192,66 @@ class FaceRegistrationView(APIView):
         encoding_list = None
 
         if getattr(settings, "FACE_ENGINE_URL", None):
-            # Use external Colab API
             url = f"{settings.FACE_ENGINE_URL.rstrip('/')}/encode"
-            headers = {
-                "Bypass-Tunnel-Reminder": "true"  # Required if using localtunnel
-            }
+            headers = {"Bypass-Tunnel-Reminder": "true"}
             if getattr(settings, "FACE_ENGINE_API_KEY", None):
                 headers["Authorization"] = f"Bearer {settings.FACE_ENGINE_API_KEY}"
-            
             try:
-                # Reset file pointer before reading
                 file_obj.seek(0)
                 files = {"file": (file_obj.name, file_obj, file_obj.content_type)}
                 response = requests.post(url, files=files, headers=headers, timeout=30)
-                
                 if response.status_code == 200:
-                    data = response.json()
-                    encoding_list = data.get("encoding")
+                    encoding_list = response.json().get("encoding")
                 else:
-                    err_msg = response.json().get("detail", "Unknown error")
-                    return Response(
-                        {"error": f"Face Engine Error: {err_msg}"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                    return Response({"error": response.json().get("detail", "Face Engine Error")}, status=400)
             except requests.RequestException as e:
-                return Response(
-                    {"error": f"Failed to connect to Face Engine API: {str(e)}"},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
+                return Response({"error": str(e)}, status=503)
         else:
-            # Local fallback
             try:
                 import face_recognition
-            except ImportError:
-                return Response(
-                    {"error": "Face recognition is not enabled on this server and FACE_ENGINE_URL is not set."},
-                    status=status.HTTP_501_NOT_IMPLEMENTED,
-                )
-
-            try:
-                # Reset file pointer
                 file_obj.seek(0)
                 image = face_recognition.load_image_file(file_obj)
                 face_locations = face_recognition.face_locations(image, model="hog")
-
                 if not face_locations:
-                    return Response(
-                        {"error": "No face detected in the image."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
+                    return Response({"error": "No face detected."}, status=400)
                 if len(face_locations) > 1:
-                    return Response(
-                        {
-                            "error": "Multiple faces detected. Please ensure only your face is visible."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
+                    return Response({"error": "Multiple faces detected."}, status=400)
                 encoding = face_recognition.face_encodings(image, [face_locations[0]])[0]
                 encoding_list = encoding.tolist()
+            except ImportError:
+                return Response({"error": "Face recognition not installed locally."}, status=501)
             except Exception as e:
-                return Response(
-                    {"error": f"Failed to process image locally: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+                return Response({"error": str(e)}, status=500)
 
         if not encoding_list:
-            return Response(
-                {"error": "Failed to extract face encoding."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            return Response({"error": "Failed to extract encoding."}, status=500)
 
+        sample = FaceSample.objects.create(
+            student=student,
+            face_encoding=encoding_list,
+            image=file_obj
+        )
+        # Invalidate the live session face encoding cache so new faces are recognized immediately
         try:
-            student = user.student_profile
-            student.face_encoding = encoding_list
-            student.face_image = file_obj
-            student.save()
+            from apps.attendance.views import invalidate_face_encodings_cache
+            invalidate_face_encodings_cache()
+        except ImportError:
+            pass
+        return Response({"message": "Face registered successfully.", "id": sample.id}, status=status.HTTP_201_CREATED)
 
-            return Response(
-                {"message": "Face registered successfully."}, status=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to save profile: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+
+class FaceSampleDeleteView(APIView):
+    """Delete a face sample."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, student_id, sample_id):
+        if not (request.user.is_admin or request.user.is_faculty or 
+               (request.user.is_student and request.user.student_profile.id == student_id)):
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            sample = FaceSample.objects.get(id=sample_id, student_id=student_id)
+            sample.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except FaceSample.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)

@@ -25,9 +25,14 @@ urlpatterns = [
         "students/<int:pk>/", views.StudentDetailView.as_view(), name="student-detail"
     ),
     path(
-        "student/face-register/",
-        views.FaceRegistrationView.as_view(),
-        name="face-register",
+        "students/<int:student_id>/faces/",
+        views.FaceSampleListCreateView.as_view(),
+        name="face-sample-list-create",
+    ),
+    path(
+        "students/<int:student_id>/faces/<int:sample_id>/",
+        views.FaceSampleDeleteView.as_view(),
+        name="face-sample-delete",
     ),
     path("faculty/", views.FacultyListView.as_view(), name="faculty-list"),
     path("faculty/<int:pk>/", views.FacultyDetailView.as_view(), name="faculty-detail"),

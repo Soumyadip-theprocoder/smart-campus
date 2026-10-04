@@ -84,6 +84,20 @@ class Student(models.Model):
         blank=True,
     )
     semester = models.PositiveIntegerField(default=1)
+    
+    # Academic records
+    marks_10th = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Percentage or CGPA in 10th grade"
+    )
+    marks_12th = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Percentage or CGPA in 12th grade"
+    )
+    cgpa_semesters = models.JSONField(
+        default=dict, blank=True,
+        help_text="CGPA per semester, e.g. {'1': 8.5, '2': 9.0}"
+    )
     face_encoding = VectorField(
         dimensions=128,
         blank=True,
@@ -130,6 +144,39 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.enrollment_number} — {self.user.get_full_name()}"
+
+
+class FaceSample(models.Model):
+    """Multiple face samples per student for better recognition accuracy."""
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="face_samples"
+    )
+    face_encoding = VectorField(
+        dimensions=128,
+        help_text="128-dimensional face encoding vector"
+    )
+    image = models.ImageField(
+        upload_to="face_samples/",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "face_samples"
+        ordering = ["-created_at"]
+        indexes = [
+            HnswIndex(
+                name="facesample_hnsw_idx",
+                fields=["face_encoding"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_l2_ops"],
+            )
+        ]
+
+    def __str__(self):
+        return f"Face Sample for {self.student.enrollment_number}"
 
 
 class Faculty(models.Model):

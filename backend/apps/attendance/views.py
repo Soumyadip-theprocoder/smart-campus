@@ -210,7 +210,7 @@ import requests
 import tempfile
 import os
 import zipfile
-from apps.accounts.models import Student
+from apps.accounts.models import Student, FaceSample
 from pgvector.django import L2Distance
 from django_q.tasks import async_task
 from .tasks import process_batch_images_task
@@ -275,14 +275,38 @@ class TriggerFaceRecognitionView(APIView):
         if not encoding_list:
             return Response({"error": "Failed to get encoding."}, status=500)
             
-        tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.5)
-        best_match = (
+        tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.6)
+
+        # Search FaceSample table (source of truth for registered faces)
+        best_sample = (
+            FaceSample.objects.filter(face_encoding__isnull=False)
+            .select_related("student__user")
+            .annotate(distance=L2Distance("face_encoding", encoding_list))
+            .filter(distance__lte=tolerance)
+            .order_by("distance")
+            .first()
+        )
+
+        # Fallback: also check legacy Student.face_encoding
+        best_student_match = (
             Student.objects.filter(face_encoding__isnull=False)
             .annotate(distance=L2Distance("face_encoding", encoding_list))
             .filter(distance__lte=tolerance)
             .order_by("distance")
             .first()
         )
+
+        # Pick whichever match has the lower distance
+        best_match = None
+        if best_sample and best_student_match:
+            if best_sample.distance <= best_student_match.distance:
+                best_match = best_sample.student
+            else:
+                best_match = best_student_match
+        elif best_sample:
+            best_match = best_sample.student
+        elif best_student_match:
+            best_match = best_student_match
         
         if not best_match:
             return Response({"error": "Unknown Face - No matching student found in database."}, status=404)
@@ -475,3 +499,196 @@ class BatchUploadView(APIView):
             
         task_id = async_task(process_batch_images_task, subject_id, file_paths)
         return Response({"message": "Batch processing started.", "task_id": task_id}, status=status.HTTP_202_ACCEPTED)
+
+import base64
+import numpy as np
+from django.utils import timezone
+from .models import AttendanceSession, Attendance
+
+# Global cache for face encodings
+_FACE_ENCODINGS_CACHE = None
+
+def invalidate_face_encodings_cache():
+    """Call this after new face registrations to force cache rebuild."""
+    global _FACE_ENCODINGS_CACHE
+    _FACE_ENCODINGS_CACHE = None
+
+def get_face_encodings_cache():
+    global _FACE_ENCODINGS_CACHE
+    if _FACE_ENCODINGS_CACHE is None:
+        from apps.accounts.models import FaceSample, Student
+        cache = []
+        # Primary source: FaceSample table
+        samples = FaceSample.objects.select_related('student__user').all()
+        seen_student_ids = set()
+        for s in samples:
+            if s.face_encoding:
+                cache.append((np.array(s.face_encoding), s.student_id, s.student.user.get_full_name()))
+                seen_student_ids.add(s.student_id)
+        # Fallback: legacy Student.face_encoding for students without FaceSamples
+        legacy_students = Student.objects.filter(
+            face_encoding__isnull=False
+        ).exclude(id__in=seen_student_ids).select_related('user')
+        for st in legacy_students:
+            cache.append((np.array(st.face_encoding), st.id, st.user.get_full_name()))
+        _FACE_ENCODINGS_CACHE = cache
+    return _FACE_ENCODINGS_CACHE
+
+
+class AttendanceSessionStartView(APIView):
+    """Start a live attendance session."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not (request.user.is_superuser or request.user.is_faculty):
+            return Response({"error": "Unauthorized"}, status=403)
+            
+        subject_id = request.data.get("subject_id")
+        if not subject_id:
+            return Response({"error": "subject_id required"}, status=400)
+            
+        try:
+            subject = Subject.objects.get(id=subject_id)
+        except Subject.DoesNotExist:
+            return Response({"error": "Subject not found"}, status=404)
+            
+        # Clear cache on session start to pick up new registrations
+        global _FACE_ENCODINGS_CACHE
+        _FACE_ENCODINGS_CACHE = None
+        get_face_encodings_cache()
+            
+        faculty = None
+        if hasattr(request.user, 'faculty_profile'):
+            faculty = request.user.faculty_profile
+        session = AttendanceSession.objects.create(
+            subject=subject,
+            faculty=faculty,
+        )
+        
+        return Response({"message": "Session started", "session_id": session.id})
+
+
+class AttendanceSessionEndView(APIView):
+    """End a live attendance session."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, session_id):
+        if not (request.user.is_superuser or request.user.is_faculty):
+            return Response({"error": "Unauthorized"}, status=403)
+            
+        try:
+            session = AttendanceSession.objects.get(id=session_id)
+            session.status = AttendanceSession.Status.COMPLETED
+            session.end_time = timezone.now()
+            session.save()
+            return Response({"message": "Session ended"})
+        except AttendanceSession.DoesNotExist:
+            return Response({"error": "Session not found"}, status=404)
+
+
+class AttendanceSessionProcessFrameView(APIView):
+    """Process a base64 video frame for a live session."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, session_id):
+        if not (request.user.is_superuser or request.user.is_faculty):
+            return Response({"error": "Unauthorized"}, status=403)
+            
+        try:
+            session = AttendanceSession.objects.get(id=session_id, status=AttendanceSession.Status.ACTIVE)
+        except AttendanceSession.DoesNotExist:
+            return Response({"error": "Active session not found"}, status=404)
+            
+        frame_data = request.data.get("frame")
+        if not frame_data:
+            return Response({"error": "No frame provided"}, status=400)
+            
+        try:
+            import cv2
+            import face_recognition
+            
+            # Decode base64 image
+            if "," in frame_data:
+                frame_data = frame_data.split(",")[1]
+            image_bytes = base64.b64decode(frame_data)
+            jpg_as_np = np.frombuffer(image_bytes, dtype=np.uint8)
+            img = cv2.imdecode(jpg_as_np, flags=1)
+            
+            if img is None:
+                return Response({"error": "Invalid image"}, status=400)
+                
+            # Resize for faster processing
+            imgS = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+            imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
+            
+            face_locations = face_recognition.face_locations(imgS)
+            face_encodings = face_recognition.face_encodings(imgS, face_locations)
+            
+            cache = get_face_encodings_cache()
+            if not cache:
+                return Response({"error": "No registered faces in database"}, status=400)
+                
+            known_encodings = [item[0] for item in cache]
+            known_student_ids = [item[1] for item in cache]
+            known_names = [item[2] for item in cache]
+            
+            recognized_students = []
+            unknown_faces = 0
+            
+            tolerance = getattr(settings, "FACE_RECOGNITION_TOLERANCE", 0.6)
+            margin = 0.05
+            
+            for encodeFace, faceLoc in zip(face_encodings, face_locations):
+                faceDis = face_recognition.face_distance(known_encodings, encodeFace)
+                if len(faceDis) == 0:
+                    continue
+                    
+                # Find best and second best match
+                sorted_indices = np.argsort(faceDis)
+                best_idx = sorted_indices[0]
+                best_dist = faceDis[best_idx]
+                
+                if len(sorted_indices) > 1:
+                    second_best_dist = faceDis[sorted_indices[1]]
+                else:
+                    second_best_dist = 1.0
+                
+                # Check threshold and margin
+                if best_dist <= tolerance and (second_best_dist - best_dist) >= margin:
+                    student_id = known_student_ids[best_idx]
+                    student_name = known_names[best_idx]
+                    
+                    # Mark attendance idempotently
+                    att, created = Attendance.objects.get_or_create(
+                        student_id=student_id,
+                        subject=session.subject,
+                        date=date.today(),
+                        defaults={
+                            "session": session,
+                            "status": Attendance.Status.PRESENT,
+                            "method": Attendance.Method.FACE_RECOGNITION,
+                            "confidence": best_dist,
+                            "marked_by": request.user
+                        }
+                    )
+                    
+                    # Return coordinates (scaled back up)
+                    y1, x2, y2, x1 = faceLoc
+                    recognized_students.append({
+                        "name": student_name,
+                        "student_id": student_id,
+                        "box": [y1*4, x2*4, y2*4, x1*4],
+                        "confidence": best_dist
+                    })
+                else:
+                    unknown_faces += 1
+                    
+            return Response({
+                "recognized": recognized_students,
+                "unknown_count": unknown_faces
+            })
+            
+        except ImportError:
+            return Response({"error": "Local face recognition not installed"}, status=501)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)

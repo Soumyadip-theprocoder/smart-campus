@@ -19,7 +19,8 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/admin', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
     { to: '/admin/courses', icon: <HiOutlineAcademicCap />, label: 'Courses' },
     { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
-    { to: '/admin/groups', icon: <HiOutlineUsers />, label: 'Groups' },
+    { to: '/admin/students', icon: <HiOutlineUsers />, label: 'Students' },
+    { to: '/admin/groups', icon: <HiOutlineUsers />, label: 'Departments' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
     { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
     { to: '/admin/predictive-analytics', icon: <HiOutlineChartBar />, label: 'Predictive Analytics' },
@@ -36,6 +37,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
 
   const facultyLinks = [
     { to: '/faculty', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
+    { to: '/faculty/attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
   ];

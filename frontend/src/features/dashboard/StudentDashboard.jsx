@@ -353,6 +353,7 @@ export default function StudentDashboard() {
         isOpen={isFaceModalOpen} 
         onClose={() => setIsFaceModalOpen(false)} 
         onSuccess={loadStudentData}
+        studentId={profile?.profile?.id}
       />
       {isAccessModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAccessModalOpen(false)}>

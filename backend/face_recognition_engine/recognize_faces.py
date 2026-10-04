@@ -21,6 +21,14 @@ import argparse
 import json
 import os
 import sys
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from datetime import date
 
 import cv2
@@ -43,6 +51,8 @@ except ImportError:
     HAS_FR = False
 
 from apps.accounts.models import Student
+from apps.attendance.models import Attendance
+from apps.scheduler.models import Subject
 from pgvector.django import L2Distance
 
 # API endpoint for marking attendance
@@ -50,39 +60,60 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 MARK_ATTENDANCE_URL = f"{API_BASE_URL}/api/attendance/mark/"
 
 
-def find_closest_student(face_encoding, tolerance):
+def find_closest_student(face_encoding, tolerance, margin=0.05):
     """Query the database for the closest face encoding using pgvector."""
     # Convert numpy array to list for pgvector
     encoding_list = face_encoding.tolist()
 
     # Query database using L2Distance
-    student = (
+    students = (
         Student.objects.filter(face_encoding__isnull=False)
         .annotate(distance=L2Distance("face_encoding", encoding_list))
-        .filter(distance__lte=tolerance)
-        .order_by("distance")
-        .first()
+        .order_by("distance")[:2]
     )
 
-    return student
+    if not students:
+        return None
+
+    best_match = students[0]
+    if best_match.distance > tolerance:
+        return None
+
+    # Check margin if there are multiple faces
+    if len(students) > 1:
+        second_match = students[1]
+        if (second_match.distance - best_match.distance) < margin:
+            return None  # Ambiguous match, prevent false positive
+
+    return best_match
 
 
 def mark_attendance_api(enrollment_number: str, subject_id: int):
-    """Mark attendance via the REST API."""
+    """Mark attendance via Django ORM."""
     try:
-        response = requests.post(
-            MARK_ATTENDANCE_URL,
-            json={
-                "enrollment_number": enrollment_number,
-                "subject_id": subject_id,
-                "date": str(date.today()),
-                "method": "face_recognition",
+        student = Student.objects.get(enrollment_number=enrollment_number)
+        subject = Subject.objects.get(id=subject_id)
+        attendance, created = Attendance.objects.get_or_create(
+            student=student,
+            subject=subject,
+            date=date.today(),
+            defaults={
+                "status": Attendance.Status.PRESENT,
+                "method": Attendance.Method.FACE_RECOGNITION,
             },
-            timeout=5,
         )
-        return response.json()
-    except requests.RequestException as e:
-        print(f"API Error: {e}")
+        if not created and attendance.status != Attendance.Status.PRESENT:
+            attendance.status = Attendance.Status.PRESENT
+            attendance.method = Attendance.Method.FACE_RECOGNITION
+            attendance.save()
+        return {
+            "success": True,
+            "status": "marked",
+            "student": student.enrollment_number,
+            "date": str(date.today()),
+            "already_marked": not created,
+        }
+    except Exception as e:
         return {"error": str(e)}
 
 
@@ -193,7 +224,7 @@ def run_recognition(subject_id: int, headless: bool = False):
     recognized_students = set()
     process_every_n_frames = 3  # Process every Nth frame for performance
     frame_count = 0
-    tolerance = float(os.environ.get("FACE_RECOGNITION_TOLERANCE", "0.5"))
+    tolerance = float(os.environ.get("FACE_RECOGNITION_TOLERANCE", "0.45"))
 
     if not headless:
         print("Face recognition started. Press 'q' to quit.")

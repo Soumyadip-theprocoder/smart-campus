@@ -5,13 +5,18 @@ import api from '../../api/axios';
 import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './FaceRegistrationModal.css';
 
-const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
+const FaceRegistrationModal = ({ isOpen, onClose, onSuccess, studentId }) => {
   const webcamRef = useRef(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const capture = useCallback(async () => {
+    if (!consentGiven) {
+        setError('You must consent to biometric data processing.');
+        return;
+    }
     setIsCapturing(true);
     setError('');
     
@@ -30,7 +35,7 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
       formData.append('face_image', file);
 
       // Upload directly to backend
-      const response = await api.post('/api/auth/student/face-register/', formData, {
+      const response = await api.post(`/api/auth/students/${studentId}/faces/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -50,7 +55,7 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
       setError(err.response?.data?.error || err.message || 'Failed to capture face.');
       setIsCapturing(false);
     }
-  }, [webcamRef, onClose, onSuccess]);
+  }, [webcamRef, onClose, onSuccess, consentGiven, studentId]);
 
   if (!isOpen) return null;
 
@@ -63,6 +68,18 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
         
         <h2>Register Face Data</h2>
         <p className="modal-subtitle">Please ensure your face is clearly visible in the frame.</p>
+        
+        <div className="consent-container" style={{ margin: '1rem 0', textAlign: 'left', fontSize: '0.9rem' }}>
+            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'start' }}>
+                <input 
+                    type="checkbox" 
+                    checked={consentGiven} 
+                    onChange={(e) => setConsentGiven(e.target.checked)} 
+                    style={{ marginTop: '0.2rem' }}
+                />
+                <span>I consent to the collection and processing of my facial biometric data for the purpose of attendance marking, in accordance with the institution's privacy policy and the DPDP Act 2023. I understand I can request deletion at any time.</span>
+            </label>
+        </div>
 
         {error && <div className="alert error-alert">{error}</div>}
         {success && <div className="alert success-alert">{success}</div>}
@@ -91,7 +108,7 @@ const FaceRegistrationModal = ({ isOpen, onClose, onSuccess }) => {
         <button 
           className="btn btn-primary capture-btn" 
           onClick={capture}
-          disabled={isCapturing || success !== ''}
+          disabled={isCapturing || success !== '' || !consentGiven}
         >
           <HiCamera className="btn-icon" />
           {isCapturing ? 'Processing...' : 'Capture'}
