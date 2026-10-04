@@ -33,6 +33,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
     { to: '/student/class-attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
+    { to: '/student/profile', icon: <FiSettings />, label: 'Profile' },
   ];
 
   const facultyLinks = [

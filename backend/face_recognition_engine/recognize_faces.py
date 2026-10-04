@@ -60,7 +60,7 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 MARK_ATTENDANCE_URL = f"{API_BASE_URL}/api/attendance/mark/"
 
 
-def find_closest_student(face_encoding, tolerance, margin=0.05):
+def find_closest_student(face_encoding, tolerance, margin=0.1):
     """Query the database for the closest face encoding using pgvector."""
     # Convert numpy array to list for pgvector
     encoding_list = face_encoding.tolist()
@@ -224,7 +224,7 @@ def run_recognition(subject_id: int, headless: bool = False):
     recognized_students = set()
     process_every_n_frames = 3  # Process every Nth frame for performance
     frame_count = 0
-    tolerance = float(os.environ.get("FACE_RECOGNITION_TOLERANCE", "0.45"))
+    tolerance = float(os.environ.get("FACE_RECOGNITION_TOLERANCE", "0.4"))
 
     if not headless:
         print("Face recognition started. Press 'q' to quit.")

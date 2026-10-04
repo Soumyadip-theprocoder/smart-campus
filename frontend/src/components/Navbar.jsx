@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineMenuAlt2, HiOutlineSun, HiOutlineMoon } from 'react-icons/hi';
 import { FiLogOut } from 'react-icons/fi';
 import './Navbar.css';
@@ -7,6 +8,7 @@ import './Navbar.css';
 export default function Navbar({ collapsed, onToggleSidebar, title }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
 
   const getInitials = (name) => {
     if (!name) return '?';
@@ -15,6 +17,12 @@ export default function Navbar({ collapsed, onToggleSidebar, title }) {
   };
 
   const fullName = user ? `${user.first_name} ${user.last_name}` : '';
+
+  const handleProfileClick = () => {
+    if (user?.role === 'student') {
+      navigate('/student/profile');
+    }
+  };
 
   return (
     <nav className={`navbar ${collapsed ? 'sidebar-collapsed' : ''}`}>
@@ -31,7 +39,7 @@ export default function Navbar({ collapsed, onToggleSidebar, title }) {
       </div>
 
       <div className="navbar-right">
-        <div className="navbar-user" id="navbar-user-profile">
+        <div className="navbar-user" id="navbar-user-profile" onClick={handleProfileClick}>
           <div className="navbar-avatar">
             {getInitials(fullName)}
           </div>

@@ -134,6 +134,22 @@ class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     queryset = Student.objects.select_related("user").all()
 
+    def get_object(self):
+        obj = super().get_object()
+        # Admin can access any student. A student can only access their own profile.
+        if not self.request.user.is_staff:
+            if not hasattr(self.request.user, 'student_profile') or self.request.user.student_profile != obj:
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You do not have permission to modify this student's profile.")
+        return obj
+
+    def perform_destroy(self, instance):
+        # Delete the associated user (cascades to student profile)
+        if instance.user:
+            instance.user.delete()
+        else:
+            instance.delete()
+
 
 class FacultyListView(generics.ListAPIView):
     """List all faculty (admin only)."""

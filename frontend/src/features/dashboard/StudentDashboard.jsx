@@ -9,13 +9,13 @@ import {
   HiOutlineCalendar,
   HiOutlineAcademicCap,
   HiOutlineSpeakerphone,
-  HiCamera,
   HiOutlineDocumentDownload,
 } from 'react-icons/hi';
 import { Suspense, lazy } from 'react';
 import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 const StudentAttendanceChart = lazy(() => import('./StudentAttendanceChart'));
 import FaceRegistrationModal from '../accounts/FaceRegistrationModal';
+import EditMarksForm from '../../components/EditMarksForm';
 import './StudentDashboard.css';
 
 export default function StudentDashboard() {
@@ -26,12 +26,7 @@ export default function StudentDashboard() {
   const [notices, setNotices] = useState([]);
   const [timetable, setTimetable] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  
-  const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
-  const [amenities, setAmenities] = useState([]);
-  const [accessNeeds, setAccessNeeds] = useState([]);
 
   useEffect(() => {
     loadStudentData();
@@ -40,16 +35,13 @@ export default function StudentDashboard() {
   const loadStudentData = async () => {
     setLoading(true);
     try {
-      const [meRes, noticesRes, timetableRes, amRes] = await Promise.all([
+      const [meRes, noticesRes, timetableRes] = await Promise.all([
         api.get('/api/auth/me/'),
         api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } })),
-        api.get('/api/scheduler/timetable/').catch(() => ({ data: { results: [] } })),
-        api.get('/api/scheduler/amenities/').catch(() => ({ data: { results: [] } }))
+        api.get('/api/scheduler/timetable/').catch(() => ({ data: { results: [] } }))
       ]);
 
       setProfile(meRes.data);
-      setAmenities(amRes.data.results || amRes.data || []);
-      setAccessNeeds(meRes.data.profile?.accessibility_needs || []);
 
       // Load attendance report if we have a student profile
       if (meRes.data.profile?.id) {
@@ -126,17 +118,6 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleSaveAccess = async () => {
-    try {
-      await api.put('/api/auth/me/', { accessibility_needs: accessNeeds });
-      toast.success('Accessibility preferences saved!');
-      setIsAccessModalOpen(false);
-      loadStudentData();
-    } catch (e) {
-      toast.error('Failed to save accessibility preferences.');
-    }
-  };
-
   const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
   const chartData = report.map((r, index) => ({
     name: r.subject_code,
@@ -154,14 +135,6 @@ export default function StudentDashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          {!profile?.profile?.has_face_encoding && (
-            <button className="btn btn-primary" onClick={() => setIsFaceModalOpen(true)}>
-              <HiCamera className="btn-icon" /> Register Face Data
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={() => setIsAccessModalOpen(true)}>
-            ♿ Accessibility
-          </button>
           <button className="btn btn-secondary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
             <HiOutlineDocumentDownload className="btn-icon" /> {downloadingPdf ? 'Exporting...' : 'Download PDF Report'}
           </button>
@@ -349,39 +322,6 @@ export default function StudentDashboard() {
           )}
         </div>
       </div>
-      <FaceRegistrationModal 
-        isOpen={isFaceModalOpen} 
-        onClose={() => setIsFaceModalOpen(false)} 
-        onSuccess={loadStudentData}
-        studentId={profile?.profile?.id}
-      />
-      {isAccessModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAccessModalOpen(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()}>
-            <h3>♿ Accessibility Preferences</h3>
-            <p>Select any accommodations you require for your classes.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-              {amenities.map(a => (
-                <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'var(--color-bg-glass)', borderRadius: '4px' }}>
-                  <input
-                    type="checkbox"
-                    checked={accessNeeds.includes(a.name)}
-                    onChange={(e) => {
-                      if (e.target.checked) setAccessNeeds([...accessNeeds, a.name]);
-                      else setAccessNeeds(accessNeeds.filter(n => n !== a.name));
-                    }}
-                  />
-                  {a.name} - <span style={{fontSize: '0.8rem', color: 'var(--color-text-muted)'}}>{a.description || 'Accommodation'}</span>
-                </label>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setIsAccessModalOpen(false)} style={{flex: 1}}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveAccess} style={{flex: 1}}>Save Preferences</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

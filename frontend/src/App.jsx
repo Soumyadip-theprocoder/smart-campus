@@ -25,7 +25,7 @@ const FacultySubjectsPage = lazy(() => import('./features/dashboard/FacultySubje
 const ForecastingPage = lazy(() => import('./features/scheduler/ForecastingPage'));
 const GroupsPage = lazy(() => import('./features/accounts/GroupsPage'));
 const StudentsPage = lazy(() => import('./features/accounts/StudentsPage'));
-
+const StudentProfilePage = lazy(() => import('./features/accounts/StudentProfilePage'));
 function ProtectedRoute({ children, allowedRoles }) {
   const { isAuthenticated, user } = useAuth();
 
@@ -191,6 +191,14 @@ function AppLayout() {
               element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentClassAttendancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student/profile"
+              element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentProfilePage />
                 </ProtectedRoute>
               }
             />

@@ -56,6 +56,7 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
     designation: initialData?.designation || 'Assistant Professor',
   });
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, selectedOptions } = e.target;
@@ -163,14 +164,39 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
         </div>
         <div className="form-group">
           <label className="form-label">Password</label>
-          <input
-            className="form-input"
-            type="password"
-            name="password"
-            value={form.password}
-            onChange={handleChange}
-            placeholder="Default: campus@123"
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              className="form-input"
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="Default: faculty123"
+              style={{ width: '100%', paddingRight: '2.5rem' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--color-text-muted)',
+                padding: '0.25rem',
+                fontSize: '1.2rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
         </div>
       </div>
       <div className="form-row-2">
@@ -261,7 +287,7 @@ export default function FacultyPage() {
         await api.put(`/api/auth/faculty/${editingFaculty.id}/`, payload);
         toast.success('Faculty updated successfully');
       } else {
-        if (!formData.password) formData.password = 'campus@123';
+        if (!formData.password) formData.password = 'faculty123';
         await api.post('/api/auth/register/', formData);
         toast.success('Faculty added successfully');
       }
