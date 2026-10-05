@@ -25,6 +25,7 @@ export default function StudentDashboard() {
   const [report, setReport] = useState([]);
   const [notices, setNotices] = useState([]);
   const [timetable, setTimetable] = useState([]);
+  const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -43,17 +44,23 @@ export default function StudentDashboard() {
 
       setProfile(meRes.data);
 
-      // Load attendance report if we have a student profile
-      if (meRes.data.profile?.id) {
-        try {
-          const reportRes = await api.get(
-            `/api/attendance/report/${meRes.data.profile.id}/`
-          );
-          setReport(reportRes.data);
-        } catch {
-          // No attendance data yet
+        // Load attendance report if we have a student profile
+        if (meRes.data.profile?.id) {
+          try {
+            const reportRes = await api.get(
+              `/api/attendance/report/${meRes.data.profile.id}/`
+            );
+            setReport(reportRes.data);
+            
+            // Also load forecast
+            const forecastRes = await api.get(`/api/attendance/forecast/${meRes.data.profile.id}/`);
+            if (forecastRes.data && forecastRes.data.forecasted_cgpa) {
+              setForecast(forecastRes.data.forecasted_cgpa);
+            }
+          } catch {
+            // No attendance data or forecast available yet
+          }
         }
-      }
 
       setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 3));
       setTimetable((timetableRes.data.results || timetableRes.data || []).slice(0, 5));
@@ -144,8 +151,18 @@ export default function StudentDashboard() {
         </div>
       </div>
 
+      {report.some(r => r.percentage < 75) && (
+        <div className="alert alert-danger" style={{ marginBottom: '1.5rem', background: '#fee2e2', color: '#991b1b', padding: '1rem', borderRadius: '8px', borderLeft: '4px solid #ef4444', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <HiOutlineSpeakerphone size={24} />
+          <div>
+            <strong>Warning: Attendance Risk Detected!</strong>
+            <p style={{ margin: 0 }}>Your attendance in one or more subjects is below the 75% required threshold. Please attend upcoming classes to avoid academic penalties.</p>
+          </div>
+        </div>
+      )}
+
       {/* Stat Cards */}
-      <div className="grid-4">
+      <div className="grid-5" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
         <StatCard
           icon={<HiOutlineClipboardCheck />}
           label="Attendance"
@@ -153,6 +170,14 @@ export default function StudentDashboard() {
           gradient={overallAttendance >= 75 ? 'emerald' : 'red'}
           delay={1}
           onClick={() => navigate('/student/attendance')}
+        />
+        <StatCard
+          icon={<HiOutlineAcademicCap />}
+          label="Predicted CGPA"
+          value={forecast ? forecast.toFixed(2) : 'N/A'}
+          change="AI Forecast"
+          gradient="blue"
+          delay={1.5}
         />
         <StatCard
           icon={<HiOutlineAcademicCap />}

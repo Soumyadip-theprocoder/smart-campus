@@ -29,4 +29,24 @@ urlpatterns = [
         views.StudentPDFExportView.as_view(),
         name="export-student-pdf",
     ),
+    path(
+        "risk/<int:student_id>/<int:subject_id>/",
+        views.AttendanceRiskView.as_view(),
+        name="attendance-risk",
+    ),
+    path(
+        "alerts/dispatch/",
+        views.AttendanceAlertsDispatchView.as_view(),
+        name="alerts-dispatch",
+    ),
+    path(
+        "risk-assessment/",
+        views.AttendanceRiskAssessmentListView.as_view(),
+        name="risk-assessment-list",
+    ),
+    path(
+        "forecast/<int:student_id>/",
+        views.AttendanceForecastView.as_view(),
+        name="attendance-forecast",
+    ),
 ]

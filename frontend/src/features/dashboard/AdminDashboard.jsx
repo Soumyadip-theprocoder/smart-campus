@@ -18,14 +18,15 @@ import { Suspense, lazy } from 'react';
 import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 import './AdminDashboard.css';
 
-const AdminAttendanceChart = lazy(() => import('./AdminAttendanceChart'));
-
 export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [atRiskStudents, setAtRiskStudents] = useState([]);
+  const [loadingRisk, setLoadingRisk] = useState(false);
+  const [dispatchingAlerts, setDispatchingAlerts] = useState(false);
   const navigate = useNavigate();
 
   const isMounted = useRef(true);
@@ -41,16 +42,14 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [overviewRes, noticesRes, trendsRes] = await Promise.all([
+      const [overviewRes, noticesRes] = await Promise.all([
         api.get('/api/analytics/overview/').catch(() => ({ data: {} })),
-        api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } })),
-        api.get('/api/analytics/department-trends/').catch(() => ({ data: [] }))
+        api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } }))
       ]);
 
       if (isMounted.current) {
         setSummary(overviewRes.data);
         setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 5));
-        setChartData(trendsRes.data || []);
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -60,6 +59,26 @@ export default function AdminDashboard() {
       }
     }
   };
+
+  const loadRiskAssessment = async () => {
+    setLoadingRisk(true);
+    try {
+      const res = await api.get('/api/attendance/risk-assessment/');
+      if (isMounted.current) {
+        setAtRiskStudents(res.data || []);
+      }
+    } catch (err) {
+      toast.error('Failed to load risk assessment data.');
+    } finally {
+      if (isMounted.current) {
+        setLoadingRisk(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadRiskAssessment();
+  }, []);
 
   const handleGenerateTimetable = async () => {
     setIsGenerating(true);
@@ -109,11 +128,14 @@ export default function AdminDashboard() {
   };
 
   const handleSendAlerts = async () => {
+    setDispatchingAlerts(true);
     try {
-      const response = await api.post('/api/communication/alerts/attendance/');
-      toast(response.data.message || 'Alerts sent!');
+      const response = await api.post('/api/attendance/alerts/dispatch/');
+      toast.success(response.data.message || 'Alert dispatch task successfully queued in the background');
     } catch (err) {
       toast.error('Failed to send alerts.');
+    } finally {
+      setDispatchingAlerts(false);
     }
   };
 
@@ -137,8 +159,6 @@ export default function AdminDashboard() {
       setDownloadingCsv(false);
     }
   };
-
-  const [chartData, setChartData] = useState([]);
 
   if (loading) {
     return (
@@ -207,22 +227,8 @@ export default function AdminDashboard() {
         />
       </div>
 
-      {/* Charts & Quick Actions */}
-      <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-        {/* Attendance Chart */}
-        <div className="glass-card dashboard-chart animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
-          <div className="section-header" style={{ padding: '1.5rem 1.5rem 0.5rem' }}>
-            <h3 className="section-title">Department Attendance Trends</h3>
-          </div>
-          <div style={{ height: '250px', padding: '0 1.5rem 1.5rem 1.5rem' }}>
-            <LocalErrorBoundary>
-              <Suspense fallback={<div className="loading-spinner"><div className="spinner" /></div>}>
-                <AdminAttendanceChart data={chartData} />
-              </Suspense>
-            </LocalErrorBoundary>
-          </div>
-        </div>
-
+      {/* Quick Actions & Navigation */}
+      <div className="grid-1" style={{ marginTop: '1.5rem' }}>
         {/* Quick Actions */}
         <div className="glass-card animate-fade-in-up stagger-5" style={{ opacity: 0 }}>
           <div style={{ padding: '1.5rem 1.5rem 0.75rem' }}>
@@ -242,9 +248,10 @@ export default function AdminDashboard() {
               className="quick-action-btn"
               onClick={handleSendAlerts}
               id="btn-send-alerts"
+              disabled={dispatchingAlerts}
             >
-              <span className="action-icon"><HiOutlineMail /></span>
-              Send Alerts
+              <span className="action-icon"><HiOutlineMail className={dispatchingAlerts ? 'spin' : ''} /></span>
+              {dispatchingAlerts ? 'Dispatching...' : 'Dispatch ML Warning Alerts'}
             </button>
             <button
               className="quick-action-btn"
@@ -305,6 +312,69 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Predictive Absenteeism Risk Panel */}
+      <div className="section" style={{ marginTop: '1.5rem' }}>
+        <div className="glass-card animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.45s' }}>
+          <div style={{ padding: '1.5rem 1.5rem 0' }}>
+            <div className="section-header">
+              <h3 className="section-title">Predictive Absenteeism Risk</h3>
+              <button 
+                className="btn btn-sm btn-primary" 
+                onClick={handleSendAlerts}
+                disabled={dispatchingAlerts || atRiskStudents.length === 0}
+              >
+                <HiOutlineMail className="btn-icon" />
+                {dispatchingAlerts ? 'Dispatching...' : 'Dispatch Warning Alerts'}
+              </button>
+            </div>
+          </div>
+          <div style={{ padding: '1rem 1.5rem 1.5rem' }}>
+            {loadingRisk ? (
+              <div className="loading-spinner"><div className="spinner" /></div>
+            ) : atRiskStudents.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon"><HiOutlineClipboardCheck /></div>
+                <h3>No Students at Risk</h3>
+                <p>The AI engine found no students at risk of severe absenteeism.</p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Enrollment</th>
+                      <th>Subject</th>
+                      <th>Current %</th>
+                      <th>Risk Probability</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {atRiskStudents.map((student, i) => (
+                      <tr key={i}>
+                        <td>{student.student_name}</td>
+                        <td>{student.enrollment_number}</td>
+                        <td>{student.subject_name}</td>
+                        <td>
+                          <span className={`badge ${student.current_pct < 75 ? 'badge-high' : 'badge-medium'}`}>
+                            {student.current_pct}%
+                          </span>
+                        </td>
+                        <td>
+                          <span className="badge badge-high">
+                            {(student.risk_probability * 100).toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

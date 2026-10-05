@@ -27,6 +27,21 @@ The operational impacts of absenteeism are significant, and predicting it requir
 - **Algorithmic Approaches:** To combat absenteeism proactively, [*"A Novel Approach to Tackle and Predict Absenteeism of Students Using Deep Learning and Data Analytics"*](https://openalex.org/W4308650875) and [*"Integration of a machine learning model into a decision support tool..."*](https://arxiv.org/abs/2202.03577v1) advocate for integrating predictive analytics directly into administrative dashboards, dispatching automated alerts without requiring administrative ML expertise. Current literature also warns of "severe class imbalance" in attendance datasets, supporting our use of linear trajectory models and thresholds (e.g., 75% warnings) for initial MVP deployment over naive classification models.
 - **Broader Educational AI:** As noted in [*"Application and theory gaps during the rise of Artificial Intelligence in Education"*](https://openalex.org/W3084223432) (~900+ citations), applying AI directly to student metrics must bridge the gap between theoretical ML models and practical, deployable software—a gap this project directly addresses.
 
+### 3.4. Advanced Educational Data Mining (EDM): Grade Forecasting & Student Clustering
+Beyond initial attendance tracking, the system integrates advanced EDM models to forecast academic outcomes and profile student behavior for targeted advising. This bridges the gap between basic analytics and intelligent decision support.
+- **Grade Prediction & Early Warning Methods:** Forecasting final academic performance using historical data is heavily validated in recent research. Models such as Multiple Linear Regression and Support Vector Regression are commonly applied to alert students before they fail.
+  - [*"Educational data mining: prediction of students' academic performance using machine learning algorithms"* (2022)](https://doi.org/10.1186/s40561-022-00192-z)
+  - [*"Student Performance Prediction Using Machine Learning Algorithms"* (2024)](https://doi.org/10.1155/2024/4067721)
+  - [*"Educational Data Mining Techniques for Student Performance Prediction: Method Review and Comparison Analysis"* (2021)](https://doi.org/10.3389/fpsyg.2021.698490)
+  - [*"Application of machine learning and data mining in predicting the performance of intermediate and secondary education level student"* (2020)](https://doi.org/10.1007/s10639-020-10189-1)
+  - [*"Student-Performulator: Predicting Students' Academic Performance at Secondary and Intermediate Level Using Machine Learning"* (2021)](https://doi.org/10.1007/s40745-021-00341-0)
+- **Student Profiling & Clustering (Unsupervised Learning):** Grouping students into behavioral clusters (e.g., "High Effort / Low Output") removes human bias and allows faculty to deploy targeted institutional interventions. Unsupervised learning models like K-Means and DBSCAN form the methodological basis for this feature.
+  - [*"A Systematic Literature Review on Identifying Patterns Using Unsupervised Clustering Algorithms: A Data Mining Perspective"* (2023)](https://doi.org/10.3390/sym15091679)
+  - [*"Educational Data Mining Clustering Approach: Case Study of Undergraduate Student Thesis Topic"* (2023)](https://doi.org/10.1109/access.2023.3332818)
+  - [*"Educational Data Mining Application for Estimating Students Performance in Weka Environment"* (2017)](https://doi.org/10.1088/1757-899x/263/3/032002)
+  - [*"Using cluster analysis for data mining in educational technology research"* (2012)](https://doi.org/10.1007/s11423-012-9235-8)
+  - [*"Estimating profile of successful IT student: Data mining approach"* (2017)](https://doi.org/10.23919/mipro.2017.7973517)
+
 ## 4. Model Workflow & Architecture
 The Smart Campus Management System operates through an integrated workflow consisting of user interaction, AI-based attendance processing, timetable scheduling, database management, and automated communication modules. 
 

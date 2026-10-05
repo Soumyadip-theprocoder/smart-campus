@@ -692,3 +692,106 @@ class AttendanceSessionProcessFrameView(APIView):
             return Response({"error": "Local face recognition not installed"}, status=501)
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+
+class AttendanceRiskView(APIView):
+    """Predicts absenteeism risk for a student in a specific subject (Phase 13.1)."""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, student_id, subject_id):
+        import sys
+        import os
+        from django.conf import settings
+        sys.path.append(os.path.join(settings.BASE_DIR, 'ml_engine'))
+        try:
+            from ml_engine.predictive_models import predict_absenteeism_risk
+        except ImportError as e:
+            return Response({"error": f"ML Engine unavailable: {e}"}, status=503)
+            
+        # Ensure student is either checking their own risk, or admin/faculty
+        if request.user.is_student and request.user.student_profile.id != int(student_id):
+            return Response({"error": "Cannot view risk profile of other students."}, status=403)
+            
+        try:
+            risk_data = predict_absenteeism_risk(int(student_id), int(subject_id))
+            return Response(risk_data, status=200)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+class AttendanceAlertsDispatchView(APIView):
+    """Triggers the async background task to evaluate all students and dispatch warnings (Phase 13.2)."""
+    permission_classes = [permissions.IsAdminUser]
+    
+    def post(self, request):
+        from django_q.tasks import async_task
+        from .tasks import dispatch_absenteeism_alerts_task
+        
+        task_id = async_task(dispatch_absenteeism_alerts_task)
+        return Response({
+            "message": "Background alerting engine triggered successfully.",
+            "task_id": task_id
+        }, status=status.HTTP_202_ACCEPTED)
+
+class AttendanceRiskAssessmentListView(APIView):
+    """Returns a list of students currently at risk across all subjects."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        import sys
+        import os
+        from django.conf import settings
+        if os.path.join(settings.BASE_DIR, 'ml_engine') not in sys.path:
+            sys.path.append(os.path.join(settings.BASE_DIR, 'ml_engine'))
+        try:
+            from ml_engine.predictive_models import predict_absenteeism_risk
+        except ImportError as e:
+            return Response({"error": f"ML Engine unavailable: {e}"}, status=503)
+
+        # Get all distinct student/subject pairs
+        pairs = Attendance.objects.values_list('student_id', 'student__user__first_name', 'student__user__last_name', 'student__enrollment_number', 'subject_id', 'subject__name').distinct()
+        
+        at_risk_list = []
+        for student_id, first_name, last_name, enrollment, subject_id, subject_name in pairs:
+            try:
+                risk_data = predict_absenteeism_risk(student_id, subject_id)
+                if risk_data.get("is_at_risk"):
+                    at_risk_list.append({
+                        "student_id": student_id,
+                        "student_name": f"{first_name} {last_name}",
+                        "enrollment_number": enrollment,
+                        "subject_id": subject_id,
+                        "subject_name": subject_name,
+                        "current_pct": risk_data.get("current_pct"),
+                        "risk_probability": risk_data.get("risk_probability")
+                    })
+            except Exception:
+                continue
+
+        return Response(at_risk_list, status=200)
+
+class AttendanceForecastView(APIView):
+    """Predicts final CGPA based on current attendance and past academic performance (Phase 14.3)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, student_id):
+        import sys
+        import os
+        from django.conf import settings
+        sys.path.append(os.path.join(settings.BASE_DIR, 'ml_engine'))
+        try:
+            from ml_engine.predictive_models import predict_cgpa_forecast
+        except ImportError as e:
+            return Response({"error": f"ML Engine unavailable: {e}"}, status=503)
+            
+        if request.user.is_student and request.user.student_profile.id != int(student_id):
+            return Response({"error": "Cannot view forecast of other students."}, status=403)
+            
+        try:
+            student = Student.objects.get(id=student_id)
+            forecast = predict_cgpa_forecast(student)
+            if forecast is None:
+                return Response({"error": "Model prediction failed."}, status=500)
+            return Response({"forecasted_cgpa": forecast}, status=200)
+        except Student.DoesNotExist:
+            return Response({"error": "Student not found."}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)

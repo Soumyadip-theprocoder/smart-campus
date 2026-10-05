@@ -112,3 +112,28 @@ class Attendance(models.Model):
             f"{self.subject.code} — "
             f"{self.date} — {self.status}"
         )
+
+
+class AlertLog(models.Model):
+    """Tracks automated absenteeism alerts to prevent spamming."""
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="alert_logs",
+    )
+    subject = models.ForeignKey(
+        "scheduler.Subject",
+        on_delete=models.CASCADE,
+        related_name="alert_logs",
+    )
+    dispatched_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "attendance_alert_logs"
+        ordering = ["-dispatched_at"]
+        indexes = [
+            models.Index(fields=["student", "subject"]),
+        ]
+
+    def __str__(self):
+        return f"Alert to {self.student.enrollment_number} for {self.subject.code} on {self.dispatched_at.date()}"

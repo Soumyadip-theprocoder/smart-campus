@@ -65,6 +65,41 @@
 - **Goal:** Provide granular filtering and expand notification methods.
 - **Scope:** Date Pickers for custom ranges, SMS support, Rich Text notice creation.
 
+### Phase 13.1: ML Predictive Analytics Service
+- **Status:** Planned
+- **Goal:** Implement the core ML model (Random Forest/DNN) to predict absenteeism risk based on historical attendance patterns.
+- **Scope:** Data preprocessing, ML classification integration (scikit-learn/PyTorch), and backend GET endpoints.
+
+### Phase 13.2: Asynchronous Alerting Engine
+- **Status:** Planned
+- **Goal:** Autonomously dispatch SMTP alerts to at-risk students without freezing the API.
+- **Scope:** Django Q2 background tasks, AlertLog cooldown mechanism, and POST endpoints to trigger the job.
+
+### Phase 13.3: UI Decision Support Dashboards
+- **Status:** Planned
+- **Goal:** Provide web-based interfaces for admins and students to consume the ML predictions.
+- **Scope:** Admin Dashboard (view at-risk list, trigger alerts) and Student Dashboard (view personal risk warnings).
+
+### Phase 14.1: EDM Engine - Grade Forecasting (Regression)
+- **Status:** Done
+- **Goal:** Predict final CGPA based on historical marks and attendance.
+- **Scope:** Extend `master_dataset.csv`, evaluate SVR/RandomForest/LinearRegression, and serialize the best forecaster.
+
+### Phase 14.2: EDM Engine - Student Profiling (Clustering)
+- **Status:** Done
+- **Goal:** Group students into behavioral clusters for targeted advising.
+- **Scope:** Evaluate K-Means, DBScan, BIRCH, Gaussian Mixture, and Mean Shift. Validate using F-measure and Silhouette scores.
+
+### Phase 14.3: Backend Integration & APIs
+- **Status:** Done
+- **Goal:** Expose the ML predictions to the Django frontend securely.
+- **Scope:** Create GET endpoints `/api/attendance/forecast/<student_id>/` and `/api/analytics/student-clusters/`.
+
+### Phase 14.4: UI Decision Support Dashboards
+- **Status:** Done
+- **Goal:** Render actionable visualizations of the new models.
+- **Scope:** Add a CGPA Forecast gauge to the Student Dashboard and a Recharts scatter plot to the Admin Dashboard.
+
 <details>
 <summary>Archived Milestones</summary>
 
