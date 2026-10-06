@@ -8,7 +8,6 @@ import LocalErrorBoundary from '../../components/LocalErrorBoundary';
 const StudentClustersChart = lazy(() => import('./StudentClustersChart'));
 
 export default function AnalyticsDashboard() {
-  const [departmentTrends, setDepartmentTrends] = useState([]);
   const [subjectAverages, setSubjectAverages] = useState([]);
   const [clusters, setClusters] = useState([]);
   const [dailyTrends, setDailyTrends] = useState([]);
@@ -22,14 +21,12 @@ export default function AnalyticsDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [deptRes, subjRes, clustersRes, dailyRes, dayOfWeekRes] = await Promise.all([
-        api.get('/api/analytics/department-trends/').catch(() => ({ data: [] })),
+      const [subjRes, clustersRes, dailyRes, dayOfWeekRes] = await Promise.all([
         api.get('/api/analytics/subject-averages/').catch(() => ({ data: [] })),
         api.get('/api/analytics/student-clusters/').catch(() => ({ data: [] })),
         api.get('/api/analytics/daily-trends/').catch(() => ({ data: [] })),
         api.get('/api/analytics/day-of-week-trends/').catch(() => ({ data: [] }))
       ]);
-      setDepartmentTrends(deptRes.data || []);
       setSubjectAverages(subjRes.data || []);
       setClusters(clustersRes.data || []);
       setDailyTrends(dailyRes.data || []);
@@ -56,41 +53,7 @@ export default function AnalyticsDashboard() {
         <p>Deep dive into attendance data</p>
       </div>
 
-      <div className="grid-2" style={{ marginTop: '1.5rem' }}>
-        {/* Department Trends */}
-        <div className="glass-card dashboard-chart">
-          <div className="section-header" style={{ padding: '1.5rem 1.5rem 0.5rem' }}>
-            <h3 className="section-title">Department Trends</h3>
-          </div>
-          <div style={{ height: '300px', padding: '0 1.5rem 1.5rem 1.5rem' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={departmentTrends}>
-                <defs>
-                  <linearGradient id="colorDept" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-accent-emerald)" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="var(--color-accent-emerald)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="department" stroke="var(--color-text-muted)" />
-                <YAxis stroke="var(--color-text-muted)" domain={[0, 100]} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: '8px' }}
-                  itemStyle={{ color: 'var(--color-accent-emerald)' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="percentage" 
-                  stroke="var(--color-accent-emerald)" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorDept)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
+      <div className="grid-1" style={{ marginTop: '1.5rem' }}>
         {/* Subject Averages */}
         <div className="glass-card dashboard-chart">
           <div className="section-header" style={{ padding: '1.5rem 1.5rem 0.5rem' }}>
