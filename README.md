@@ -17,7 +17,6 @@ Live app: **https://smart-campus-1-rrf1.onrender.com**
                                                      │
                                             ┌────────▼─────────┐
                                             │   PostgreSQL     │
-                                            │   (or SQLite)    │
                                             └────────┬─────────┘
                                                      │
                                             ┌────────▼─────────┐
@@ -33,7 +32,7 @@ Live app: **https://smart-campus-1-rrf1.onrender.com**
 
 - **Python 3.10+**
 - **Node.js 18+**
-- **PostgreSQL** (optional — SQLite works out of the box)
+- **PostgreSQL with pgvector**
 - **CMake + C++ compiler** (for face_recognition library)
 
 ### 1. Backend Setup
@@ -53,7 +52,7 @@ pip install -r requirements.txt
 copy .env.example .env       # Windows
 # cp .env.example .env       # macOS/Linux
 
-# Run migrations (creates SQLite database by default)
+# Run migrations
 python manage.py makemigrations accounts attendance scheduler communication
 python manage.py migrate
 
@@ -281,7 +280,7 @@ For deep technical insights, review the detailed architecture and reference docu
 | Frontend | React.js, Vite, React Router, Axios |
 | Backend | Django 4.2, Django REST Framework |
 | Auth | JWT (SimpleJWT) |
-| Database | PostgreSQL / SQLite |
+| Database | PostgreSQL (pgvector) |
 | AI/CV | OpenCV, face_recognition (dlib CNN) |
 | Scheduling | Custom CSP Backtracking Solver |
 | Email | Django SMTP (configurable provider) |

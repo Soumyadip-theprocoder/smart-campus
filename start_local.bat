@@ -1,0 +1,3 @@
+@echo off
+echo Launching Smart Campus Local Environment...
+powershell.exe -ExecutionPolicy Bypass -File "%~dp0start_local.ps1"
