@@ -362,3 +362,318 @@ class CSPSolverEdgeCaseTests(TestCase):
         csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
         self.assertEqual(csp.get_timetable(), [])
         self.assertTrue(csp.locked_conflict)
+
+
+# ============================================================
+# Tests for ScheduleCSP.minimize_changes
+# ============================================================
+
+class MinimizeChangesTests(TestCase):
+    """Tests for the minimize_changes helper on ScheduleCSP."""
+
+    def _build(self):
+        """Return a minimal 2-subject, 2-room, 4-slot CSP fixture."""
+        subjects = [
+            {
+                "id": 1,
+                "code": "S1",
+                "name": "Subject 1",
+                "faculty_id": 1,
+                "required_capacity": 10,
+                "sessions_per_week": 1,
+            },
+            {
+                "id": 2,
+                "code": "S2",
+                "name": "Subject 2",
+                "faculty_id": 2,
+                "required_capacity": 10,
+                "sessions_per_week": 1,
+            },
+        ]
+        rooms = [
+            {"id": 1, "room_number": "R1", "capacity": 30, "building": "Main"},
+            {"id": 2, "room_number": "R2", "capacity": 30, "building": "Main"},
+        ]
+        slots = [
+            {"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"},
+            {"id": 2, "day": "MON", "start_time": "10:00", "end_time": "11:00"},
+            {"id": 3, "day": "TUE", "start_time": "09:00", "end_time": "10:00"},
+            {"id": 4, "day": "TUE", "start_time": "10:00", "end_time": "11:00"},
+        ]
+        return subjects, rooms, slots
+
+    def test_minimize_changes_reverts_unnecessary_displacement(self):
+        """
+        After solving, if a variable was displaced but its original slot is
+        still valid, minimize_changes should revert it.
+        """
+        subjects, rooms, slots = self._build()
+        # Original: S1 → (slot_1, room_1), S2 → (slot_2, room_1)
+        original = {0: (1, 1), 1: (2, 1)}
+
+        csp = ScheduleCSP(subjects=subjects, rooms=rooms, time_slots=slots)
+        solution = csp.solve()
+        self.assertIsNotNone(solution, "Should find a solution")
+
+        # Run minimize_changes – at minimum it must keep the solution valid.
+        result = csp.minimize_changes(original)
+        self.assertEqual(len(result), 2)
+
+        # Check constraints still hold after minimisation.
+        ts_room_pairs = list(result.values())
+        self.assertEqual(
+            len(ts_room_pairs),
+            len(set(ts_room_pairs)),
+            "No two variables should share the same (ts, room) after minimisation",
+        )
+
+    def test_minimize_changes_skips_locked_variables(self):
+        """Locked variables must not be reverted even if their current value
+        differs from original_assignment."""
+        subjects, rooms, slots = self._build()
+
+        # Lock S1 (var_idx=0) to slot_3 / room_2
+        locked = [{"subject_id": 1, "room_id": 2, "time_slot_id": 3}]
+        csp = ScheduleCSP(
+            subjects=subjects, rooms=rooms, time_slots=slots,
+            locked_entries=locked,
+        )
+        solution = csp.solve()
+        self.assertIsNotNone(solution)
+
+        # Pretend the "original" for the locked var was somewhere else.
+        original = {0: (1, 1), 1: (2, 1)}
+        result = csp.minimize_changes(original)
+
+        # Locked var (var_idx=0) must remain at (3, 2) regardless.
+        self.assertEqual(result[0], (3, 2))
+
+    def test_minimize_changes_idempotent_when_already_optimal(self):
+        """Calling minimize_changes on an already-optimal assignment returns
+        the same assignment."""
+        subjects, rooms, slots = self._build()
+
+        csp = ScheduleCSP(subjects=subjects, rooms=rooms, time_slots=slots)
+        solution = csp.solve()
+        self.assertIsNotNone(solution)
+
+        # Use current assignment as the "original".
+        original = dict(csp.assignment)
+        result = csp.minimize_changes(original)
+
+        # All variables should already be at their original values.
+        for var_idx, val in original.items():
+            self.assertEqual(result[var_idx], val)
+
+
+# ============================================================
+# Tests for FindSmartSwapView (API endpoint)
+# ============================================================
+
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status as http_status
+from rest_framework.test import APITestCase
+
+from apps.accounts.models import Faculty
+from apps.scheduler.models import Room, Subject, TimeSlot, TimetableEntry, TimetableVersion
+
+User = get_user_model()
+
+
+class FindSmartSwapViewTests(APITestCase):
+    """Integration tests for the CSP-backed FindSmartSwapView endpoint."""
+
+    def setUp(self):
+        # Shared department (FK, not a string)
+        from apps.scheduler.models import Department
+        self.dept = Department.objects.create(name="CS")
+
+        # Create a user and authenticate.
+        self.user = User.objects.create_user(
+            email="test@test.com",
+            username="testuser",
+            password="pass1234",
+            first_name="Test",
+            last_name="User",
+        )
+        self.client.force_authenticate(user=self.user)
+
+        # Faculty members
+        self.faculty1 = Faculty.objects.create(
+            user=self.user,
+            employee_id="F001",
+            department=self.dept,
+        )
+
+        user2 = User.objects.create_user(
+            email="f2@test.com",
+            username="f2user",
+            password="pass1234",
+            first_name="F2",
+            last_name="U2",
+        )
+        self.faculty2 = Faculty.objects.create(
+            user=user2,
+            employee_id="F002",
+            department=self.dept,
+        )
+
+        # Rooms
+        self.room1 = Room.objects.create(room_number="R1", capacity=40)
+        self.room2 = Room.objects.create(room_number="R2", capacity=40)
+
+        # Time slots
+        self.ts1 = TimeSlot.objects.create(
+            day="MON", start_time="09:00", end_time="10:00"
+        )
+        self.ts2 = TimeSlot.objects.create(
+            day="MON", start_time="10:00", end_time="11:00"
+        )
+        self.ts3 = TimeSlot.objects.create(
+            day="TUE", start_time="09:00", end_time="10:00"
+        )
+
+        # Subjects
+        self.subj1 = Subject.objects.create(
+            code="CS101", name="Intro CS",
+            faculty=self.faculty1, required_capacity=30,
+            sessions_per_week=1,
+        )
+        self.subj2 = Subject.objects.create(
+            code="CS102", name="Data Structures",
+            faculty=self.faculty2, required_capacity=30,
+            sessions_per_week=1,
+        )
+
+        # Timetable version
+        self.version = TimetableVersion.objects.create(name="V1")
+
+        # Entries: CS101 → MON 09–10 / R1, CS102 → MON 10–11 / R1
+        self.entry1 = TimetableEntry.objects.create(
+            version=self.version,
+            subject=self.subj1,
+            room=self.room1,
+            time_slot=self.ts1,
+        )
+        self.entry2 = TimetableEntry.objects.create(
+            version=self.version,
+            subject=self.subj2,
+            room=self.room1,
+            time_slot=self.ts2,
+        )
+
+    def _url(self, entry_id):
+        return reverse("scheduler:smart-swaps", kwargs={"entry_id": entry_id})
+
+    # ------------------------------------------------------------------
+    def test_direct_move_found(self):
+        """
+        entry1 is on MON 09-10 / R1.  ts3 (TUE 09-10) is completely free —
+        it should be returned as a direct_move.
+        """
+        response = self.client.get(self._url(self.entry1.id))
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+
+        data = response.json()
+        self.assertIn("suggestions", data)
+        self.assertGreater(data["total_suggestions"], 0)
+
+        direct = [s for s in data["suggestions"] if s["type"] == "direct_move"]
+        slot_ids = [s["target_slot_id"] for s in direct]
+        self.assertIn(
+            self.ts3.id, slot_ids,
+            "TUE 09-10 should appear as a direct_move for entry1",
+        )
+
+    def test_no_suggestions_when_fully_blocked(self):
+        """
+        If every time slot / room combination is already taken by locked
+        entries or same-faculty clashes, direct_moves should be empty.
+        """
+        # Lock the only free slot for faculty1 by adding a third entry
+        # with the same faculty in ts3.
+        subj3 = Subject.objects.create(
+            code="CS103", name="Algorithms",
+            faculty=self.faculty1, required_capacity=30,
+            sessions_per_week=1,
+        )
+        TimetableEntry.objects.create(
+            version=self.version,
+            subject=subj3,
+            room=self.room2,
+            time_slot=self.ts3,
+            is_locked=True,
+        )
+
+        response = self.client.get(self._url(self.entry1.id))
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+
+        data = response.json()
+        direct = [s for s in data["suggestions"] if s["type"] == "direct_move"]
+        # ts3 is now taken by a locked class for the same faculty, so no direct moves to ts3.
+        slot_ids = [s["target_slot_id"] for s in direct]
+        self.assertNotIn(
+            self.ts3.id, slot_ids,
+            "ts3 is occupied by same-faculty locked entry, must not appear as direct_move",
+        )
+
+    def test_locked_entry_returns_400(self):
+        """Requesting smart-swaps for a locked entry must return 400."""
+        self.entry1.is_locked = True
+        self.entry1.save()
+
+        response = self.client.get(self._url(self.entry1.id))
+        self.assertEqual(response.status_code, http_status.HTTP_400_BAD_REQUEST)
+        self.assertIn("locked", response.json()["error"].lower())
+
+    def test_nonexistent_entry_returns_404(self):
+        """Requesting smart-swaps for a missing entry ID must return 404."""
+        response = self.client.get(self._url(99999))
+        self.assertEqual(response.status_code, http_status.HTTP_404_NOT_FOUND)
+
+    def test_one_step_swap_found(self):
+        """
+        Fill ts3/R1 with a different-faculty entry so entry1 cannot go there
+        directly (room taken).  But if we displace that entry, entry1 can
+        move to ts3/R1 and the displaced entry can go to an alternate slot.
+        """
+        # entry3: faculty2 (different from entry1's faculty1) in ts3/R1
+        # → entry1 would be blocked on room, not faculty; displacing entry3
+        #   should reveal a 1-step swap.
+        entry3 = TimetableEntry.objects.create(
+            version=self.version,
+            subject=self.subj2,  # faculty2 — different from entry1's faculty1
+            room=self.room1,
+            time_slot=self.ts3,
+        )
+
+        # We need a free slot for entry3 after displacement.
+        ts4 = TimeSlot.objects.create(
+            day="WED", start_time="09:00", end_time="10:00"
+        )
+
+        response = self.client.get(self._url(self.entry1.id))
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+
+        data = response.json()
+        swaps = [s for s in data["suggestions"] if s["type"] == "one_step_swap"]
+        # At least one swap should involve displacing entry3.
+        displaced_ids = [s["displaced_entry_id"] for s in swaps]
+        self.assertIn(entry3.id, displaced_ids)
+
+    def test_response_structure(self):
+        """Verify the response contains all expected top-level keys."""
+        response = self.client.get(self._url(self.entry1.id))
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+
+        data = response.json()
+        for key in (
+            "entry_id", "current_slot", "current_room",
+            "total_suggestions", "direct_moves", "one_step_swaps", "suggestions",
+        ):
+            self.assertIn(key, data, f"Missing key: {key}")
+        self.assertEqual(data["entry_id"], self.entry1.id)
+        self.assertEqual(data["current_room"], self.room1.room_number)
+

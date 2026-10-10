@@ -43,10 +43,12 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
   );
 }
 
-/* ─── Add Group Form ───────────────────────────────────────────── */
-function GroupForm({ initialData, onSave, saving }) {
+/* ─── Add Department Form ───────────────────────────────────────────── */
+function DepartmentForm({ initialData, onSave, saving, faculties }) {
   const [form, setForm] = useState({
     name: initialData?.name || '',
+    no_of_years: initialData?.no_of_years || 4,
+    hod: initialData?.hod || '',
   });
   const [error, setError] = useState('');
 
@@ -62,7 +64,11 @@ function GroupForm({ initialData, onSave, saving }) {
       setError('Please provide a group name.');
       return;
     }
-    onSave(form);
+    const submitData = { ...form };
+    if (!submitData.hod) {
+      submitData.hod = null;
+    }
+    onSave(submitData);
   };
 
   return (
@@ -91,6 +97,34 @@ function GroupForm({ initialData, onSave, saving }) {
           required
         />
       </div>
+      <div className="form-group">
+        <label className="form-label">Program Years</label>
+        <input
+          type="number"
+          className="form-input"
+          name="no_of_years"
+          value={form.no_of_years}
+          onChange={handleChange}
+          min="1"
+          required
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Head of Department</label>
+        <select
+          className="form-input"
+          name="hod"
+          value={form.hod || ''}
+          onChange={handleChange}
+        >
+          <option value="">-- Select HOD (Optional) --</option>
+          {faculties?.map(f => (
+            <option key={f.id} value={f.id}>
+              {f.user?.first_name} {f.user?.last_name} ({f.employee_id})
+            </option>
+          ))}
+        </select>
+      </div>
       <button
         type="submit"
         className="btn btn-primary btn-lg"
@@ -104,25 +138,30 @@ function GroupForm({ initialData, onSave, saving }) {
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-export default function GroupsPage() {
-  const [groups, setGroups] = useState([]);
+export default function DepartmentsPage() {
+  const [departments, setDepartments] = useState([]);
+  const [faculties, setFaculties] = useState([]);
   const [loading, setLoading] = useState(true);
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState(null);
+  const [editingDepartment, setEditingDepartment] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchGroups();
+    fetchDepartments();
   }, []);
 
-  const fetchGroups = async () => {
+  const fetchDepartments = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/scheduler/departments/');
-      setGroups(response.data.results || response.data || []);
+      const [depRes, facRes] = await Promise.all([
+        api.get('/api/scheduler/departments/'),
+        api.get('/api/auth/faculty/')
+      ]);
+      setDepartments(depRes.data.results || depRes.data || []);
+      setFaculties(facRes.data.results || facRes.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load departments');
@@ -134,16 +173,16 @@ export default function GroupsPage() {
   const handleSave = async (formData) => {
     setSaving(true);
     try {
-      if (editingGroup) {
-        await api.put(`/api/scheduler/departments/${editingGroup.id}/`, formData);
+      if (editingDepartment) {
+        await api.put(`/api/scheduler/departments/${editingDepartment.id}/`, formData);
         toast.success('Department updated successfully');
       } else {
         await api.post('/api/scheduler/departments/', formData);
         toast.success('Department created successfully');
       }
       setModalOpen(false);
-      setEditingGroup(null);
-      fetchGroups();
+      setEditingDepartment(null);
+      fetchDepartments();
     } catch (err) {
       console.error('Save failed:', err);
       toast.error(err.response?.data?.name?.[0] || 'Failed to save department.');
@@ -158,20 +197,20 @@ export default function GroupsPage() {
       await api.delete(`/api/scheduler/departments/${confirmDelete.id}/`);
       setConfirmDelete(null);
       toast.success('Department deleted');
-      fetchGroups();
+      fetchDepartments();
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete department.');
     }
   };
 
-  const openEditModal = (group) => {
-    setEditingGroup(group);
+  const openEditModal = (department) => {
+    setEditingDepartment(department);
     setModalOpen(true);
   };
 
   const openCreateModal = () => {
-    setEditingGroup(null);
+    setEditingDepartment(null);
     setModalOpen(true);
   };
 
@@ -180,6 +219,19 @@ export default function GroupsPage() {
       key: 'name',
       label: 'Department Name',
       render: (val) => <div style={{ fontWeight: 600 }}>{val}</div>
+    },
+    {
+      key: 'no_of_years',
+      label: 'Program Years',
+      render: (val) => val || '-'
+    },
+    {
+      key: 'hod',
+      label: 'Head of Dept',
+      render: (val) => {
+        const hod = faculties.find(f => f.id === val);
+        return hod ? `${hod.user?.first_name} ${hod.user?.last_name}` : '-';
+      }
     },
     {
       key: 'actions',
@@ -212,13 +264,13 @@ export default function GroupsPage() {
           <h1>Departments</h1>
           <p>Manage flexible groupings for interdisciplinary classes, labs, and student batches.</p>
         </div>
-        <button className="btn btn-primary" id="btn-add-group" onClick={openCreateModal}>+ Add Department</button>
+        <button className="btn btn-primary" id="btn-add-department" onClick={openCreateModal}>+ Add Department</button>
       </div>
 
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
         <DataTable
           columns={columns}
-          data={groups}
+          data={departments}
           searchKey="name"
           emptyMessage="No departments created yet."
         />
@@ -226,13 +278,14 @@ export default function GroupsPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setEditingGroup(null); }}
-        title={editingGroup ? "Edit Department" : "Add Department"}
+        onClose={() => { setModalOpen(false); setEditingDepartment(null); }}
+        title={editingDepartment ? "Edit Department" : "Add Department"}
       >
-        <GroupForm 
-          initialData={editingGroup} 
+        <DepartmentForm 
+          initialData={editingDepartment} 
           onSave={handleSave} 
           saving={saving} 
+          faculties={faculties}
         />
       </Modal>
 

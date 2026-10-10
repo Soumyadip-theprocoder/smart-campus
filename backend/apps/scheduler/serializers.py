@@ -28,7 +28,7 @@ class DepartmentSerializer(BreaksValidationMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ["id", "name", "start_time", "end_time", "default_breaks"]
+        fields = ["id", "name", "start_time", "end_time", "default_breaks", "no_of_years", "hod"]
         read_only_fields = ["id"]
 
 

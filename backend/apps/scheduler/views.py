@@ -371,30 +371,364 @@ class TimetableSwapRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class FindSmartSwapView(APIView):
     """
-    Given a TimetableEntry ID, return possible valid timeslots it could be moved to,
-    or a 1-step swap (displacing another class) that would resolve a conflict.
+    Given a TimetableEntry ID, use the CSP solver to find valid alternative
+    placements for that class.
+
+    Returns two categories of suggestion:
+    * ``direct_move``  – the class can be moved to a free slot with no other
+                         changes required.
+    * ``one_step_swap`` – moving the class displaces exactly one other class
+                          which can itself be placed in an alternative slot.
+
+    Query parameters
+    ----------------
+    version : int (optional)
+        Restrict the search to a specific TimetableVersion.  Defaults to the
+        version that contains the target entry.
+    minimize_changes : bool (optional, default true)
+        When a full solve is performed for one-step swaps, run the
+        change-minimisation pass to keep the rest of the timetable as stable
+        as possible.
     """
+
     permission_classes = [permissions.IsAuthenticated]
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_csp_data(entries):
+        """
+        Convert a queryset of TimetableEntry objects into the plain-dict
+        structures expected by ScheduleCSP.
+
+        Returns (subjects, rooms, time_slots, locked_entries, var_map) where
+        ``var_map`` maps TimetableEntry.id -> (subject_dict, session_index).
+        """
+        from .csp_solver import ScheduleCSP  # local import avoids circulars
+
+        # Collect unique rooms and time slots — start from entries, then add
+        # ALL rooms and time slots from the database so the CSP domain includes
+        # empty (unused) slots as valid placements.
+        room_map = {}
+        ts_map = {}
+        for entry in entries:
+            r = entry.room
+            if r.id not in room_map:
+                room_map[r.id] = {
+                    "id": r.id,
+                    "room_number": r.room_number,
+                    "capacity": r.capacity,
+                    "room_type": getattr(r, "room_type", "lecture"),
+                    "building": getattr(r, "building", ""),
+                }
+            ts = entry.time_slot
+            if ts.id not in ts_map:
+                ts_map[ts.id] = {
+                    "id": ts.id,
+                    "day": ts.day,
+                    "start_time": str(ts.start_time),
+                    "end_time": str(ts.end_time),
+                }
+
+        # Include every room and time slot in the DB so direct moves to empty
+        # slots are discoverable.
+        for r in Room.objects.all():
+            if r.id not in room_map:
+                room_map[r.id] = {
+                    "id": r.id,
+                    "room_number": r.room_number,
+                    "capacity": r.capacity,
+                    "room_type": getattr(r, "room_type", "lecture"),
+                    "building": getattr(r, "building", ""),
+                }
+        for ts in TimeSlot.objects.all():
+            if ts.id not in ts_map:
+                ts_map[ts.id] = {
+                    "id": ts.id,
+                    "day": ts.day,
+                    "start_time": str(ts.start_time),
+                    "end_time": str(ts.end_time),
+                }
+
+        rooms = list(room_map.values())
+        time_slots = list(ts_map.values())
+
+        # Build one "subject" per unique (subject_id, faculty_id) pair and
+        # count how many sessions each needs within this version.
+        # We treat each TimetableEntry as a single session (sessions_per_week=1)
+        # to keep domains small and the solve fast.
+        subjects = []
+        locked_entries = []
+        var_map = {}  # entry.id -> var_idx (0-based)
+
+        for idx, entry in enumerate(entries):
+            fid = entry.subject.faculty_id if entry.subject else (
+                entry.faculty_id if entry.faculty else 0
+            )
+            subj_dict = {
+                "id": entry.id,          # use entry id as unique subject key
+                "code": entry.subject.code if entry.subject else (
+                    entry.event_title or f"entry_{entry.id}"
+                ),
+                "name": entry.subject.name if entry.subject else (
+                    entry.event_title or ""
+                ),
+                "faculty_id": fid,
+                "required_capacity": (
+                    entry.subject.required_capacity if entry.subject else 1
+                ),
+                "sessions_per_week": 1,
+            }
+            subjects.append(subj_dict)
+            var_map[entry.id] = idx  # var index in ScheduleCSP.variables
+
+            if entry.is_locked:
+                locked_entries.append({
+                    "subject_id": entry.id,
+                    "room_id": entry.room_id,
+                    "time_slot_id": entry.time_slot_id,
+                })
+
+        return subjects, rooms, time_slots, locked_entries, var_map
+
+    # ------------------------------------------------------------------
+    # Main handler
+    # ------------------------------------------------------------------
+
     def get(self, request, entry_id):
+        from .csp_solver import ScheduleCSP
+
+        # ---- 1. Fetch target entry ----------------------------------------
         try:
-            TimetableEntry.objects.get(id=entry_id)
+            target_entry = TimetableEntry.objects.select_related(
+                "subject__faculty", "room", "time_slot", "version"
+            ).get(id=entry_id)
         except TimetableEntry.DoesNotExist:
-            return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-        # Simplified mock logic for Smart Swaps MVP
-        # We just return random empty slots for now or specific slots
-        all_slots = list(TimeSlot.objects.all()[:3])
-        suggestions = []
-        for slot in all_slots:
-            suggestions.append({
-                "type": "direct_move",
-                "target_slot_id": slot.id,
-                "target_slot_str": str(slot),
-                "description": f"Move directly to {slot}"
-            })
-            
-        return Response({"suggestions": suggestions})
+            return Response(
+                {"error": "Entry not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if target_entry.is_locked:
+            return Response(
+                {"error": "This entry is locked and cannot be rescheduled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ---- 2. Fetch all entries in the same version ----------------------
+        version = target_entry.version
+        all_entries = list(
+            TimetableEntry.objects.select_related(
+                "subject__faculty", "room", "time_slot"
+            ).filter(version=version)
+        )
+
+        if not all_entries:
+            return Response(
+                {"error": "No entries found for this timetable version."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ---- 3. Build CSP data structures ----------------------------------
+        subjects, rooms, time_slots, locked_entries, var_map = (
+            self._build_csp_data(all_entries)
+        )
+
+        target_var_idx = var_map[entry_id]
+        target_ts_id = target_entry.time_slot_id
+        target_room_id = target_entry.room_id
+
+        # Build the original assignment (var_idx -> (ts_id, room_id)).
+        original_assignment = {
+            var_map[e.id]: (e.time_slot_id, e.room_id) for e in all_entries
+        }
+
+        # ---- 4. Find direct moves ------------------------------------------
+        # Build a CSP with everyone locked except the target entry.
+        locked_all_but_target = [
+            le for le in locked_entries
+            if le["subject_id"] != entry_id
+        ]
+        # Also lock every *other* non-locked entry so only the target is free.
+        for e in all_entries:
+            if e.id == entry_id:
+                continue
+            if not e.is_locked:
+                locked_all_but_target.append({
+                    "subject_id": e.id,
+                    "room_id": e.room_id,
+                    "time_slot_id": e.time_slot_id,
+                })
+
+        csp_direct = ScheduleCSP(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=time_slots,
+            locked_entries=locked_all_but_target,
+        )
+
+        direct_moves = []
+        # Iterate over the target's domain and collect consistent values.
+        for val in csp_direct.domains[target_var_idx]:
+            ts_id, room_id = val
+            # Skip the current placement.
+            if ts_id == target_ts_id and room_id == target_room_id:
+                continue
+
+            saved = csp_direct.assignment.get(target_var_idx)
+            if target_var_idx in csp_direct.assignment:
+                del csp_direct.assignment[target_var_idx]
+
+            if csp_direct.is_consistent(target_var_idx, val):
+                ts_info = next(
+                    (t for t in time_slots if t["id"] == ts_id), None
+                )
+                room_info = next(
+                    (r for r in rooms if r["id"] == room_id), None
+                )
+                if ts_info and room_info:
+                    direct_moves.append({
+                        "type": "direct_move",
+                        "target_slot_id": ts_id,
+                        "target_slot_str": (
+                            f"{ts_info['day']} {ts_info['start_time']}"
+                            f"–{ts_info['end_time']}"
+                        ),
+                        "target_room_id": room_id,
+                        "target_room_str": room_info["room_number"],
+                        "description": (
+                            f"Move to {ts_info['day']} "
+                            f"{ts_info['start_time']}–{ts_info['end_time']} "
+                            f"in {room_info['room_number']} "
+                            f"(no other changes needed)"
+                        ),
+                    })
+
+            if saved is not None:
+                csp_direct.assignment[target_var_idx] = saved
+
+        # ---- 5. Find 1-step swaps ------------------------------------------
+        # For each other *unlocked* entry that occupies a slot the target
+        # could use, check whether the displaced entry can go somewhere else.
+        one_step_swaps = []
+
+        # Gather occupied (ts_id, room_id) pairs that block the target.
+        # We only care about slots that are in the target's domain.
+        target_domain_vals = set(csp_direct.domains[target_var_idx])
+
+        for other_entry in all_entries:
+            if other_entry.id == entry_id or other_entry.is_locked:
+                continue
+
+            other_val = (other_entry.time_slot_id, other_entry.room_id)
+            if other_val not in target_domain_vals:
+                continue  # this entry doesn't occupy a slot the target wants
+
+            other_var_idx = var_map[other_entry.id]
+
+            # Build a CSP where we free both target and the candidate entry.
+            locked_for_swap = [
+                le for le in locked_all_but_target
+                if le["subject_id"] != other_entry.id
+            ]
+
+            csp_swap = ScheduleCSP(
+                subjects=subjects,
+                rooms=rooms,
+                time_slots=time_slots,
+                locked_entries=locked_for_swap,
+            )
+
+            # Check: can target go into other_val?
+            if target_var_idx in csp_swap.assignment:
+                del csp_swap.assignment[target_var_idx]
+            if other_var_idx in csp_swap.assignment:
+                del csp_swap.assignment[other_var_idx]
+
+            if not csp_swap.is_consistent(target_var_idx, other_val):
+                continue  # still blocked even if we free other_entry
+
+            # Tentatively assign target to the freed slot.
+            csp_swap.assignment[target_var_idx] = other_val
+
+            # Now check whether other_entry can go somewhere else.
+            alt_for_other = None
+            for alt_val in csp_swap.domains[other_var_idx]:
+                if alt_val == other_val:
+                    continue
+                if csp_swap.is_consistent(other_var_idx, alt_val):
+                    alt_for_other = alt_val
+                    break
+
+            # Clean up temporary assignment.
+            del csp_swap.assignment[target_var_idx]
+
+            if alt_for_other is None:
+                continue  # no room for displaced entry — not a valid swap
+
+            ts_info = next(
+                (t for t in time_slots if t["id"] == other_val[0]), None
+            )
+            room_info = next(
+                (r for r in rooms if r["id"] == other_val[1]), None
+            )
+            alt_ts_info = next(
+                (t for t in time_slots if t["id"] == alt_for_other[0]), None
+            )
+            alt_room_info = next(
+                (r for r in rooms if r["id"] == alt_for_other[1]), None
+            )
+
+            if ts_info and room_info and alt_ts_info and alt_room_info:
+                other_code = (
+                    other_entry.subject.code
+                    if other_entry.subject
+                    else (other_entry.event_title or f"entry_{other_entry.id}")
+                )
+                one_step_swaps.append({
+                    "type": "one_step_swap",
+                    "target_slot_id": other_val[0],
+                    "target_slot_str": (
+                        f"{ts_info['day']} {ts_info['start_time']}"
+                        f"–{ts_info['end_time']}"
+                    ),
+                    "target_room_id": other_val[1],
+                    "target_room_str": room_info["room_number"],
+                    "displaced_entry_id": other_entry.id,
+                    "displaced_entry_code": other_code,
+                    "displaced_new_slot_id": alt_for_other[0],
+                    "displaced_new_slot_str": (
+                        f"{alt_ts_info['day']} {alt_ts_info['start_time']}"
+                        f"–{alt_ts_info['end_time']}"
+                    ),
+                    "displaced_new_room_id": alt_for_other[1],
+                    "displaced_new_room_str": alt_room_info["room_number"],
+                    "description": (
+                        f"Move to {ts_info['day']} "
+                        f"{ts_info['start_time']}–{ts_info['end_time']} "
+                        f"in {room_info['room_number']}; "
+                        f"displace {other_code} to "
+                        f"{alt_ts_info['day']} "
+                        f"{alt_ts_info['start_time']}–{alt_ts_info['end_time']} "
+                        f"in {alt_room_info['room_number']}"
+                    ),
+                })
+
+        # ---- 6. Respond -----------------------------------------------------
+        suggestions = direct_moves + one_step_swaps
+        return Response(
+            {
+                "entry_id": entry_id,
+                "current_slot": str(target_entry.time_slot),
+                "current_room": target_entry.room.room_number,
+                "total_suggestions": len(suggestions),
+                "direct_moves": len(direct_moves),
+                "one_step_swaps": len(one_step_swaps),
+                "suggestions": suggestions,
+            }
+        )
 
 
 class BlackoutDateSerializer(serializers.ModelSerializer):

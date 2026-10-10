@@ -23,7 +23,7 @@ const StudentClassAttendancePage = lazy(() => import('./features/attendance/Stud
 const FacultyDashboard = lazy(() => import('./features/dashboard/FacultyDashboard'));
 const FacultySubjectsPage = lazy(() => import('./features/dashboard/FacultySubjectsPage'));
 const ForecastingPage = lazy(() => import('./features/scheduler/ForecastingPage'));
-const GroupsPage = lazy(() => import('./features/accounts/GroupsPage'));
+const DepartmentsPage = lazy(() => import('./features/accounts/DepartmentsPage'));
 const StudentsPage = lazy(() => import('./features/accounts/StudentsPage'));
 const StudentProfilePage = lazy(() => import('./features/accounts/StudentProfilePage'));
 function ProtectedRoute({ children, allowedRoles }) {
@@ -121,10 +121,10 @@ function AppLayout() {
               }
             />
             <Route
-              path="/admin/groups"
+              path="/admin/departments"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <GroupsPage />
+                  <DepartmentsPage />
                 </ProtectedRoute>
               }
             />

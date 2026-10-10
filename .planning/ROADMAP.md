@@ -100,6 +100,11 @@
 - **Goal:** Render actionable visualizations of the new models.
 - **Scope:** Add a CGPA Forecast gauge to the Student Dashboard and a Recharts scatter plot to the Admin Dashboard.
 
+### Phase 15: Rebuild CSP from Scratch
+- **Status:** Planned
+- **Goal:** Resolve performance bottlenecks and scalability limits of the custom pure-Python Backtracking algorithm.
+- **Scope:** Migrate to Google OR-Tools (CP-SAT), implement Hexagonal Architecture, map configurable hard/soft constraints, and natively minimize rescheduling changes.
+
 <details>
 <summary>Archived Milestones</summary>
 

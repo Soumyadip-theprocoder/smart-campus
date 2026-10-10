@@ -433,6 +433,58 @@ class ScheduleCSP:
 
         return None
 
+    def minimize_changes(self, original_assignment: dict) -> dict:
+        """
+        Greedily try to revert each changed variable back to its original slot.
+
+        Adapted from the ``timetable_rescheduler.py`` change-minimisation step.
+
+        Args:
+            original_assignment: dict mapping var_idx (int) ->
+                (time_slot_id, room_id) that represents the pre-existing schedule.
+
+        Returns:
+            The updated ``self.assignment`` dict after reverting as many
+            changes as possible while maintaining consistency.
+        """
+        current = dict(self.assignment)
+        changed = True
+
+        while changed:
+            changed = False
+            for var_idx, original_val in original_assignment.items():
+                # Skip locked variables — they are already pinned.
+                if var_idx in self._locked_var_indices:
+                    continue
+
+                # Nothing to revert.
+                if current.get(var_idx) == original_val:
+                    continue
+
+                # Only consider reverting if the original value is still in domain.
+                if original_val not in self.domains[var_idx]:
+                    continue
+
+                # Temporarily apply the candidate assignment.
+                saved = self.assignment.get(var_idx)
+                self.assignment = dict(current)
+                # Remove the current entry so is_consistent checks against all
+                # *other* assignments, not itself.
+                if var_idx in self.assignment:
+                    del self.assignment[var_idx]
+
+                if self.is_consistent(var_idx, original_val):
+                    current[var_idx] = original_val
+                    changed = True
+
+                # Restore — we will bulk-update self.assignment at the end.
+                self.assignment = dict(current)
+                if saved is not None and var_idx not in current:
+                    self.assignment[var_idx] = saved
+
+        self.assignment = current
+        return current
+
     def get_timetable(self) -> list:
         """
         Solve and return a human-readable timetable.

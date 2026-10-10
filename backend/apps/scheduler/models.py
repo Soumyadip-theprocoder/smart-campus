@@ -46,6 +46,18 @@ class Department(models.Model):
         blank=True,
         help_text='List of break times like ["13:00"]'
     )
+    no_of_years = models.PositiveIntegerField(
+        default=4, 
+        help_text="Number of years for the programs in this department"
+    )
+    hod = models.ForeignKey(
+        'accounts.Faculty',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='headed_departments',
+        help_text="Head of Department"
+    )
 
     class Meta:
         db_table = "departments"

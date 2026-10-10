@@ -20,7 +20,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/admin/courses', icon: <HiOutlineAcademicCap />, label: 'Courses' },
     { to: '/admin/faculty', icon: <HiOutlineUsers />, label: 'Faculty' },
     { to: '/admin/students', icon: <HiOutlineUsers />, label: 'Students' },
-    { to: '/admin/groups', icon: <HiOutlineUsers />, label: 'Departments' },
+    { to: '/admin/departments', icon: <HiOutlineUsers />, label: 'Departments' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
     { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
     { to: '/admin/predictive-analytics', icon: <HiOutlineChartBar />, label: 'Predictive Analytics' },
