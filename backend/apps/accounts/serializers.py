@@ -98,17 +98,31 @@ class FacultySerializer(serializers.ModelSerializer):
             "email",
             "employee_id",
             "department",
+            "department_name",
+            "department_dept_id",
             "designation",
             "max_hours_per_week",
             "availability",
+            "is_hod",
+            "set_as_hod",
         ]
         read_only_fields = ["id"]
 
+    department_name = serializers.CharField(source="department.name", read_only=True, default="")
+    department_dept_id = serializers.CharField(source="department.dept_id", read_only=True, default="")
     first_name = serializers.CharField(write_only=True, required=False)
     last_name = serializers.CharField(write_only=True, required=False)
     email = serializers.EmailField(write_only=True, required=False)
+    is_hod = serializers.SerializerMethodField()
+    set_as_hod = serializers.BooleanField(write_only=True, required=False)
+
+    def get_is_hod(self, obj):
+        if obj.department:
+            return obj.department.hod_id == obj.id
+        return False
 
     def update(self, instance, validated_data):
+        set_as_hod = validated_data.pop('set_as_hod', None)
         user_data = {}
         if 'first_name' in validated_data:
             user_data['first_name'] = validated_data.pop('first_name')
@@ -122,7 +136,18 @@ class FacultySerializer(serializers.ModelSerializer):
                 setattr(instance.user, attr, value)
             instance.user.save()
 
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+
+        if set_as_hod is True and instance.department:
+            if instance.department.hod_id != instance.id:
+                instance.department.hod = instance
+                instance.department.save(update_fields=['hod'])
+        elif set_as_hod is False and instance.department:
+            if instance.department.hod_id == instance.id:
+                instance.department.hod = None
+                instance.department.save(update_fields=['hod'])
+
+        return instance
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -136,6 +161,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     marks_10th = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     marks_12th = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     cgpa_semesters = serializers.JSONField(required=False, default=dict)
+
+    designation = serializers.CharField(required=False, allow_blank=True)
+    is_hod = serializers.BooleanField(required=False, default=False)
 
     class Meta:
         model = User
@@ -153,6 +181,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             "marks_10th",
             "marks_12th",
             "cgpa_semesters",
+            "designation",
+            "is_hod",
         ]
 
     def validate(self, attrs):
@@ -163,16 +193,22 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
         if role == User.Role.FACULTY and not attrs.get("employee_id"):
             raise serializers.ValidationError({"employee_id": "Required for faculty."})
+        if attrs.get("enrollment_number"):
+            attrs["enrollment_number"] = attrs["enrollment_number"].strip()
+        if attrs.get("employee_id"):
+            attrs["employee_id"] = attrs["employee_id"].strip()
         return attrs
 
     def create(self, validated_data):
-        enrollment_number = validated_data.pop("enrollment_number", None)
-        employee_id = validated_data.pop("employee_id", None)
+        enrollment_number = validated_data.pop("enrollment_number", None) or None
+        employee_id = validated_data.pop("employee_id", None) or None
         department = validated_data.pop("department", None)
         semester = validated_data.pop("semester", 1)
         marks_10th = validated_data.pop("marks_10th", None)
         marks_12th = validated_data.pop("marks_12th", None)
         cgpa_semesters = validated_data.pop("cgpa_semesters", {})
+        designation = validated_data.pop("designation", "Assistant Professor")
+        is_hod = validated_data.pop("is_hod", False)
         password = validated_data.pop("password")
 
         user = User(**validated_data)
@@ -181,7 +217,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         # Create associated profile
         if user.role == User.Role.STUDENT:
-            profile = Student.objects.create(
+            student = Student(
                 user=user,
                 enrollment_number=enrollment_number,
                 department=department,
@@ -190,12 +226,20 @@ class RegisterSerializer(serializers.ModelSerializer):
                 marks_12th=marks_12th,
                 cgpa_semesters=cgpa_semesters,
             )
+            student.save()
+            profile = student
         elif user.role == User.Role.FACULTY:
-            profile = Faculty.objects.create(
+            faculty = Faculty(
                 user=user,
                 employee_id=employee_id,
                 department=department,
+                designation=designation or "Assistant Professor",
             )
+            faculty.save()
+            profile = faculty
+            if is_hod and department:
+                department.hod = profile
+                department.save(update_fields=['hod'])
 
         return user
 

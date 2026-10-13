@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from .breaks import validate_breaks
 
+from apps.accounts.models import Faculty
 from .models import (
     Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings,
     TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest,
@@ -25,11 +26,17 @@ class BreaksValidationMixin:
 
 class DepartmentSerializer(BreaksValidationMixin, serializers.ModelSerializer):
     """Serializer for Department."""
+    faculty_count = serializers.IntegerField(read_only=True, default=0)
+    student_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Department
-        fields = ["id", "name", "start_time", "end_time", "default_breaks", "no_of_years", "hod"]
-        read_only_fields = ["id"]
+        fields = [
+            "id", "dept_id", "name", "start_time", "end_time", "default_breaks",
+            "no_of_years", "program_type", "core_department", "hod",
+            "faculty_count", "student_count"
+        ]
+        read_only_fields = ["id", "faculty_count", "student_count"]
 
 
 class AmenitySerializer(serializers.ModelSerializer):
@@ -57,6 +64,29 @@ class SubjectSerializer(serializers.ModelSerializer):
         source="faculty.user.get_full_name",
         read_only=True,
     )
+    faculty_email = serializers.EmailField(
+        source="faculty.user.email",
+        read_only=True,
+    )
+    faculty_employee_id = serializers.CharField(
+        source="faculty.employee_id",
+        read_only=True,
+    )
+    faculty_department = serializers.CharField(
+        source="faculty.department.name",
+        read_only=True,
+        default="",
+    )
+    faculty_dept_id = serializers.CharField(
+        source="faculty.department.dept_id",
+        read_only=True,
+        default="",
+    )
+    faculty = serializers.PrimaryKeyRelatedField(
+        queryset=Faculty.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     departments = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(), many=True, required=False
     )
@@ -72,6 +102,11 @@ class SubjectSerializer(serializers.ModelSerializer):
             "name",
             "faculty",
             "faculty_name",
+            "faculty_email",
+            "faculty_employee_id",
+            "faculty_department",
+            "faculty_dept_id",
+            "semester",
             "credits",
             "required_capacity",
             "sessions_per_week",

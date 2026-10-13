@@ -17,12 +17,62 @@ from .serializers import (RoomSerializer, SubjectSerializer,
                           TimetableVersionSerializer, AbsenceReportSerializer, NotificationSerializer, TimetableSwapRequestSerializer, DepartmentSerializer, AmenitySerializer, ResourceSerializer)
 
 
+from django.db.models import Q
+from rest_framework.filters import SearchFilter
+
+
 class SubjectListView(generics.ListCreateAPIView):
     """List or create subjects."""
 
     serializer_class = SubjectSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Subject.objects.select_related("faculty__user").all()
+    filter_backends = [SearchFilter]
+    search_fields = [
+        "name",
+        "code",
+        "faculty__user__first_name",
+        "faculty__user__last_name",
+        "faculty__department__name",
+        "faculty__department__dept_id",
+        "departments__name",
+        "departments__dept_id",
+    ]
+
+    def get_queryset(self):
+        qs = (
+            Subject.objects.select_related("faculty__user", "faculty__department")
+            .prefetch_related("departments", "amenities")
+            .all()
+            .order_by("code")
+        )
+        dept_id = self.request.query_params.get("department")
+        if dept_id:
+            qs = qs.filter(
+                Q(departments__id=dept_id) | Q(faculty__department_id=dept_id)
+            ).distinct()
+
+        subject_type = self.request.query_params.get("subject_type")
+        if subject_type:
+            qs = qs.filter(subject_type=subject_type)
+
+        faculty_id = self.request.query_params.get("faculty")
+        if faculty_id:
+            qs = qs.filter(faculty_id=faculty_id)
+
+        semester = self.request.query_params.get("semester")
+        if semester:
+            qs = qs.filter(semester=semester)
+
+        is_elective = self.request.query_params.get("is_elective")
+        if is_elective is not None:
+            qs = qs.filter(is_elective=is_elective.lower() in ["true", "1"])
+
+        return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get("all", "false").lower() == "true":
+            return None
+        return super().paginate_queryset(queryset)
 
 
 class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -30,21 +80,63 @@ class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = SubjectSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Subject.objects.select_related("faculty__user").all()
-
+    queryset = (
+        Subject.objects.select_related("faculty__user", "faculty__department")
+        .prefetch_related("departments", "amenities")
+        .all()
+    )
 
 class DepartmentListView(generics.ListCreateAPIView):
     """List or create departments."""
     serializer_class = DepartmentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Department.objects.all()
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "dept_id", "core_department"]
+
+    def get_queryset(self):
+        from django.db.models import Count
+        qs = Department.objects.annotate(
+            student_count=Count("students", distinct=True),
+            faculty_count=Count("faculty_members", distinct=True),
+        ).order_by("dept_id", "name")
+        program_type = self.request.query_params.get("program_type")
+        if program_type:
+            qs = qs.filter(program_type=program_type)
+        return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('all', 'false').lower() == 'true':
+            return None
+        return super().paginate_queryset(queryset)
+
+
+class NextDepartmentIDView(APIView):
+    """Get the next suggested standardized Department ID."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import re
+        existing_ids = Department.objects.exclude(dept_id__isnull=True).values_list("dept_id", flat=True)
+        max_num = 0
+        for did in existing_ids:
+            m = re.match(r"^DEP-(\d+)$", str(did))
+            if m:
+                max_num = max(max_num, int(m.group(1)))
+        next_id = f"DEP-{(max_num + 1):04d}"
+        return Response({"next_id": next_id})
 
 
 class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a department."""
     serializer_class = DepartmentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Department.objects.all()
+
+    def get_queryset(self):
+        from django.db.models import Count
+        return Department.objects.annotate(
+            student_count=Count("students", distinct=True),
+            faculty_count=Count("faculty_members", distinct=True),
+        ).all()
 
 
 class AmenityListView(generics.ListCreateAPIView):
@@ -107,8 +199,8 @@ class TimeSlotDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TimeSlot.objects.all()
 
 
-class TimetableView(generics.ListAPIView):
-    """Get the current timetable."""
+class TimetableView(generics.ListCreateAPIView):
+    """Get the current timetable or create a custom entry."""
 
     serializer_class = TimetableEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -132,6 +224,21 @@ class TimetableView(generics.ListAPIView):
                 qs = qs.none()
         return qs
 
+    def perform_create(self, serializer):
+        from rest_framework.exceptions import ValidationError
+        version_id = self.request.data.get("version") or self.request.query_params.get("version")
+        if version_id:
+            version = TimetableVersion.objects.filter(id=version_id).first()
+        else:
+            version = TimetableVersion.objects.filter(is_published=True).first()
+
+        room = serializer.validated_data.get("room")
+        time_slot = serializer.validated_data.get("time_slot")
+        if room and time_slot and TimetableEntry.objects.filter(version=version, room=room, time_slot=time_slot).exists():
+            raise ValidationError({"error": f"Room {room.room_number} is already occupied at this time slot."})
+
+        serializer.save(version=version)
+
 
 class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a timetable entry."""
@@ -147,25 +254,25 @@ class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Check constraints if time_slot or room is changing
         if new_time_slot != instance.time_slot or new_room != instance.room:
             from rest_framework.exceptions import ValidationError
-            # 1. Room conflict
-            if TimetableEntry.objects.filter(time_slot=new_time_slot, room=new_room).exclude(id=instance.id).exists():
+            # 1. Room conflict (scoped to same version)
+            if TimetableEntry.objects.filter(version=instance.version, time_slot=new_time_slot, room=new_room).exclude(id=instance.id).exists():
                 raise ValidationError({"error": "Room conflict: Another class is scheduled in this room at this time."})
                 
-            # 2. Faculty conflict & Capacity
-            if instance.subject:
+            # 2. Faculty conflict & Capacity (scoped to same version)
+            if instance.subject and instance.subject.faculty:
                 faculty = instance.subject.faculty
-                if TimetableEntry.objects.filter(time_slot=new_time_slot, subject__faculty=faculty).exclude(id=instance.id).exists():
+                if TimetableEntry.objects.filter(version=instance.version, time_slot=new_time_slot, subject__faculty=faculty).exclude(id=instance.id).exists():
                     raise ValidationError({"error": "Faculty conflict: The faculty member is already teaching another class at this time."})
                     
-                # 3. Max classes per day (hardcoded to 1 for manual move check to match default)
+                # 3. Max classes per day (scoped to same version)
                 subject = instance.subject
                 day = new_time_slot.day
-                classes_on_day = TimetableEntry.objects.filter(time_slot__day=day, subject=subject).exclude(id=instance.id).count()
+                classes_on_day = TimetableEntry.objects.filter(version=instance.version, time_slot__day=day, subject=subject).exclude(id=instance.id).count()
                 if classes_on_day >= 1:
                     raise ValidationError({"error": f"Max classes per day exceeded: {subject.code} already has a class on {new_time_slot.get_day_display()}."})
 
                 # 4. Room capacity
-                if new_room.capacity < subject.required_capacity:
+                if new_room and new_room.capacity < subject.required_capacity:
                     raise ValidationError({"error": f"Room capacity ({new_room.capacity}) is less than required capacity ({subject.required_capacity})."})
                 
         serializer.save()
@@ -285,6 +392,59 @@ class TimetableVersionDetailView(generics.RetrieveUpdateDestroyAPIView):
             TimetableVersion.objects.all().update(is_published=False)
         serializer.save()
 
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if not (user.is_staff or getattr(user, 'role', '') == 'admin' or user.is_superuser):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can delete timetable versions.")
+        if instance.is_published:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Cannot delete the active published timetable. Please unpublish or switch live version first.")
+        instance.delete()
+
+
+class TimetableVersionBulkDeleteView(APIView):
+    """Bulk delete draft timetable versions."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not (user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser):
+            return Response(
+                {"error": "Only administrators can delete timetable versions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ids = request.data.get("ids", [])
+        delete_all_drafts = request.data.get("delete_all_drafts", False)
+
+        if delete_all_drafts:
+            qs = TimetableVersion.objects.filter(is_published=False)
+        elif ids:
+            qs = TimetableVersion.objects.filter(id__in=ids, is_published=False)
+        else:
+            return Response(
+                {"error": "No draft version IDs provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        count = qs.count()
+        if count == 0:
+            return Response(
+                {"message": "No draft versions were found to delete.", "deleted_count": 0},
+                status=status.HTTP_200_OK,
+            )
+
+        qs.delete()
+        return Response(
+            {
+                "message": f"Successfully deleted {count} draft timetable(s).",
+                "deleted_count": count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 class AbsenceReportListView(generics.ListCreateAPIView):
     serializer_class = AbsenceReportSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -397,109 +557,11 @@ class FindSmartSwapView(APIView):
     # Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _build_csp_data(entries):
-        """
-        Convert a queryset of TimetableEntry objects into the plain-dict
-        structures expected by ScheduleCSP.
-
-        Returns (subjects, rooms, time_slots, locked_entries, var_map) where
-        ``var_map`` maps TimetableEntry.id -> (subject_dict, session_index).
-        """
-        from .csp_solver import ScheduleCSP  # local import avoids circulars
-
-        # Collect unique rooms and time slots — start from entries, then add
-        # ALL rooms and time slots from the database so the CSP domain includes
-        # empty (unused) slots as valid placements.
-        room_map = {}
-        ts_map = {}
-        for entry in entries:
-            r = entry.room
-            if r.id not in room_map:
-                room_map[r.id] = {
-                    "id": r.id,
-                    "room_number": r.room_number,
-                    "capacity": r.capacity,
-                    "room_type": getattr(r, "room_type", "lecture"),
-                    "building": getattr(r, "building", ""),
-                }
-            ts = entry.time_slot
-            if ts.id not in ts_map:
-                ts_map[ts.id] = {
-                    "id": ts.id,
-                    "day": ts.day,
-                    "start_time": str(ts.start_time),
-                    "end_time": str(ts.end_time),
-                }
-
-        # Include every room and time slot in the DB so direct moves to empty
-        # slots are discoverable.
-        for r in Room.objects.all():
-            if r.id not in room_map:
-                room_map[r.id] = {
-                    "id": r.id,
-                    "room_number": r.room_number,
-                    "capacity": r.capacity,
-                    "room_type": getattr(r, "room_type", "lecture"),
-                    "building": getattr(r, "building", ""),
-                }
-        for ts in TimeSlot.objects.all():
-            if ts.id not in ts_map:
-                ts_map[ts.id] = {
-                    "id": ts.id,
-                    "day": ts.day,
-                    "start_time": str(ts.start_time),
-                    "end_time": str(ts.end_time),
-                }
-
-        rooms = list(room_map.values())
-        time_slots = list(ts_map.values())
-
-        # Build one "subject" per unique (subject_id, faculty_id) pair and
-        # count how many sessions each needs within this version.
-        # We treat each TimetableEntry as a single session (sessions_per_week=1)
-        # to keep domains small and the solve fast.
-        subjects = []
-        locked_entries = []
-        var_map = {}  # entry.id -> var_idx (0-based)
-
-        for idx, entry in enumerate(entries):
-            fid = entry.subject.faculty_id if entry.subject else (
-                entry.faculty_id if entry.faculty else 0
-            )
-            subj_dict = {
-                "id": entry.id,          # use entry id as unique subject key
-                "code": entry.subject.code if entry.subject else (
-                    entry.event_title or f"entry_{entry.id}"
-                ),
-                "name": entry.subject.name if entry.subject else (
-                    entry.event_title or ""
-                ),
-                "faculty_id": fid,
-                "required_capacity": (
-                    entry.subject.required_capacity if entry.subject else 1
-                ),
-                "sessions_per_week": 1,
-            }
-            subjects.append(subj_dict)
-            var_map[entry.id] = idx  # var index in ScheduleCSP.variables
-
-            if entry.is_locked:
-                locked_entries.append({
-                    "subject_id": entry.id,
-                    "room_id": entry.room_id,
-                    "time_slot_id": entry.time_slot_id,
-                })
-
-        return subjects, rooms, time_slots, locked_entries, var_map
-
     # ------------------------------------------------------------------
     # Main handler
     # ------------------------------------------------------------------
 
     def get(self, request, entry_id):
-        from .csp_solver import ScheduleCSP
-
         # ---- 1. Fetch target entry ----------------------------------------
         try:
             target_entry = TimetableEntry.objects.select_related(
@@ -531,188 +593,118 @@ class FindSmartSwapView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # ---- 3. Build CSP data structures ----------------------------------
-        subjects, rooms, time_slots, locked_entries, var_map = (
-            self._build_csp_data(all_entries)
-        )
+        target_fac_id = target_entry.subject.faculty_id if target_entry.subject else target_entry.faculty_id
+        target_req_cap = target_entry.subject.required_capacity if target_entry.subject else 1
 
-        target_var_idx = var_map[entry_id]
+        rooms = {r.id: r for r in Room.objects.all()}
+        time_slots = {ts.id: ts for ts in TimeSlot.objects.all()}
+
+        # ---- 3. Build fast lookup maps ----------------------------------
+        # ts_id -> room_id -> entry
+        room_usage = {}
+        # ts_id -> fac_id -> entry
+        fac_usage = {}
+
+        for e in all_entries:
+            room_usage.setdefault(e.time_slot_id, {})[e.room_id] = e
+            fac_id = e.subject.faculty_id if e.subject else e.faculty_id
+            if fac_id:
+                fac_usage.setdefault(e.time_slot_id, {})[fac_id] = e
+
+        def is_valid_placement(entry_to_place, ts_id, room_id, ignore_entries=None):
+            if ignore_entries is None: ignore_entries = set()
+            
+            # Check capacity
+            req_cap = entry_to_place.subject.required_capacity if entry_to_place.subject else 1
+            if rooms[room_id].capacity < req_cap:
+                return False
+
+            # Check room conflict
+            occupant = room_usage.get(ts_id, {}).get(room_id)
+            if occupant and occupant.id not in ignore_entries:
+                return False
+
+            # Check faculty conflict
+            fac_id = entry_to_place.subject.faculty_id if entry_to_place.subject else entry_to_place.faculty_id
+            if fac_id:
+                fac_occupant = fac_usage.get(ts_id, {}).get(fac_id)
+                if fac_occupant and fac_occupant.id not in ignore_entries:
+                    return False
+            
+            return True
+
+        # ---- 4. Find direct moves ------------------------------------------
+        direct_moves = []
         target_ts_id = target_entry.time_slot_id
         target_room_id = target_entry.room_id
 
-        # Build the original assignment (var_idx -> (ts_id, room_id)).
-        original_assignment = {
-            var_map[e.id]: (e.time_slot_id, e.room_id) for e in all_entries
-        }
-
-        # ---- 4. Find direct moves ------------------------------------------
-        # Build a CSP with everyone locked except the target entry.
-        locked_all_but_target = [
-            le for le in locked_entries
-            if le["subject_id"] != entry_id
-        ]
-        # Also lock every *other* non-locked entry so only the target is free.
-        for e in all_entries:
-            if e.id == entry_id:
-                continue
-            if not e.is_locked:
-                locked_all_but_target.append({
-                    "subject_id": e.id,
-                    "room_id": e.room_id,
-                    "time_slot_id": e.time_slot_id,
-                })
-
-        csp_direct = ScheduleCSP(
-            subjects=subjects,
-            rooms=rooms,
-            time_slots=time_slots,
-            locked_entries=locked_all_but_target,
-        )
-
-        direct_moves = []
-        # Iterate over the target's domain and collect consistent values.
-        for val in csp_direct.domains[target_var_idx]:
-            ts_id, room_id = val
-            # Skip the current placement.
-            if ts_id == target_ts_id and room_id == target_room_id:
-                continue
-
-            saved = csp_direct.assignment.get(target_var_idx)
-            if target_var_idx in csp_direct.assignment:
-                del csp_direct.assignment[target_var_idx]
-
-            if csp_direct.is_consistent(target_var_idx, val):
-                ts_info = next(
-                    (t for t in time_slots if t["id"] == ts_id), None
-                )
-                room_info = next(
-                    (r for r in rooms if r["id"] == room_id), None
-                )
-                if ts_info and room_info:
+        for ts_id, ts in time_slots.items():
+            for room_id, room in rooms.items():
+                if ts_id == target_ts_id and room_id == target_room_id:
+                    continue
+                
+                if is_valid_placement(target_entry, ts_id, room_id, ignore_entries={target_entry.id}):
                     direct_moves.append({
                         "type": "direct_move",
                         "target_slot_id": ts_id,
-                        "target_slot_str": (
-                            f"{ts_info['day']} {ts_info['start_time']}"
-                            f"–{ts_info['end_time']}"
-                        ),
+                        "target_slot_str": f"{ts.day} {ts.start_time}–{ts.end_time}",
                         "target_room_id": room_id,
-                        "target_room_str": room_info["room_number"],
+                        "target_room_str": room.room_number,
                         "description": (
-                            f"Move to {ts_info['day']} "
-                            f"{ts_info['start_time']}–{ts_info['end_time']} "
-                            f"in {room_info['room_number']} "
-                            f"(no other changes needed)"
+                            f"Move to {ts.day} {ts.start_time}–{ts.end_time} "
+                            f"in {room.room_number} (no other changes needed)"
                         ),
                     })
 
-            if saved is not None:
-                csp_direct.assignment[target_var_idx] = saved
-
         # ---- 5. Find 1-step swaps ------------------------------------------
-        # For each other *unlocked* entry that occupies a slot the target
-        # could use, check whether the displaced entry can go somewhere else.
         one_step_swaps = []
-
-        # Gather occupied (ts_id, room_id) pairs that block the target.
-        # We only care about slots that are in the target's domain.
-        target_domain_vals = set(csp_direct.domains[target_var_idx])
-
         for other_entry in all_entries:
-            if other_entry.id == entry_id or other_entry.is_locked:
+            if other_entry.id == target_entry.id or other_entry.is_locked:
                 continue
 
-            other_val = (other_entry.time_slot_id, other_entry.room_id)
-            if other_val not in target_domain_vals:
-                continue  # this entry doesn't occupy a slot the target wants
+            other_ts = other_entry.time_slot_id
+            other_room = other_entry.room_id
 
-            other_var_idx = var_map[other_entry.id]
-
-            # Build a CSP where we free both target and the candidate entry.
-            locked_for_swap = [
-                le for le in locked_all_but_target
-                if le["subject_id"] != other_entry.id
-            ]
-
-            csp_swap = ScheduleCSP(
-                subjects=subjects,
-                rooms=rooms,
-                time_slots=time_slots,
-                locked_entries=locked_for_swap,
-            )
-
-            # Check: can target go into other_val?
-            if target_var_idx in csp_swap.assignment:
-                del csp_swap.assignment[target_var_idx]
-            if other_var_idx in csp_swap.assignment:
-                del csp_swap.assignment[other_var_idx]
-
-            if not csp_swap.is_consistent(target_var_idx, other_val):
-                continue  # still blocked even if we free other_entry
-
-            # Tentatively assign target to the freed slot.
-            csp_swap.assignment[target_var_idx] = other_val
-
-            # Now check whether other_entry can go somewhere else.
+            # Target must be able to go to other_entry's slot if we ignore both
+            if not is_valid_placement(target_entry, other_ts, other_room, ignore_entries={target_entry.id, other_entry.id}):
+                continue
+            
+            # Find an alt spot for other_entry
             alt_for_other = None
-            for alt_val in csp_swap.domains[other_var_idx]:
-                if alt_val == other_val:
-                    continue
-                if csp_swap.is_consistent(other_var_idx, alt_val):
-                    alt_for_other = alt_val
+            for alt_ts, ts in time_slots.items():
+                for alt_room, room in rooms.items():
+                    if alt_ts == other_ts and alt_room == other_room:
+                        continue
+                    if is_valid_placement(other_entry, alt_ts, alt_room, ignore_entries={target_entry.id, other_entry.id}):
+                        alt_for_other = (alt_ts, alt_room)
+                        break
+                if alt_for_other:
                     break
-
-            # Clean up temporary assignment.
-            del csp_swap.assignment[target_var_idx]
-
-            if alt_for_other is None:
-                continue  # no room for displaced entry — not a valid swap
-
-            ts_info = next(
-                (t for t in time_slots if t["id"] == other_val[0]), None
-            )
-            room_info = next(
-                (r for r in rooms if r["id"] == other_val[1]), None
-            )
-            alt_ts_info = next(
-                (t for t in time_slots if t["id"] == alt_for_other[0]), None
-            )
-            alt_room_info = next(
-                (r for r in rooms if r["id"] == alt_for_other[1]), None
-            )
-
-            if ts_info and room_info and alt_ts_info and alt_room_info:
-                other_code = (
-                    other_entry.subject.code
-                    if other_entry.subject
-                    else (other_entry.event_title or f"entry_{other_entry.id}")
-                )
+            
+            if alt_for_other:
+                ts = time_slots[other_ts]
+                room = rooms[other_room]
+                alt_ts_info = time_slots[alt_for_other[0]]
+                alt_room_info = rooms[alt_for_other[1]]
+                
+                other_code = other_entry.subject.code if other_entry.subject else (other_entry.event_title or f"entry_{other_entry.id}")
+                
                 one_step_swaps.append({
                     "type": "one_step_swap",
-                    "target_slot_id": other_val[0],
-                    "target_slot_str": (
-                        f"{ts_info['day']} {ts_info['start_time']}"
-                        f"–{ts_info['end_time']}"
-                    ),
-                    "target_room_id": other_val[1],
-                    "target_room_str": room_info["room_number"],
+                    "target_slot_id": other_ts,
+                    "target_slot_str": f"{ts.day} {ts.start_time}–{ts.end_time}",
+                    "target_room_id": other_room,
+                    "target_room_str": room.room_number,
                     "displaced_entry_id": other_entry.id,
                     "displaced_entry_code": other_code,
                     "displaced_new_slot_id": alt_for_other[0],
-                    "displaced_new_slot_str": (
-                        f"{alt_ts_info['day']} {alt_ts_info['start_time']}"
-                        f"–{alt_ts_info['end_time']}"
-                    ),
+                    "displaced_new_slot_str": f"{alt_ts_info.day} {alt_ts_info.start_time}–{alt_ts_info.end_time}",
                     "displaced_new_room_id": alt_for_other[1],
-                    "displaced_new_room_str": alt_room_info["room_number"],
+                    "displaced_new_room_str": alt_room_info.room_number,
                     "description": (
-                        f"Move to {ts_info['day']} "
-                        f"{ts_info['start_time']}–{ts_info['end_time']} "
-                        f"in {room_info['room_number']}; "
-                        f"displace {other_code} to "
-                        f"{alt_ts_info['day']} "
-                        f"{alt_ts_info['start_time']}–{alt_ts_info['end_time']} "
-                        f"in {alt_room_info['room_number']}"
+                        f"Move to {ts.day} {ts.start_time}–{ts.end_time} in {room.room_number}; "
+                        f"displace {other_code} to {alt_ts_info.day} {alt_ts_info.start_time}–{alt_ts_info.end_time} "
+                        f"in {alt_room_info.room_number}"
                     ),
                 })
 

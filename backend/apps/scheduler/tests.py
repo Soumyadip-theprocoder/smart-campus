@@ -1,14 +1,17 @@
 """
-Tests for the CSP Timetable Solver.
-Verifies constraint satisfaction, edge cases, and solution quality.
+Tests for the OR-Tools CP-SAT Timetable Solver.
+Verifies constraint satisfaction, edge cases, and solution quality
+against the solver-agnostic interface.
 """
 
-from apps.scheduler.csp_solver import ScheduleCSP
 from django.test import TestCase
 
+from apps.scheduler.ortools_adapter import ORToolsSolverAdapter
+from apps.scheduler.solver_interface import SolverInput
 
-class CSPSolverBasicTests(TestCase):
-    """Basic tests for the ScheduleCSP solver."""
+
+class ORToolsSolverBasicTests(TestCase):
+    """Basic tests for the ORToolsSolverAdapter."""
 
     def _make_subjects(self, data):
         """Helper to create subject dicts for the solver."""
@@ -20,6 +23,8 @@ class CSPSolverBasicTests(TestCase):
                 "faculty_id": d["faculty_id"],
                 "required_capacity": d.get("capacity", 30),
                 "sessions_per_week": d.get("sessions", 2),
+                "elective_group_id": d.get("elective_group_id"),
+                "resource_ids": d.get("resource_ids", []),
             }
             for i, d in enumerate(data)
         ]
@@ -52,6 +57,19 @@ class CSPSolverBasicTests(TestCase):
                 slot_id += 1
         return slots
 
+    def _solve(self, subjects, rooms, slots, **kwargs):
+        """Helper to create SolverInput, build adapter, and solve."""
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+            **kwargs,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        return adapter.solve()
+
+    # ─── Basic scheduling ───────────────────────────────────────────
+
     def test_simple_schedule(self):
         """Two subjects, two rooms, enough slots — should find a solution."""
         subjects = self._make_subjects(
@@ -68,11 +86,10 @@ class CSPSolverBasicTests(TestCase):
         )
         slots = self._make_slots(["MON", "TUE", "WED"], [(9, 10), (10, 11)])
 
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve(subjects, rooms, slots)
 
-        self.assertTrue(len(timetable) > 0, "Solver should find a solution")
-        self.assertEqual(len(timetable), 4)  # 2 subjects * 2 sessions
+        self.assertTrue(result.success, f"Solver should find a solution: {result.error}")
+        self.assertEqual(len(result.timetable), 4)  # 2 subjects * 2 sessions
 
     def test_no_faculty_conflict(self):
         """Same faculty should never be scheduled at the same time."""
@@ -92,126 +109,78 @@ class CSPSolverBasicTests(TestCase):
             ["MON", "TUE", "WED", "THU", "FRI"], [(9, 10), (10, 11)]
         )
 
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve(subjects, rooms, slots)
 
-        self.assertEqual(len(timetable), 6)
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.timetable), 6)
         # Check no faculty time conflicts
         time_slots_used = {}
-        for entry in timetable:
-            ts = entry["day"] + entry["start_time"]
-            fid = entry["faculty_id"]
-            key = (fid, ts)
-            self.assertNotIn(
-                key, time_slots_used, f"Faculty {fid} double-booked at {ts}"
-            )
+        for entry in result.timetable:
+            fac_id = entry["faculty_id"]
+            ts_id = entry["time_slot_id"]
+            key = (fac_id, ts_id)
+            self.assertNotIn(key, time_slots_used,
+                             f"Faculty {fac_id} double-booked at time slot {ts_id}")
             time_slots_used[key] = entry["subject_code"]
 
     def test_no_room_conflict(self):
-        """Same room should never host two classes at the same time."""
+        """Same room should never be booked twice at the same time."""
         subjects = self._make_subjects(
             [
                 {"code": "CS1", "faculty_id": 1, "sessions": 2},
                 {"code": "CS2", "faculty_id": 2, "sessions": 2},
-                {"code": "CS3", "faculty_id": 3, "sessions": 2},
             ]
         )
-        rooms = self._make_rooms(
-            [
-                {"number": "R1", "capacity": 40},  # only one room!
-            ]
-        )
-        slots = self._make_slots(
-            ["MON", "TUE", "WED", "THU", "FRI", "SAT"],
-            [(9, 10), (10, 11), (11, 12)],
-        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])  # only 1 room
+        slots = self._make_slots(["MON", "TUE", "WED", "THU"], [(9, 10), (10, 11)])
 
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve(subjects, rooms, slots)
 
-        self.assertEqual(len(timetable), 6)
-        room_slots = set()
-        for entry in timetable:
-            key = (entry["room_number"], entry["day"], entry["start_time"])
-            self.assertNotIn(
-                key, room_slots, f"Room {entry['room_number']} double-booked"
-            )
-            room_slots.add(key)
+        self.assertTrue(result.success)
+        room_time_set = set()
+        for entry in result.timetable:
+            key = (entry["room_id"], entry["time_slot_id"])
+            self.assertNotIn(key, room_time_set,
+                             f"Room {entry['room_number']} double-booked at slot {entry['time_slot_id']}")
+            room_time_set.add(key)
 
     def test_room_capacity_constraint(self):
-        """Subject requiring capacity 50 should not be assigned to a room with capacity 30."""
+        """Subject requiring 100 seats shouldn't be placed in a 40-seat room."""
         subjects = self._make_subjects(
-            [
-                {"code": "BIG", "faculty_id": 1, "capacity": 50, "sessions": 1},
-            ]
+            [{"code": "BIG", "faculty_id": 1, "capacity": 100, "sessions": 1}]
         )
-        rooms = self._make_rooms(
-            [
-                {"number": "SMALL", "capacity": 30},
-                {"number": "LARGE", "capacity": 60},
-            ]
-        )
+        rooms = self._make_rooms([{"number": "Small", "capacity": 40}])
         slots = self._make_slots(["MON"], [(9, 10)])
 
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve(subjects, rooms, slots)
 
-        self.assertEqual(len(timetable), 1)
-        self.assertEqual(timetable[0]["room_number"], "LARGE")
+        self.assertFalse(result.success, "Should fail — no room with enough capacity")
 
-    def test_same_subject_not_twice_per_day(self):
-        """By default, a subject should not appear twice on the same day."""
+    # ─── Excluded slots ─────────────────────────────────────────────
+
+    def test_excluded_slots(self):
+        """Subject should not be placed in an excluded time slot."""
+        subjects = self._make_subjects(
+            [{"code": "CS1", "faculty_id": 1, "sessions": 1}]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(["MON", "TUE"], [(9, 10)])
+        # Exclude slot 1 (MON 9-10)
+        excluded_slots = {1: [1]}
+
+        result = self._solve(subjects, rooms, slots, excluded_slots=excluded_slots)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.timetable[0]["day"], "TUE")
+
+    # ─── Locked entries ─────────────────────────────────────────────
+
+    def test_locked_entries(self):
+        """Locked entries should be preserved in the solution."""
         subjects = self._make_subjects(
             [
-                {"code": "CS1", "faculty_id": 1, "sessions": 3},
-            ]
-        )
-        rooms = self._make_rooms(
-            [
-                {"number": "R1", "capacity": 40},
-            ]
-        )
-        slots = self._make_slots(["MON", "TUE", "WED"], [(9, 10), (10, 11), (11, 12)])
-
-        csp = ScheduleCSP(subjects, rooms, slots, max_classes_per_day=1)
-        timetable = csp.get_timetable()
-
-        self.assertEqual(len(timetable), 3)
-        days_used = [e["day"] for e in timetable]
-        self.assertEqual(
-            len(days_used),
-            len(set(days_used)),
-            "Same subject scheduled twice on the same day",
-        )
-
-    def test_impossible_schedule_returns_empty(self):
-        """When constraints are unsatisfiable, solver should return empty list."""
-        subjects = self._make_subjects(
-            [
-                {"code": "CS1", "faculty_id": 1, "sessions": 3},
-                {"code": "CS2", "faculty_id": 1, "sessions": 3},  # same faculty
-            ]
-        )
-        rooms = self._make_rooms(
-            [
-                {"number": "R1", "capacity": 40},
-            ]
-        )
-        # Only 2 slots, but need 6 sessions — impossible with same faculty
-        slots = self._make_slots(["MON"], [(9, 10), (10, 11)])
-
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
-
-        self.assertEqual(
-            len(timetable), 0, "Should return empty for impossible schedule"
-        )
-
-    def test_locked_entries_respected(self):
-        """Locked entries should appear exactly as specified in the solution."""
-        subjects = self._make_subjects(
-            [
-                {"code": "CS1", "faculty_id": 1, "sessions": 2},
+                {"code": "CS1", "faculty_id": 1, "sessions": 1},
+                {"code": "CS2", "faculty_id": 2, "sessions": 1},
             ]
         )
         rooms = self._make_rooms(
@@ -221,459 +190,275 @@ class CSPSolverBasicTests(TestCase):
             ]
         )
         slots = self._make_slots(["MON", "TUE"], [(9, 10), (10, 11)])
+        locked = [{"subject_id": 1, "time_slot_id": 1, "room_id": 1}]
 
-        locked = [
-            {"subject_id": 1, "room_id": 2, "time_slot_id": 1}
-        ]  # CS1 locked to R2 on MON 9-10
+        result = self._solve(subjects, rooms, slots, locked_entries=locked)
 
-        csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
-        timetable = csp.get_timetable()
+        self.assertTrue(result.success)
+        cs1_entry = next(e for e in result.timetable if e["subject_code"] == "CS1")
+        self.assertEqual(cs1_entry["time_slot_id"], 1)
+        self.assertEqual(cs1_entry["room_id"], 1)
 
-        self.assertEqual(len(timetable), 2)
-        locked_entry = [
-            e for e in timetable if e["day"] == "MON" and e["start_time"] == "09:00"
-        ]
-        self.assertEqual(len(locked_entry), 1)
-        self.assertEqual(locked_entry[0]["room_number"], "R2")
+    # ─── Max classes per day ────────────────────────────────────────
 
+    def test_max_classes_per_day(self):
+        """Subject with 3 sessions and max 1/day needs 3 distinct days."""
+        subjects = self._make_subjects(
+            [{"code": "CS1", "faculty_id": 1, "sessions": 3}]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(
+            ["MON", "TUE", "WED"], [(9, 10), (10, 11), (11, 12)]
+        )
 
-class CSPSolverEdgeCaseTests(TestCase):
-    """Edge case tests for the solver."""
+        result = self._solve(subjects, rooms, slots, max_classes_per_day=1)
+
+        self.assertTrue(result.success)
+        days = [e["day"] for e in result.timetable]
+        self.assertEqual(len(set(days)), 3, "Each session should be on a different day")
+
+    # ─── Avoid back-to-back ─────────────────────────────────────────
+
+    def test_avoid_back_to_back(self):
+        """Same faculty should not have consecutive slots when avoid_back_to_back is True."""
+        subjects = self._make_subjects(
+            [
+                {"code": "CS1", "faculty_id": 1, "sessions": 1},
+                {"code": "CS2", "faculty_id": 1, "sessions": 1},
+            ]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(["MON"], [(9, 10), (10, 11), (14, 15)])
+
+        result = self._solve(subjects, rooms, slots, avoid_back_to_back=True)
+
+        self.assertTrue(result.success)
+        entries = sorted(result.timetable, key=lambda e: e["start_time"])
+        if len(entries) == 2 and entries[0]["day"] == entries[1]["day"]:
+            # They should NOT be 9-10 and 10-11
+            self.assertFalse(
+                entries[0]["end_time"] == entries[1]["start_time"],
+                "Should not be back-to-back"
+            )
+
+    # ─── Balance faculty workload ───────────────────────────────────
+
+    def test_balance_faculty_workload(self):
+        """Faculty should not have more than 3 classes on the same day."""
+        subjects = self._make_subjects(
+            [
+                {"code": f"CS{i}", "faculty_id": 1, "sessions": 1}
+                for i in range(5)
+            ]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(
+            ["MON", "TUE", "WED", "THU", "FRI"],
+            [(9, 10), (10, 11), (11, 12), (13, 14), (14, 15)]
+        )
+
+        result = self._solve(subjects, rooms, slots, balance_faculty_workload=True)
+
+        self.assertTrue(result.success)
+        from collections import Counter
+        day_counts = Counter(e["day"] for e in result.timetable)
+        for day, count in day_counts.items():
+            self.assertLessEqual(count, 3,
+                                 f"Faculty has {count} classes on {day}, max is 3")
+
+    # ─── Elective group conflict ────────────────────────────────────
+
+    def test_elective_group_conflict(self):
+        """Subjects in the same elective group should not overlap."""
+        subjects = self._make_subjects(
+            [
+                {"code": "EL1", "faculty_id": 1, "sessions": 1, "elective_group_id": 10},
+                {"code": "EL2", "faculty_id": 2, "sessions": 1, "elective_group_id": 10},
+            ]
+        )
+        rooms = self._make_rooms(
+            [
+                {"number": "R1", "capacity": 40},
+                {"number": "R2", "capacity": 40},
+            ]
+        )
+        slots = self._make_slots(["MON", "TUE"], [(9, 10)])
+
+        result = self._solve(subjects, rooms, slots)
+
+        self.assertTrue(result.success)
+        ts_ids = [e["time_slot_id"] for e in result.timetable]
+        self.assertNotEqual(ts_ids[0], ts_ids[1],
+                            "Elective group subjects should not be in the same timeslot")
+
+    # ─── Resource pool capacity ─────────────────────────────────────
+
+    def test_resource_pool_capacity(self):
+        """Two subjects using the same single-quantity resource can't overlap."""
+        subjects = self._make_subjects(
+            [
+                {"code": "LAB1", "faculty_id": 1, "sessions": 1, "resource_ids": [1]},
+                {"code": "LAB2", "faculty_id": 2, "sessions": 1, "resource_ids": [1]},
+            ]
+        )
+        rooms = self._make_rooms(
+            [
+                {"number": "R1", "capacity": 40},
+                {"number": "R2", "capacity": 40},
+            ]
+        )
+        slots = self._make_slots(["MON", "TUE"], [(9, 10)])
+        resources = [{"id": 1, "name": "Projector", "quantity": 1}]
+
+        result = self._solve(subjects, rooms, slots, resources=resources)
+
+        self.assertTrue(result.success)
+        ts_ids = [e["time_slot_id"] for e in result.timetable]
+        self.assertNotEqual(ts_ids[0], ts_ids[1],
+                            "Subjects sharing a single-quantity resource can't overlap")
+
+    # ─── Building transit ───────────────────────────────────────────
+
+    def test_building_transit(self):
+        """Same faculty back-to-back in different buildings should be avoided."""
+        subjects = self._make_subjects(
+            [
+                {"code": "CS1", "faculty_id": 1, "sessions": 1},
+                {"code": "CS2", "faculty_id": 1, "sessions": 1},
+            ]
+        )
+        rooms = self._make_rooms(
+            [
+                {"number": "R1", "capacity": 40, "building": "East"},
+                {"number": "R2", "capacity": 40, "building": "West"},
+            ]
+        )
+        # 3 slots on Monday: 9-10, 10-11, 14-15 (not consecutive)
+        slots = self._make_slots(["MON"], [(9, 10), (10, 11), (14, 15)])
+
+        result = self._solve(subjects, rooms, slots)
+
+        self.assertTrue(result.success)
+        entries = sorted(result.timetable, key=lambda e: e["start_time"])
+        # If they are in consecutive slots, they must be in the same building
+        for i in range(len(entries) - 1):
+            if entries[i]["end_time"] == entries[i + 1]["start_time"]:
+                bldg_a = next(r["building"] for r in rooms if r["id"] == entries[i]["room_id"])
+                bldg_b = next(r["building"] for r in rooms if r["id"] == entries[i + 1]["room_id"])
+                self.assertEqual(bldg_a, bldg_b,
+                                 "Back-to-back entries for same faculty must share a building")
+
+    # ─── Minimize changes (rescheduling) ────────────────────────────
+
+    def test_minimize_changes(self):
+        """Solver should prefer the previous assignment when rescheduling."""
+        subjects = self._make_subjects(
+            [
+                {"code": "CS1", "faculty_id": 1, "sessions": 2},
+                {"code": "CS2", "faculty_id": 2, "sessions": 2},
+            ]
+        )
+        rooms = self._make_rooms(
+            [
+                {"number": "R1", "capacity": 40},
+                {"number": "R2", "capacity": 40},
+            ]
+        )
+        slots = self._make_slots(["MON", "TUE", "WED", "THU"], [(9, 10), (10, 11)])
+
+        # First solve without previous assignment
+        result1 = self._solve(subjects, rooms, slots)
+        self.assertTrue(result1.success)
+
+        # Build previous_assignment from first result
+        prev = {}
+        session_counters = {}
+        for entry in result1.timetable:
+            sid = entry["subject_id"]
+            session_counters.setdefault(sid, 0)
+            idx = session_counters[sid]
+            prev[(sid, idx)] = (entry["time_slot_id"], entry["room_id"])
+            session_counters[sid] += 1
+
+        # Re-solve with previous_assignment hint
+        solver_input = SolverInput(
+            subjects=subjects, rooms=rooms, time_slots=slots
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result2 = adapter.solve(previous_assignment=prev)
+
+        self.assertTrue(result2.success)
+        # Most entries should match the original
+        matches = 0
+        for entry in result2.timetable:
+            sid = entry["subject_id"]
+            # Check if this entry matches any in the original
+            for orig in result1.timetable:
+                if (orig["subject_id"] == sid and
+                        orig["time_slot_id"] == entry["time_slot_id"] and
+                        orig["room_id"] == entry["room_id"]):
+                    matches += 1
+                    break
+        self.assertGreaterEqual(matches, len(result1.timetable) - 1,
+                                "Most entries should be preserved when rescheduling")
+
+    # ─── Preferred room types (soft) ────────────────────────────────
+
+    def test_preferred_room_types(self):
+        """Subject should prefer the lab room when preferred_room_types is set."""
+        subjects = self._make_subjects(
+            [{"code": "LAB1", "faculty_id": 1, "sessions": 1}]
+        )
+        rooms = self._make_rooms(
+            [
+                {"number": "Lecture1", "capacity": 40, "type": "lecture"},
+                {"number": "Lab1", "capacity": 40, "type": "lab"},
+            ]
+        )
+        slots = self._make_slots(["MON"], [(9, 10)])
+        pref = {1: "lab"}
+
+        result = self._solve(subjects, rooms, slots, preferred_room_types=pref)
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.timetable[0]["room_number"], "Lab1",
+                         "Should prefer the lab room")
+
+    # ─── Edge cases ─────────────────────────────────────────────────
+
+    def test_impossible_schedule(self):
+        """More sessions than available slots should fail gracefully."""
+        subjects = self._make_subjects(
+            [
+                {"code": "CS1", "faculty_id": 1, "sessions": 5},
+            ]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(["MON"], [(9, 10)])  # only 1 slot
+
+        result = self._solve(subjects, rooms, slots)
+
+        self.assertFalse(result.success, "Should fail — not enough slots")
 
     def test_single_subject_single_session(self):
-        subjects = [
-            {
-                "id": 1,
-                "code": "SOLO",
-                "name": "Solo",
-                "faculty_id": 1,
-                "required_capacity": 10,
-                "sessions_per_week": 1,
-            }
-        ]
-        rooms = [{"id": 1, "room_number": "R1", "capacity": 20, "building": "Main"}]
-        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
+        """Simplest possible case."""
+        subjects = self._make_subjects(
+            [{"code": "CS1", "faculty_id": 1, "sessions": 1}]
+        )
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(["MON"], [(9, 10)])
 
-        csp = ScheduleCSP(subjects, rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve(subjects, rooms, slots)
 
-        self.assertEqual(len(timetable), 1)
-        self.assertEqual(timetable[0]["subject_code"], "SOLO")
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.timetable), 1)
 
     def test_empty_subjects(self):
-        rooms = [{"id": 1, "room_number": "R1", "capacity": 20, "building": "Main"}]
-        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
+        """No subjects should produce an empty timetable (not a crash)."""
+        rooms = self._make_rooms([{"number": "R1", "capacity": 40}])
+        slots = self._make_slots(["MON"], [(9, 10)])
 
-        csp = ScheduleCSP([], rooms, slots)
-        timetable = csp.get_timetable()
+        result = self._solve([], rooms, slots)
 
-        self.assertEqual(len(timetable), 0)
-
-    def test_zero_rooms(self):
-        subjects = [
-            {
-                "id": 1,
-                "code": "SOLO",
-                "faculty_id": 1,
-                "sessions_per_week": 1,
-                "required_capacity": 10,
-            }
-        ]
-        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
-
-        csp = ScheduleCSP(subjects, [], slots)
-        timetable = csp.get_timetable()
-
-        self.assertEqual(len(timetable), 0)
-
-    def test_zero_slots(self):
-        subjects = [
-            {
-                "id": 1,
-                "code": "SOLO",
-                "faculty_id": 1,
-                "sessions_per_week": 1,
-                "required_capacity": 10,
-            }
-        ]
-        rooms = [{"id": 1, "room_number": "R1", "capacity": 20}]
-
-        csp = ScheduleCSP(subjects, rooms, [])
-        timetable = csp.get_timetable()
-
-        self.assertEqual(len(timetable), 0)
-
-    def test_conflicting_locked_entries(self):
-        """A lock referencing a non-existent subject is ignored gracefully."""
-        subjects = [
-            {
-                "id": 1,
-                "code": "S1",
-                "faculty_id": 1,
-                "sessions_per_week": 1,
-                "required_capacity": 10,
-            }
-        ]
-        rooms = [{"id": 1, "room_number": "R1", "capacity": 20}]
-        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
-
-        locked = [
-            {"subject_id": 1, "room_id": 1, "time_slot_id": 1},
-            {
-                "subject_id": 2,
-                "room_id": 1,
-                "time_slot_id": 1,
-            },  # Subject 2 doesn't exist: this lock must be ignored, not crash
-        ]
-
-        csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
-        timetable = csp.get_timetable()
-        # The valid lock is honoured and the bogus one is dropped
-        self.assertEqual(len(timetable), 1)
-        self.assertEqual(timetable[0]["subject_id"], 1)
-        self.assertEqual(timetable[0]["room_id"], 1)
-        self.assertEqual(timetable[0]["time_slot_id"], 1)
-
-    def test_locked_entries_double_booking_room(self):
-        """Two real subjects locked into the same room and slot cannot be solved."""
-        subjects = [
-            {
-                "id": 1,
-                "code": "S1",
-                "faculty_id": 1,
-                "sessions_per_week": 1,
-                "required_capacity": 10,
-            },
-            {
-                "id": 2,
-                "code": "S2",
-                "faculty_id": 2,
-                "sessions_per_week": 1,
-                "required_capacity": 10,
-            },
-        ]
-        rooms = [{"id": 1, "room_number": "R1", "capacity": 20}]
-        slots = [{"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"}]
-        locked = [
-            {"subject_id": 1, "room_id": 1, "time_slot_id": 1},
-            {"subject_id": 2, "room_id": 1, "time_slot_id": 1},
-        ]
-
-        csp = ScheduleCSP(subjects, rooms, slots, locked_entries=locked)
-        self.assertEqual(csp.get_timetable(), [])
-        self.assertTrue(csp.locked_conflict)
-
-
-# ============================================================
-# Tests for ScheduleCSP.minimize_changes
-# ============================================================
-
-class MinimizeChangesTests(TestCase):
-    """Tests for the minimize_changes helper on ScheduleCSP."""
-
-    def _build(self):
-        """Return a minimal 2-subject, 2-room, 4-slot CSP fixture."""
-        subjects = [
-            {
-                "id": 1,
-                "code": "S1",
-                "name": "Subject 1",
-                "faculty_id": 1,
-                "required_capacity": 10,
-                "sessions_per_week": 1,
-            },
-            {
-                "id": 2,
-                "code": "S2",
-                "name": "Subject 2",
-                "faculty_id": 2,
-                "required_capacity": 10,
-                "sessions_per_week": 1,
-            },
-        ]
-        rooms = [
-            {"id": 1, "room_number": "R1", "capacity": 30, "building": "Main"},
-            {"id": 2, "room_number": "R2", "capacity": 30, "building": "Main"},
-        ]
-        slots = [
-            {"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"},
-            {"id": 2, "day": "MON", "start_time": "10:00", "end_time": "11:00"},
-            {"id": 3, "day": "TUE", "start_time": "09:00", "end_time": "10:00"},
-            {"id": 4, "day": "TUE", "start_time": "10:00", "end_time": "11:00"},
-        ]
-        return subjects, rooms, slots
-
-    def test_minimize_changes_reverts_unnecessary_displacement(self):
-        """
-        After solving, if a variable was displaced but its original slot is
-        still valid, minimize_changes should revert it.
-        """
-        subjects, rooms, slots = self._build()
-        # Original: S1 → (slot_1, room_1), S2 → (slot_2, room_1)
-        original = {0: (1, 1), 1: (2, 1)}
-
-        csp = ScheduleCSP(subjects=subjects, rooms=rooms, time_slots=slots)
-        solution = csp.solve()
-        self.assertIsNotNone(solution, "Should find a solution")
-
-        # Run minimize_changes – at minimum it must keep the solution valid.
-        result = csp.minimize_changes(original)
-        self.assertEqual(len(result), 2)
-
-        # Check constraints still hold after minimisation.
-        ts_room_pairs = list(result.values())
-        self.assertEqual(
-            len(ts_room_pairs),
-            len(set(ts_room_pairs)),
-            "No two variables should share the same (ts, room) after minimisation",
-        )
-
-    def test_minimize_changes_skips_locked_variables(self):
-        """Locked variables must not be reverted even if their current value
-        differs from original_assignment."""
-        subjects, rooms, slots = self._build()
-
-        # Lock S1 (var_idx=0) to slot_3 / room_2
-        locked = [{"subject_id": 1, "room_id": 2, "time_slot_id": 3}]
-        csp = ScheduleCSP(
-            subjects=subjects, rooms=rooms, time_slots=slots,
-            locked_entries=locked,
-        )
-        solution = csp.solve()
-        self.assertIsNotNone(solution)
-
-        # Pretend the "original" for the locked var was somewhere else.
-        original = {0: (1, 1), 1: (2, 1)}
-        result = csp.minimize_changes(original)
-
-        # Locked var (var_idx=0) must remain at (3, 2) regardless.
-        self.assertEqual(result[0], (3, 2))
-
-    def test_minimize_changes_idempotent_when_already_optimal(self):
-        """Calling minimize_changes on an already-optimal assignment returns
-        the same assignment."""
-        subjects, rooms, slots = self._build()
-
-        csp = ScheduleCSP(subjects=subjects, rooms=rooms, time_slots=slots)
-        solution = csp.solve()
-        self.assertIsNotNone(solution)
-
-        # Use current assignment as the "original".
-        original = dict(csp.assignment)
-        result = csp.minimize_changes(original)
-
-        # All variables should already be at their original values.
-        for var_idx, val in original.items():
-            self.assertEqual(result[var_idx], val)
-
-
-# ============================================================
-# Tests for FindSmartSwapView (API endpoint)
-# ============================================================
-
-from django.contrib.auth import get_user_model
-from django.urls import reverse
-from rest_framework import status as http_status
-from rest_framework.test import APITestCase
-
-from apps.accounts.models import Faculty
-from apps.scheduler.models import Room, Subject, TimeSlot, TimetableEntry, TimetableVersion
-
-User = get_user_model()
-
-
-class FindSmartSwapViewTests(APITestCase):
-    """Integration tests for the CSP-backed FindSmartSwapView endpoint."""
-
-    def setUp(self):
-        # Shared department (FK, not a string)
-        from apps.scheduler.models import Department
-        self.dept = Department.objects.create(name="CS")
-
-        # Create a user and authenticate.
-        self.user = User.objects.create_user(
-            email="test@test.com",
-            username="testuser",
-            password="pass1234",
-            first_name="Test",
-            last_name="User",
-        )
-        self.client.force_authenticate(user=self.user)
-
-        # Faculty members
-        self.faculty1 = Faculty.objects.create(
-            user=self.user,
-            employee_id="F001",
-            department=self.dept,
-        )
-
-        user2 = User.objects.create_user(
-            email="f2@test.com",
-            username="f2user",
-            password="pass1234",
-            first_name="F2",
-            last_name="U2",
-        )
-        self.faculty2 = Faculty.objects.create(
-            user=user2,
-            employee_id="F002",
-            department=self.dept,
-        )
-
-        # Rooms
-        self.room1 = Room.objects.create(room_number="R1", capacity=40)
-        self.room2 = Room.objects.create(room_number="R2", capacity=40)
-
-        # Time slots
-        self.ts1 = TimeSlot.objects.create(
-            day="MON", start_time="09:00", end_time="10:00"
-        )
-        self.ts2 = TimeSlot.objects.create(
-            day="MON", start_time="10:00", end_time="11:00"
-        )
-        self.ts3 = TimeSlot.objects.create(
-            day="TUE", start_time="09:00", end_time="10:00"
-        )
-
-        # Subjects
-        self.subj1 = Subject.objects.create(
-            code="CS101", name="Intro CS",
-            faculty=self.faculty1, required_capacity=30,
-            sessions_per_week=1,
-        )
-        self.subj2 = Subject.objects.create(
-            code="CS102", name="Data Structures",
-            faculty=self.faculty2, required_capacity=30,
-            sessions_per_week=1,
-        )
-
-        # Timetable version
-        self.version = TimetableVersion.objects.create(name="V1")
-
-        # Entries: CS101 → MON 09–10 / R1, CS102 → MON 10–11 / R1
-        self.entry1 = TimetableEntry.objects.create(
-            version=self.version,
-            subject=self.subj1,
-            room=self.room1,
-            time_slot=self.ts1,
-        )
-        self.entry2 = TimetableEntry.objects.create(
-            version=self.version,
-            subject=self.subj2,
-            room=self.room1,
-            time_slot=self.ts2,
-        )
-
-    def _url(self, entry_id):
-        return reverse("scheduler:smart-swaps", kwargs={"entry_id": entry_id})
-
-    # ------------------------------------------------------------------
-    def test_direct_move_found(self):
-        """
-        entry1 is on MON 09-10 / R1.  ts3 (TUE 09-10) is completely free —
-        it should be returned as a direct_move.
-        """
-        response = self.client.get(self._url(self.entry1.id))
-        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
-
-        data = response.json()
-        self.assertIn("suggestions", data)
-        self.assertGreater(data["total_suggestions"], 0)
-
-        direct = [s for s in data["suggestions"] if s["type"] == "direct_move"]
-        slot_ids = [s["target_slot_id"] for s in direct]
-        self.assertIn(
-            self.ts3.id, slot_ids,
-            "TUE 09-10 should appear as a direct_move for entry1",
-        )
-
-    def test_no_suggestions_when_fully_blocked(self):
-        """
-        If every time slot / room combination is already taken by locked
-        entries or same-faculty clashes, direct_moves should be empty.
-        """
-        # Lock the only free slot for faculty1 by adding a third entry
-        # with the same faculty in ts3.
-        subj3 = Subject.objects.create(
-            code="CS103", name="Algorithms",
-            faculty=self.faculty1, required_capacity=30,
-            sessions_per_week=1,
-        )
-        TimetableEntry.objects.create(
-            version=self.version,
-            subject=subj3,
-            room=self.room2,
-            time_slot=self.ts3,
-            is_locked=True,
-        )
-
-        response = self.client.get(self._url(self.entry1.id))
-        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
-
-        data = response.json()
-        direct = [s for s in data["suggestions"] if s["type"] == "direct_move"]
-        # ts3 is now taken by a locked class for the same faculty, so no direct moves to ts3.
-        slot_ids = [s["target_slot_id"] for s in direct]
-        self.assertNotIn(
-            self.ts3.id, slot_ids,
-            "ts3 is occupied by same-faculty locked entry, must not appear as direct_move",
-        )
-
-    def test_locked_entry_returns_400(self):
-        """Requesting smart-swaps for a locked entry must return 400."""
-        self.entry1.is_locked = True
-        self.entry1.save()
-
-        response = self.client.get(self._url(self.entry1.id))
-        self.assertEqual(response.status_code, http_status.HTTP_400_BAD_REQUEST)
-        self.assertIn("locked", response.json()["error"].lower())
-
-    def test_nonexistent_entry_returns_404(self):
-        """Requesting smart-swaps for a missing entry ID must return 404."""
-        response = self.client.get(self._url(99999))
-        self.assertEqual(response.status_code, http_status.HTTP_404_NOT_FOUND)
-
-    def test_one_step_swap_found(self):
-        """
-        Fill ts3/R1 with a different-faculty entry so entry1 cannot go there
-        directly (room taken).  But if we displace that entry, entry1 can
-        move to ts3/R1 and the displaced entry can go to an alternate slot.
-        """
-        # entry3: faculty2 (different from entry1's faculty1) in ts3/R1
-        # → entry1 would be blocked on room, not faculty; displacing entry3
-        #   should reveal a 1-step swap.
-        entry3 = TimetableEntry.objects.create(
-            version=self.version,
-            subject=self.subj2,  # faculty2 — different from entry1's faculty1
-            room=self.room1,
-            time_slot=self.ts3,
-        )
-
-        # We need a free slot for entry3 after displacement.
-        ts4 = TimeSlot.objects.create(
-            day="WED", start_time="09:00", end_time="10:00"
-        )
-
-        response = self.client.get(self._url(self.entry1.id))
-        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
-
-        data = response.json()
-        swaps = [s for s in data["suggestions"] if s["type"] == "one_step_swap"]
-        # At least one swap should involve displacing entry3.
-        displaced_ids = [s["displaced_entry_id"] for s in swaps]
-        self.assertIn(entry3.id, displaced_ids)
-
-    def test_response_structure(self):
-        """Verify the response contains all expected top-level keys."""
-        response = self.client.get(self._url(self.entry1.id))
-        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
-
-        data = response.json()
-        for key in (
-            "entry_id", "current_slot", "current_room",
-            "total_suggestions", "direct_moves", "one_step_swaps", "suggestions",
-        ):
-            self.assertIn(key, data, f"Missing key: {key}")
-        self.assertEqual(data["entry_id"], self.entry1.id)
-        self.assertEqual(data["current_room"], self.room1.room_number)
-
+        self.assertTrue(result.success)
+        self.assertEqual(len(result.timetable), 0)

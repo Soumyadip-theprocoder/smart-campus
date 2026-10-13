@@ -9,6 +9,7 @@ from . import views
 app_name = "scheduler"
 
 urlpatterns = [
+    path("departments/next-id/", views.NextDepartmentIDView.as_view(), name="next-department-id"),
     path("departments/", views.DepartmentListView.as_view(), name="department-list"),
     path("departments/<int:pk>/", views.DepartmentDetailView.as_view(), name="department-detail"),
     path("amenities/", views.AmenityListView.as_view(), name="amenity-list"),
@@ -36,6 +37,7 @@ urlpatterns = [
     ),
     path("settings/", views.InstitutionSettingsView.as_view(), name="institution-settings"),
     path("versions/", views.TimetableVersionListView.as_view(), name="version-list"),
+    path("versions/bulk-delete/", views.TimetableVersionBulkDeleteView.as_view(), name="version-bulk-delete"),
     path("versions/<int:pk>/", views.TimetableVersionDetailView.as_view(), name="version-detail"),
     path("absences/", views.AbsenceReportListView.as_view(), name="absence-list"),
     path("absences/<int:pk>/", views.AbsenceReportDetailView.as_view(), name="absence-detail"),

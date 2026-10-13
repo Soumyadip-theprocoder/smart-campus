@@ -1,11 +1,13 @@
 from .breaks import normalize_breaks, slot_overlaps_break
-from .csp_solver import ScheduleCSP
+from .ortools_adapter import ORToolsSolverAdapter
+from .solver_interface import SolverInput
 from .models import Room, Subject, TimeSlot, TimetableEntry, TimetableVersion, Resource
 
 
 def generate_timetable_task(config):
     """
     Background task to generate a timetable.
+    Uses the OR-Tools CP-SAT solver via the hexagonal solver interface.
     """
     # Filter subjects
     subject_qs = Subject.objects.select_related("faculty")
@@ -33,7 +35,7 @@ def generate_timetable_task(config):
     if room_ids:
         room_qs = room_qs.filter(id__in=room_ids)
 
-    rooms = list(room_qs.values("id", "room_number", "capacity", "room_type"))
+    rooms = list(room_qs.values("id", "room_number", "capacity", "room_type", "building"))
 
     # Get all time slots for the solver's reference map, to avoid KeyError on locked entries
     all_time_slots = list(TimeSlot.objects.all().values("id", "day", "start_time", "end_time"))
@@ -107,11 +109,11 @@ def generate_timetable_task(config):
             
     pref_room_types_int = {int(k): v for k, v in preferred_room_types.items()}
 
-    # Run CSP solver
-    solver = ScheduleCSP(
-        subjects,
-        rooms,
-        all_time_slots,
+    # Build solver input
+    solver_input = SolverInput(
+        subjects=subjects,
+        rooms=rooms,
+        time_slots=all_time_slots,
         resources=resources,
         locked_entries=locked_entries,
         excluded_slots=excluded_slots_int,
@@ -120,16 +122,18 @@ def generate_timetable_task(config):
         max_classes_per_day=max_classes_per_day,
         balance_faculty_workload=balance_faculty_workload,
     )
-    timetable = solver.get_timetable()
 
-    if not timetable:
-        error_msg = "Could not generate a conflict-free timetable."
-        if solver.last_failure_reason:
-            error_msg += f" Reason: {solver.last_failure_reason}"
+    # Run OR-Tools CP-SAT solver
+    solver = ORToolsSolverAdapter(solver_input)
+    result = solver.solve()
+
+    if not result.success:
         return {
             "success": False,
-            "error": error_msg,
+            "error": result.error or "Could not generate a conflict-free timetable.",
         }
+
+    timetable = result.timetable
 
     version_id = config.get("version_id")
     draft_name = config.get("draft_name", "Draft")
@@ -221,3 +225,4 @@ def generate_timetable_task(config):
         TimetableEntry.teaching_assistants.through.objects.bulk_create(ta_assignments)
 
     return {"success": True, "count": len(entries), "version_id": version.id, "version_name": version.name}
+

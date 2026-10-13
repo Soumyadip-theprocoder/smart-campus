@@ -265,6 +265,7 @@ function SubjectsTable({ subjects, onEdit, onDelete, isAdmin }) {
           <tr>
             <th>Code</th>
             <th>Name</th>
+            <th>Semester</th>
             <th>Faculty</th>
             <th>Credits</th>
             <th>Capacity</th>
@@ -279,6 +280,7 @@ function SubjectsTable({ subjects, onEdit, onDelete, isAdmin }) {
                 <span className="code-badge">{s.code}</span>
               </td>
               <td style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>{s.name}</td>
+              <td><span className="num-pill">Sem {s.semester || 1}</span></td>
               <td>{s.faculty_name}</td>
               <td><span className="num-pill">{s.credits}</span></td>
               <td><span className="num-pill">{s.required_capacity}</span></td>
@@ -427,7 +429,8 @@ function SubjectForm({ initial, faculty, onSave, saving }) {
     code: initial?.code || '',
     name: initial?.name || '',
     faculty: initial?.faculty || '',
-    credits: initial?.credits || 3,
+    semester: initial?.semester || 1,
+    credits: initial?.credits !== undefined ? initial.credits : 3,
     required_capacity: initial?.required_capacity || 30,
     sessions_per_week: initial?.sessions_per_week || 3,
   });
@@ -441,8 +444,9 @@ function SubjectForm({ initial, faculty, onSave, saving }) {
     e.preventDefault();
     onSave({
       ...form,
-      faculty: parseInt(form.faculty),
-      credits: parseInt(form.credits),
+      faculty: form.faculty ? parseInt(form.faculty) : null,
+      semester: parseInt(form.semester) || 1,
+      credits: parseFloat(form.credits) || 0,
       required_capacity: parseInt(form.required_capacity),
       sessions_per_week: parseInt(form.sessions_per_week),
     });
@@ -458,7 +462,38 @@ function SubjectForm({ initial, faculty, onSave, saving }) {
             name="code"
             value={form.code}
             onChange={handleChange}
-            placeholder="e.g. CS305"
+            placeholder="e.g. 26-BS-M101"
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Semester *</label>
+          <select
+            className="form-select"
+            name="semester"
+            value={form.semester}
+            onChange={handleChange}
+          >
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row-2">
+        <div className="form-group">
+          <label className="form-label">Subject Name *</label>
+          <input
+            className="form-input"
+            name="name"
+            value={form.name}
+            onChange={handleChange}
+            placeholder="e.g. Mathematics - I"
             required
           />
         </div>
@@ -467,27 +502,17 @@ function SubjectForm({ initial, faculty, onSave, saving }) {
           <input
             className="form-input"
             type="number"
+            step="0.5"
             name="credits"
             value={form.credits}
             onChange={handleChange}
-            min="1"
+            min="0"
             max="10"
           />
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Subject Name *</label>
-        <input
-          className="form-input"
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-          placeholder="e.g. Operating Systems"
-          required
-        />
-      </div>
-      <div className="form-group">
-        <label className="form-label">Faculty *</label>
+        <label className="form-label">Faculty (Optional)</label>
         <select
           className="form-select"
           name="faculty"

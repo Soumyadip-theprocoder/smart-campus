@@ -20,7 +20,7 @@ from collections import Counter
 from datetime import time
 
 from apps.accounts.models import Faculty, User
-from apps.scheduler.models import Room, Subject, TimeSlot, TimetableEntry
+from apps.scheduler.models import Room, Subject, TimeSlot, TimetableEntry, Department
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -418,11 +418,14 @@ class TestSeedTimeSlotGeneratorIntegration(TestCase):
             fac_users.append(u)
 
         faculties = []
+        d, _ = Department.objects.get_or_create(
+            name="CS",
+        )
         for i, u in enumerate(fac_users, 1):
             f = Faculty.objects.create(
                 user=u,
                 employee_id=f"F{i:03d}",
-                department="CS",
+                department=d,
             )
             faculties.append(f)
 

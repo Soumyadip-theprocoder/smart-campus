@@ -34,6 +34,8 @@ urlpatterns = [
         views.FaceSampleDeleteView.as_view(),
         name="face-sample-delete",
     ),
+    path("students/next-id/", views.NextStudentIDView.as_view(), name="next-student-id"),
+    path("faculty/next-id/", views.NextFacultyIDView.as_view(), name="next-faculty-id"),
     path("faculty/", views.FacultyListView.as_view(), name="faculty-list"),
     path("faculty/<int:pk>/", views.FacultyDetailView.as_view(), name="faculty-detail"),
 ]

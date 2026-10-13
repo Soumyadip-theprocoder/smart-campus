@@ -142,6 +142,23 @@ class Student(models.Model):
             )
         ]
 
+    def save(self, *args, **kwargs):
+        if not self.enrollment_number:
+            import datetime
+            import re
+            year = datetime.datetime.now().year
+            prefix = f"STU-{year}-"
+            existing = Student.objects.filter(
+                enrollment_number__startswith=prefix
+            ).values_list("enrollment_number", flat=True)
+            max_num = 0
+            for num in existing:
+                m = re.match(rf"^{prefix}(\d+)$", str(num))
+                if m:
+                    max_num = max(max_num, int(m.group(1)))
+            self.enrollment_number = f"{prefix}{(max_num + 1):04d}"
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.enrollment_number} — {self.user.get_full_name()}"
 
@@ -212,6 +229,23 @@ class Faculty(models.Model):
         verbose_name_plural = "Faculty"
         ordering = ["employee_id"]
         indexes = [GinIndex(fields=["availability"], name="faculty_avail_gin_idx")]
+
+    def save(self, *args, **kwargs):
+        if not self.employee_id:
+            import datetime
+            import re
+            year = datetime.datetime.now().year
+            prefix = f"FAC-{year}-"
+            existing = Faculty.objects.filter(
+                employee_id__startswith=prefix
+            ).values_list("employee_id", flat=True)
+            max_num = 0
+            for num in existing:
+                m = re.match(rf"^{prefix}(\d+)$", str(num))
+                if m:
+                    max_num = max(max_num, int(m.group(1)))
+            self.employee_id = f"{prefix}{(max_num + 1):04d}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.employee_id} — {self.user.get_full_name()}"

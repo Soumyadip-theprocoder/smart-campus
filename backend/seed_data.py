@@ -54,7 +54,7 @@ def seed():
             "username": "jsmith",
             "first_name": "John",
             "last_name": "Smith",
-            "employee_id": "FAC001",
+            "employee_id": "FAC-2026-0001",
             "department": "Computer Science",
             "designation": "Professor",
         },
@@ -63,7 +63,7 @@ def seed():
             "username": "sjohnson",
             "first_name": "Sarah",
             "last_name": "Johnson",
-            "employee_id": "FAC002",
+            "employee_id": "FAC-2026-0002",
             "department": "Computer Science",
             "designation": "Associate Professor",
         },
@@ -72,7 +72,7 @@ def seed():
             "username": "mwilson",
             "first_name": "Mike",
             "last_name": "Wilson",
-            "employee_id": "FAC003",
+            "employee_id": "FAC-2026-0003",
             "department": "Mathematics",
             "designation": "Assistant Professor",
         },
@@ -81,11 +81,50 @@ def seed():
             "username": "edavis",
             "first_name": "Emily",
             "last_name": "Davis",
-            "employee_id": "FAC004",
+            "employee_id": "FAC-2026-0004",
             "department": "Electronics",
             "designation": "Professor",
         },
     ]
+
+    # Generate 50+ Unique Realistic Departments
+    programs = ["B.Tech", "M.Tech", "B.Sc", "M.Sc", "BCA", "MCA", "MBA", "BBA", "B.A.", "M.A.", "Ph.D"]
+    disciplines = [
+        "Computer Science", "Information Technology", "Artificial Intelligence",
+        "Data Science", "Cyber Security", "Software Engineering", "Electronics",
+        "Electrical", "Mechanical", "Civil", "Aerospace", "Biotechnology",
+        "Physics", "Mathematics", "Chemistry", "Economics", "Business Admin",
+        "English Literature", "Psychology", "History", "Robotics"
+    ]
+    
+    generated_departments = set()
+    while len(generated_departments) < 60:
+        prog = random.choice(programs)
+        disc = random.choice(disciplines)
+        generated_departments.add(f"{prog} in {disc}")
+    
+    generated_departments = list(generated_departments)
+    
+    first_names = ["Arjun", "Neha", "Rahul", "Priya", "Vikram", "Anjali", "Siddharth", "Pooja", "Rohan", "Sneha", "Aditya", "Kavya", "Karan", "Riya", "Mohit", "Aisha", "Amit", "Meera", "Varun", "Isha", "Ravi", "Kiran", "Samir", "Tara", "Nikhil", "Divya", "Pranav", "Nidhi", "Gaurav", "Shruti"]
+    last_names = ["Sharma", "Verma", "Gupta", "Singh", "Patel", "Kumar", "Mishra", "Das", "Bose", "Nair", "Reddy", "Rao", "Iyer", "Joshi", "Chauhan", "Sen", "Yadav", "Malhotra", "Kapoor", "Agarwal", "Bhatt", "Menon", "Pillai", "Chakraborty", "Sengupta", "Banerjee", "Mukherjee", "Chatterjee", "Bhattacharya", "Gosh"]
+    
+    # Generate 300+ Faculty
+    designations = ["Assistant Professor", "Associate Professor", "Professor", "Lecturer"]
+    
+    for i in range(5, 310):
+        dept = random.choice(generated_departments)
+        fname = random.choice(first_names)
+        lname = random.choice(last_names)
+        fac_id = f"FAC-{random.randint(2000,2026)}-{i:04d}"
+        faculty_data.append({
+            "email": f"{fname.lower()}.{lname.lower()}{i}@smartcampus.edu",
+            "username": f"{fname.lower()}{lname.lower()}{i}",
+            "first_name": fname,
+            "last_name": lname,
+            "employee_id": fac_id,
+            "department": dept,
+            "designation": random.choice(designations),
+        })
 
     faculty_objects = []
     for fd in faculty_data:
@@ -121,7 +160,7 @@ def seed():
             "username": "abrown",
             "first_name": "Alice",
             "last_name": "Brown",
-            "enrollment_number": "STU001",
+            "enrollment_number": "STU-2026-0001",
             "department": "Computer Science",
             "semester": 5,
         },
@@ -130,7 +169,7 @@ def seed():
             "username": "btaylor",
             "first_name": "Bob",
             "last_name": "Taylor",
-            "enrollment_number": "STU002",
+            "enrollment_number": "STU-2026-0002",
             "department": "Computer Science",
             "semester": 5,
         },
@@ -139,7 +178,7 @@ def seed():
             "username": "clee",
             "first_name": "Charlie",
             "last_name": "Lee",
-            "enrollment_number": "STU003",
+            "enrollment_number": "STU-2026-0003",
             "department": "Computer Science",
             "semester": 3,
         },
@@ -148,7 +187,7 @@ def seed():
             "username": "dpatel",
             "first_name": "Diana",
             "last_name": "Patel",
-            "enrollment_number": "STU004",
+            "enrollment_number": "STU-2026-0004",
             "department": "Electronics",
             "semester": 5,
         },
@@ -157,7 +196,7 @@ def seed():
             "username": "ekim",
             "first_name": "Ethan",
             "last_name": "Kim",
-            "enrollment_number": "STU005",
+            "enrollment_number": "STU-2026-0005",
             "department": "Mathematics",
             "semester": 3,
         },
@@ -166,7 +205,7 @@ def seed():
             "username": "fzahra",
             "first_name": "Fatima",
             "last_name": "Zahra",
-            "enrollment_number": "STU006",
+            "enrollment_number": "STU-2026-0006",
             "department": "Computer Science",
             "semester": 5,
         },
@@ -175,7 +214,7 @@ def seed():
             "username": "gsilva",
             "first_name": "Gabriel",
             "last_name": "Silva",
-            "enrollment_number": "STU007",
+            "enrollment_number": "STU-2026-0007",
             "department": "Electronics",
             "semester": 3,
         },
@@ -184,7 +223,7 @@ def seed():
             "username": "hmurakami",
             "first_name": "Haruki",
             "last_name": "Murakami",
-            "enrollment_number": "STU008",
+            "enrollment_number": "STU-2026-0008",
             "department": "Computer Science",
             "semester": 1,
         },
@@ -193,7 +232,7 @@ def seed():
             "username": "imartinez",
             "first_name": "Isabella",
             "last_name": "Martinez",
-            "enrollment_number": "STU009",
+            "enrollment_number": "STU-2026-0009",
             "department": "Mathematics",
             "semester": 7,
         },
@@ -202,11 +241,29 @@ def seed():
             "username": "jjackson",
             "first_name": "Jamal",
             "last_name": "Jackson",
-            "enrollment_number": "STU010",
+            "enrollment_number": "STU-2026-0010",
             "department": "Computer Science",
             "semester": 5,
         },
     ]
+
+    # Generate 3000+ Students
+    semesters = [1, 2, 3, 4, 5, 6, 7, 8]
+    
+    for i in range(11, 3050):
+        dept = random.choice(generated_departments)
+        fname = random.choice(first_names)
+        lname = random.choice(last_names)
+        stu_id = f"STU-{random.choice([2023, 2024, 2025, 2026])}-{i:04d}"
+        student_data.append({
+            "email": f"{fname.lower()}.{lname.lower()}{i}@smartcampus.edu",
+            "username": f"{fname.lower()}{lname.lower()}{i}",
+            "first_name": fname,
+            "last_name": lname,
+            "enrollment_number": stu_id,
+            "department": dept,
+            "semester": random.choice(semesters),
+        })
 
     for sd in student_data:
         user, created = User.objects.get_or_create(
@@ -223,14 +280,17 @@ def seed():
         user.save()
 
         dept_obj, _ = Department.objects.get_or_create(name=sd["department"])
-        Student.objects.get_or_create(
-            user=user,
-            defaults={
-                "enrollment_number": sd["enrollment_number"],
-                "department": dept_obj,
-                "semester": sd["semester"],
-            },
-        )
+        try:
+            Student.objects.get_or_create(
+                user=user,
+                defaults={
+                    "enrollment_number": sd["enrollment_number"],
+                    "department": dept_obj,
+                    "semester": sd["semester"],
+                },
+            )
+        except Exception as e:
+            print(f"Skipping student {sd['enrollment_number']}: {e}")
         print(
             f"[OK] Student: {sd['first_name']} {sd['last_name']} ({sd['enrollment_number']})"
         )

@@ -39,3 +39,6 @@ joblib>=1.3.2
 pandas>=2.0.0
 scikit-learn>=1.3.0
 
+# Constraint Programming
+ortools>=9.8
+

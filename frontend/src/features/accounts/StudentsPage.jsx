@@ -58,6 +58,18 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
   });
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!initialData) {
+      api.get('/auth/students/next-id/')
+        .then(res => {
+          if (res.data?.next_id) {
+            setForm(prev => ({ ...prev, enrollment_number: prev.enrollment_number || res.data.next_id }));
+          }
+        })
+        .catch(err => console.error('Error fetching next student ID', err));
+    }
+  }, [initialData]);
+
   const handleChange = (e) => {
     const { name, value, type, selectedOptions } = e.target;
     if (type === 'select-multiple') {
@@ -153,13 +165,15 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
       </div>
       <div className="form-row-2">
         <div className="form-group">
-          <label className="form-label">Enrollment Number *</label>
+          <label className="form-label">
+            Enrollment Number * {!initialData && <span style={{ fontSize: '0.8rem', color: 'var(--color-primary)' }}>(Auto-generated)</span>}
+          </label>
           <input
             className="form-input"
             name="enrollment_number"
             value={form.enrollment_number}
             onChange={handleChange}
-            placeholder="e.g. STU-001"
+            placeholder="e.g. STU-2026-0001"
             required
           />
         </div>
@@ -220,6 +234,11 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('');
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -231,17 +250,32 @@ export default function StudentsPage() {
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(page, search, departmentFilter, semesterFilter);
+  }, [page, search, departmentFilter, semesterFilter]);
 
-  const fetchData = async () => {
+  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', semFilter = '') => {
     setLoading(true);
     try {
+      let url = `/api/auth/students/?page=${pageNum}`;
+      if (searchQuery) url += `&search=${searchQuery}`;
+      if (deptFilter) url += `&department=${deptFilter}`;
+      if (semFilter) url += `&semester=${semFilter}`;
+
       const [stuRes, depRes] = await Promise.all([
-        api.get('/api/auth/students/'),
-        api.get('/api/scheduler/departments/')
+        api.get(url),
+        api.get('/api/scheduler/departments/?all=true')
       ]);
-      setStudents(stuRes.data.results || stuRes.data || []);
+      const newResults = stuRes.data.results || stuRes.data || [];
+      if (pageNum === 1) {
+        setStudents(newResults);
+      } else {
+        setStudents(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(stuRes.data.count || (stuRes.data.results ? stuRes.data.results.length : (stuRes.data.length || 0)));
       setDepartments(depRes.data.results || depRes.data || []);
     } catch (err) {
       console.error(err);
@@ -267,7 +301,7 @@ export default function StudentsPage() {
       }
       setModalOpen(false);
       setEditingStudent(null);
-      fetchData();
+      fetchData(page, search);
     } catch (err) {
       console.error('Save failed:', err);
       const data = err.response?.data;
@@ -293,7 +327,7 @@ export default function StudentsPage() {
       await api.patch(`/api/auth/students/${editingMarks.id}/`, marksData);
       toast.success('Marks updated successfully');
       setEditingMarks(null);
-      fetchData();
+      fetchData(page, search);
     } catch (err) {
       console.error('Save failed:', err);
       toast.error('Failed to save marks. Please try again.');
@@ -309,7 +343,7 @@ export default function StudentsPage() {
       // Delete user (cascades to student profile)
       await api.delete(`/api/auth/students/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      fetchData();
+      fetchData(page, search);
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete student.');
@@ -327,9 +361,42 @@ export default function StudentsPage() {
         </div>
       )
     },
-    { key: 'enrollment_number', label: 'Enrollment No', render: (val) => <span className="badge badge-low">{val}</span> },
-    { key: 'department', label: 'Department', render: (val, row) => departments.find(d => d.id === val)?.name || val },
-    { key: 'semester', label: 'Semester', render: (val) => val || 'N/A' },
+    {
+      key: 'enrollment_number',
+      label: 'Enrollment No',
+      render: (val) => (
+        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {val}
+        </span>
+      )
+    },
+    {
+      key: 'department',
+      label: 'Department',
+      render: (val) => {
+        const d = departments.find(dep => String(dep.id) === String(val));
+        if (!d) return val || 'General';
+        return (
+          <div>
+            {d.dept_id && (
+              <span className="badge badge-low" style={{ marginRight: '0.4rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                {d.dept_id}
+              </span>
+            )}
+            <span style={{ fontWeight: 500 }}>{d.name}</span>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'semester',
+      label: 'Semester',
+      render: (val) => (
+        <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)', fontWeight: 600 }}>
+          Sem {val || '1'}
+        </span>
+      )
+    },
     {
       key: 'actions',
       label: 'Actions',
@@ -358,26 +425,98 @@ export default function StudentsPage() {
     },
   ];
 
-  if (loading) return <div className="loading-spinner"><div className="spinner" /></div>;
+  if (loading && students.length === 0) return <div className="loading-spinner"><div className="spinner" /></div>;
 
   return (
     <div className="page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Students</h1>
-          <p>Manage student records. Add, edit, and organize students.</p>
+          <p>Manage student records, enrollment credentials, academic marks, and department assignments.</p>
         </div>
         <button className="btn btn-primary" id="btn-add-student" onClick={() => { setEditingStudent(null); setModalOpen(true); }}>+ Add Student</button>
       </div>
 
+      {/* Quick Summary Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)', fontSize: '1.4rem' }}>
+            👨‍🎓
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{totalCount}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Students</span>
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--color-primary)', fontSize: '1.4rem' }}>
+            🏛️
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{departments.length}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Active Departments</span>
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-accent-emerald)', fontSize: '1.4rem' }}>
+            🎓
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
+              {students.filter(s => s.is_ta).length || 0}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Teaching Assistants (TAs)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Bar with Department Dropdown and Semester Tabs */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', justifyContent: 'space-between' }}>
+        <div className="tabs" style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', margin: 0 }}>
+          <button 
+            className={`btn btn-sm ${semesterFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setPage(1); setSemesterFilter(''); }}
+          >
+            All Semesters
+          </button>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+            <button 
+              key={sem}
+              className={`btn btn-sm ${String(semesterFilter) === String(sem) ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => { setPage(1); setSemesterFilter(String(sem)); }}
+            >
+              Sem {sem}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <select
+            className="form-input"
+            style={{ width: 'auto', minWidth: '220px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+            value={departmentFilter}
+            onChange={(e) => { setPage(1); setDepartmentFilter(e.target.value); }}
+          >
+            <option value="">-- All Departments --</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>
+                {d.dept_id ? `[${d.dept_id}] ` : ''}{d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
-        <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)' }}>
             👨‍🎓
           </div>
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Students</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{students.length} students registered</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{totalCount} students registered</span>
           </div>
         </div>
 
@@ -386,6 +525,12 @@ export default function StudentsPage() {
           data={students}
           searchKey="enrollment_number"
           emptyMessage="No students registered yet."
+          infiniteScroll={true}
+          totalCount={totalCount}
+          serverPage={page}
+          onPageChange={setPage}
+          onSearchChange={(s) => { setPage(1); setSearch(s); }}
+          pageSize={100}
         />
       </div>
 

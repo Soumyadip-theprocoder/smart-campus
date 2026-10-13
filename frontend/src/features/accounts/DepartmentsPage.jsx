@@ -46,11 +46,25 @@ function ConfirmDialog({ open, onClose, onConfirm, message }) {
 /* ─── Add Department Form ───────────────────────────────────────────── */
 function DepartmentForm({ initialData, onSave, saving, faculties }) {
   const [form, setForm] = useState({
-    name: initialData?.name || '',
+    dept_id: initialData?.dept_id || '',
+    program_type: initialData?.program_type || '',
+    core_department: initialData?.core_department || '',
     no_of_years: initialData?.no_of_years || 4,
     hod: initialData?.hod || '',
   });
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!initialData) {
+      api.get('/scheduler/departments/next-id/')
+        .then(res => {
+          if (res.data?.next_id) {
+            setForm(prev => ({ ...prev, dept_id: prev.dept_id || res.data.next_id }));
+          }
+        })
+        .catch(err => console.error('Error fetching next department ID', err));
+    }
+  }, [initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -60,14 +74,23 @@ function DepartmentForm({ initialData, onSave, saving, faculties }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name) {
-      setError('Please provide a group name.');
+    if (!form.core_department) {
+      setError('Please provide a core department name.');
       return;
     }
     const submitData = { ...form };
     if (!submitData.hod) {
       submitData.hod = null;
     }
+    if (!submitData.dept_id) {
+      delete submitData.dept_id;
+    }
+    
+    // Maintain the unique 'name' field for backward compatibility
+    submitData.name = submitData.program_type 
+      ? `${submitData.program_type} in ${submitData.core_department}`
+      : submitData.core_department;
+      
     onSave(submitData);
   };
 
@@ -87,13 +110,47 @@ function DepartmentForm({ initialData, onSave, saving, faculties }) {
         </div>
       )}
       <div className="form-group">
-        <label className="form-label">Name *</label>
+        <label className="form-label">
+          Department ID {!initialData && <span style={{ fontSize: '0.8rem', color: 'var(--color-primary)' }}>(Auto-generated)</span>}
+        </label>
         <input
           className="form-input"
-          name="name"
-          value={form.name}
+          name="dept_id"
+          value={form.dept_id}
           onChange={handleChange}
-          placeholder="e.g. Section A, Machine Learning Enthusiasts"
+          placeholder="e.g. DEP-0001"
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Degree / Program Type</label>
+        <select
+          className="form-input"
+          name="program_type"
+          value={form.program_type}
+          onChange={handleChange}
+        >
+          <option value="">-- None (e.g. Core Dept) --</option>
+          <option value="B.Sc">B.Sc</option>
+          <option value="M.Sc">M.Sc</option>
+          <option value="B.Tech">B.Tech</option>
+          <option value="M.Tech">M.Tech</option>
+          <option value="BBA">BBA</option>
+          <option value="MBA">MBA</option>
+          <option value="BCA">BCA</option>
+          <option value="MCA">MCA</option>
+          <option value="B.A.">B.A.</option>
+          <option value="M.A.">M.A.</option>
+          <option value="Ph.D">Ph.D</option>
+        </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label">Department Discipline *</label>
+        <input
+          className="form-input"
+          name="core_department"
+          value={form.core_department}
+          onChange={handleChange}
+          placeholder="e.g. Civil, Mechanical, Computer Science"
           required
         />
       </div>
@@ -116,9 +173,18 @@ function DepartmentForm({ initialData, onSave, saving, faculties }) {
           name="hod"
           value={form.hod || ''}
           onChange={handleChange}
+          disabled={!initialData || !faculties?.some(f => f.department === initialData.id)}
         >
-          <option value="">-- Select HOD (Optional) --</option>
-          {faculties?.map(f => (
+          <option value="">
+            {!initialData 
+              ? "-- Save department first to add HOD --" 
+              : !faculties?.some(f => f.department === initialData.id)
+                ? "-- No faculty in this department --"
+                : "-- Select HOD (Optional) --"}
+          </option>
+          {faculties
+            ?.filter(f => initialData ? f.department === initialData.id : false)
+            .map(f => (
             <option key={f.id} value={f.id}>
               {f.user?.first_name} {f.user?.last_name} ({f.employee_id})
             </option>
@@ -149,18 +215,41 @@ export default function DepartmentsPage() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState('');
+  
+  const [programFilter, setProgramFilter] = useState('');
 
-  const fetchDepartments = async () => {
+  // Fetch unique program types for the tabs (in a real app, might come from an endpoint)
+  const availablePrograms = ['B.Sc', 'M.Sc', 'B.Tech', 'M.Tech', 'BBA', 'MBA', 'BCA', 'MCA', 'B.A.', 'M.A.', 'Ph.D'];
+
+  useEffect(() => {
+    fetchDepartments(page, search, programFilter);
+  }, [page, search, programFilter]);
+
+  const fetchDepartments = async (pageNum = 1, searchQuery = '', pFilter = '') => {
     setLoading(true);
     try {
+      let url = `/api/scheduler/departments/?page=${pageNum}`;
+      if (searchQuery) url += `&search=${searchQuery}`;
+      if (pFilter) url += `&program_type=${pFilter}`;
+      
       const [depRes, facRes] = await Promise.all([
-        api.get('/api/scheduler/departments/'),
-        api.get('/api/auth/faculty/')
+        api.get(url),
+        api.get('/api/auth/faculty/?all=true')
       ]);
-      setDepartments(depRes.data.results || depRes.data || []);
+      const newResults = depRes.data.results || depRes.data || [];
+      if (pageNum === 1) {
+        setDepartments(newResults);
+      } else {
+        setDepartments(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(depRes.data.count || (depRes.data.results ? depRes.data.results.length : (depRes.data.length || 0)));
       setFaculties(facRes.data.results || facRes.data || []);
     } catch (err) {
       console.error(err);
@@ -182,7 +271,7 @@ export default function DepartmentsPage() {
       }
       setModalOpen(false);
       setEditingDepartment(null);
-      fetchDepartments();
+      fetchDepartments(page, search, programFilter);
     } catch (err) {
       console.error('Save failed:', err);
       toast.error(err.response?.data?.name?.[0] || 'Failed to save department.');
@@ -197,7 +286,7 @@ export default function DepartmentsPage() {
       await api.delete(`/api/scheduler/departments/${confirmDelete.id}/`);
       setConfirmDelete(null);
       toast.success('Department deleted');
-      fetchDepartments();
+      fetchDepartments(page, search, programFilter);
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete department.');
@@ -216,14 +305,38 @@ export default function DepartmentsPage() {
 
   const columns = [
     {
-      key: 'name',
-      label: 'Department Name',
-      render: (val) => <div style={{ fontWeight: 600 }}>{val}</div>
+      key: 'dept_id',
+      label: 'Dept ID',
+      render: (val) => val ? (
+        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {val}
+        </span>
+      ) : '-'
+    },
+    {
+      key: 'program_type',
+      label: 'Degree',
+      render: (val) => val ? <span className="badge" style={{ backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary-dark)' }}>{val}</span> : <span style={{color:'var(--color-text-tertiary)'}}>General</span>
+    },
+    {
+      key: 'core_department',
+      label: 'Department',
+      render: (val, row) => <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{val || row.name}</div>
     },
     {
       key: 'no_of_years',
       label: 'Program Years',
       render: (val) => val || '-'
+    },
+    {
+      key: 'faculty_count',
+      label: 'Faculty',
+      render: (val) => <span className="badge badge-low">👥 {val || 0}</span>
+    },
+    {
+      key: 'student_count',
+      label: 'Students',
+      render: (val) => <span className="badge badge-medium">👨‍🎓 {val || 0}</span>
     },
     {
       key: 'hod',
@@ -255,25 +368,93 @@ export default function DepartmentsPage() {
     },
   ];
 
-  if (loading) return <div className="loading-spinner"><div className="spinner" /></div>;
-
   return (
     <div className="page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Departments</h1>
-          <p>Manage flexible groupings for interdisciplinary classes, labs, and student batches.</p>
+          <p>Manage academic departments, degree programs, and head of department assignments.</p>
         </div>
         <button className="btn btn-primary" id="btn-add-department" onClick={openCreateModal}>+ Add Department</button>
       </div>
 
+      {/* Quick Summary Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--color-primary)', fontSize: '1.4rem' }}>
+            🏛️
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{totalCount}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Departments</span>
+          </div>
+        </div>
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-accent-emerald)', fontSize: '1.4rem' }}>
+            👥
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{faculties.length}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Faculty</span>
+          </div>
+        </div>
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)', fontSize: '1.4rem' }}>
+            👨‍🎓
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
+              {departments.reduce((sum, d) => sum + (d.student_count || 0), 0)}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Enrolled Students</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <button 
+          className={`btn btn-sm ${programFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => { setPage(1); setProgramFilter(''); }}
+        >
+          All Degrees
+        </button>
+        {availablePrograms.map(prog => (
+          <button 
+            key={prog}
+            className={`btn btn-sm ${programFilter === prog ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setPage(1); setProgramFilter(prog); }}
+          >
+            {prog}
+          </button>
+        ))}
+      </div>
+
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
-        <DataTable
-          columns={columns}
-          data={departments}
-          searchKey="name"
-          emptyMessage="No departments created yet."
-        />
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--color-primary)' }}>
+            🏛️
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Departments</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{totalCount} academic departments registered</span>
+          </div>
+        </div>
+        {loading && departments.length === 0 ? (
+           <div className="loading-spinner" style={{ margin: '3rem auto' }}><div className="spinner" /></div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={departments}
+            searchKey="name"
+            emptyMessage={programFilter ? `No ${programFilter} departments found.` : "No departments created yet."}
+            infiniteScroll={true}
+            totalCount={totalCount}
+            serverPage={page}
+            onPageChange={setPage}
+            onSearchChange={(s) => { setPage(1); setSearch(s); }}
+            pageSize={100}
+          />
+        )}
       </div>
 
       <Modal

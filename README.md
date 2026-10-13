@@ -109,7 +109,7 @@ Uses **dlib's CNN model** (via `face_recognition` library) + **OpenCV** for real
 ```bash
 # Organize student photos by enrollment number:
 backend/face_recognition_engine/training_images/
-├── STU001/
+├── STU-2026-0001/
 │   ├── photo1.jpg
 │   └── photo2.jpg
 

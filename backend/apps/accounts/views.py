@@ -119,12 +119,33 @@ class MeView(APIView):
         return self.get(request)
 
 
+from rest_framework.filters import SearchFilter
+
 class StudentListView(generics.ListAPIView):
     """List all students (admin only)."""
 
     serializer_class = StudentSerializer
     permission_classes = [permissions.IsAdminUser]
-    queryset = Student.objects.select_related("user").all()
+    filter_backends = [SearchFilter]
+    search_fields = [
+        "enrollment_number", "user__first_name", "user__last_name", "user__email",
+        "department__name", "department__dept_id"
+    ]
+
+    def get_queryset(self):
+        qs = Student.objects.select_related("user", "department").all()
+        dept = self.request.query_params.get('department')
+        if dept:
+            qs = qs.filter(department_id=dept)
+        sem = self.request.query_params.get('semester')
+        if sem:
+            qs = qs.filter(semester=sem)
+        return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('all', 'false').lower() == 'true':
+            return None
+        return super().paginate_queryset(queryset)
 
 
 class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -132,7 +153,7 @@ class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     serializer_class = StudentSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Student.objects.select_related("user").all()
+    queryset = Student.objects.select_related("user", "department").all()
 
     def get_object(self):
         obj = super().get_object()
@@ -156,7 +177,29 @@ class FacultyListView(generics.ListAPIView):
 
     serializer_class = FacultySerializer
     permission_classes = [permissions.IsAdminUser]
-    queryset = Faculty.objects.select_related("user").all()
+    filter_backends = [SearchFilter]
+    search_fields = [
+        "employee_id", "user__first_name", "user__last_name", "user__email",
+        "department__name", "department__dept_id"
+    ]
+
+    def get_queryset(self):
+        qs = Faculty.objects.select_related("user", "department").all()
+        dept = self.request.query_params.get('department')
+        if dept:
+            qs = qs.filter(department_id=dept)
+        is_hod = self.request.query_params.get('is_hod')
+        if is_hod is not None and is_hod != '':
+            if is_hod.lower() in ['true', '1']:
+                qs = qs.filter(headed_departments__isnull=False).distinct()
+            elif is_hod.lower() in ['false', '0']:
+                qs = qs.filter(headed_departments__isnull=True)
+        return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get('all', 'false').lower() == 'true':
+            return None
+        return super().paginate_queryset(queryset)
 
 
 class FacultyDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -271,3 +314,42 @@ class FaceSampleDeleteView(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except FaceSample.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
+
+class NextStudentIDView(APIView):
+    """Get the next suggested standardized Student ID."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import datetime
+        import re
+        year = datetime.datetime.now().year
+        prefix = f"STU-{year}-"
+        existing = Student.objects.filter(enrollment_number__startswith=prefix).values_list("enrollment_number", flat=True)
+        max_num = 0
+        for num in existing:
+            m = re.match(rf"^{prefix}(\d+)$", str(num))
+            if m:
+                max_num = max(max_num, int(m.group(1)))
+        next_id = f"{prefix}{(max_num + 1):04d}"
+        return Response({"next_id": next_id})
+
+
+class NextFacultyIDView(APIView):
+    """Get the next suggested standardized Faculty ID."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import datetime
+        import re
+        year = datetime.datetime.now().year
+        prefix = f"FAC-{year}-"
+        existing = Faculty.objects.filter(employee_id__startswith=prefix).values_list("employee_id", flat=True)
+        max_num = 0
+        for num in existing:
+            m = re.match(rf"^{prefix}(\d+)$", str(num))
+            if m:
+                max_num = max(max_num, int(m.group(1)))
+        next_id = f"{prefix}{(max_num + 1):04d}"
+        return Response({"next_id": next_id})
+

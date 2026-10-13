@@ -133,8 +133,9 @@ export default function TimetablePage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const { user, isAdmin, isFaculty } = useAuth();
+  const { user, isAdmin, isFaculty, isStudent } = useAuth();
   const userFullName = user ? `${user.first_name} ${user.last_name}` : '';
+  const initialLoadedRef = useRef(false);
 
   /* ── Reference data for configuration ───────────────────────────── */
   const [subjects, setSubjects] = useState([]);
@@ -143,7 +144,7 @@ export default function TimetablePage() {
   const [institutionSettings, setInstitutionSettings] = useState({ start_time: '08:00', end_time: '19:00', default_breaks: [] });
 
   /* ── Filter state ───────────────────────────────────────────────── */
-  const [filterType, setFilterType] = useState('all'); // all, faculty, room
+  const [filterType, setFilterType] = useState('all'); // all, my_classes, department, faculty, room, resource
   const [filterValue, setFilterValue] = useState('');
 
   /* ── Department & Resource state ────────────────────────────────── */
@@ -168,12 +169,17 @@ export default function TimetablePage() {
   /* ── Add Event state ────────────────────────────────────────────── */
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [addEventSlot, setAddEventSlot] = useState(null);
-  const [newEvent, setNewEvent] = useState({ title: '', color: '#3b82f6', room: '' });
+  const [newEvent, setNewEvent] = useState({ title: '', color: '#3b82f6', roomId: '' });
 
   /* ── Sandbox Version state ──────────────────────────────────────── */
   const [versions, setVersions] = useState([]);
   const [selectedVersionId, setSelectedVersionId] = useState('');
   const [draftName, setDraftName] = useState('New Draft');
+  const [confirmDeleteVersion, setConfirmDeleteVersion] = useState(null);
+  const [deletingVersion, setDeletingVersion] = useState(false);
+  const [showManageVersionsModal, setShowManageVersionsModal] = useState(false);
+  const [selectedDraftIds, setSelectedDraftIds] = useState([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(null);
 
   /* ── Report Absence state ───────────────────────────────────────── */
   const [showAbsenceModal, setShowAbsenceModal] = useState(false);
@@ -271,49 +277,60 @@ export default function TimetablePage() {
     loadAll();
   }, []);
 
+  useEffect(() => {
+    if (!initialLoadedRef.current) return;
+    if (!selectedVersionId) return;
+    api.get(`/api/scheduler/timetable/?version=${selectedVersionId}`)
+      .then(res => setTimetable(res.data.results || res.data || []))
+      .catch(err => console.error('Failed to load version timetable:', err));
+  }, [selectedVersionId]);
+
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ttRes, subRes, roomRes, tsRes, settingsRes, versionsRes, deptRes, resRes] = await Promise.all([
-        api.get(`/api/scheduler/timetable/${selectedVersionId ? `?version=${selectedVersionId}` : ''}`),
+      const [deptRes, subRes, roomRes, tsRes, settingsRes, versionsRes, resRes] = await Promise.all([
+        api.get('/api/scheduler/departments/?all=true').catch(() => ({ data: { results: [] } })),
         api.get('/api/scheduler/subjects/'),
         api.get('/api/scheduler/rooms/'),
         api.get('/api/scheduler/timeslots/'),
         api.get('/api/scheduler/settings/').catch(() => ({ data: { start_time: '08:00', end_time: '19:00', default_breaks: [] }})),
         api.get('/api/scheduler/versions/'),
-        api.get('/api/scheduler/departments/').catch(() => ({ data: { results: [] } })),
         api.get('/api/scheduler/resources/').catch(() => ({ data: { results: [] } }))
       ]);
-      const tt = ttRes.data.results || ttRes.data || [];
+      const depts = deptRes.data.results || deptRes.data || [];
       const subs = subRes.data.results || subRes.data || [];
       const rms = roomRes.data.results || roomRes.data || [];
       const tss = tsRes.data.results || tsRes.data || [];
       const settings = settingsRes.data || { start_time: '08:00', end_time: '19:00', default_breaks: [] };
       const vers = versionsRes.data.results || versionsRes.data || [];
-      const depts = deptRes.data.results || deptRes.data || [];
       const ress = resRes.data.results || resRes.data || [];
 
-      setTimetable(tt);
+      setDepartments(depts);
       setSubjects(subs);
       setRooms(rms);
       setTimeslots(tss);
       setInstitutionSettings(settings);
       setVersions(vers);
-      setDepartments(depts);
       setResources(ress);
 
-      if (isFaculty || isAdmin) {
-          api.get('/api/scheduler/absences/').then(res => {
-              setPendingSubstitutes((res.data.results || res.data || []).filter(a => a.status === 'pending' && a.faculty_name !== userFullName));
-          }).catch(console.error);
-          api.get('/api/scheduler/swaps/').then(res => {
-              setPendingSwaps((res.data.results || res.data || []).filter(s => s.status === 'pending'));
-          }).catch(console.error);
+      let targetVersionId = selectedVersionId;
+      if (!targetVersionId && vers.length > 0) {
+        const published = vers.find(v => v.is_published);
+        targetVersionId = published ? published.id : vers[0].id;
+        setSelectedVersionId(targetVersionId);
       }
 
-      if (!selectedVersionId && vers.length > 0) {
-          const published = vers.find(v => v.is_published);
-          if (published) setSelectedVersionId(published.id);
+      const ttUrl = targetVersionId ? `/api/scheduler/timetable/?version=${targetVersionId}` : '/api/scheduler/timetable/';
+      const ttRes = await api.get(ttUrl);
+      setTimetable(ttRes.data.results || ttRes.data || []);
+
+      if (isFaculty || isAdmin) {
+        api.get('/api/scheduler/absences/').then(res => {
+          setPendingSubstitutes((res.data.results || res.data || []).filter(a => a.status === 'pending' && a.faculty_name !== userFullName));
+        }).catch(console.error);
+        api.get('/api/scheduler/swaps/').then(res => {
+          setPendingSwaps((res.data.results || res.data || []).filter(s => s.status === 'pending'));
+        }).catch(console.error);
       }
 
       // Initialize config with all selected
@@ -324,6 +341,8 @@ export default function TimetablePage() {
         timeslot_ids: tss.map(ts => ts.id),
         breaks: breaksDirtyRef.current ? prev.breaks : normalizeBreaks(settings.default_breaks),
       }));
+
+      initialLoadedRef.current = true;
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -458,11 +477,12 @@ export default function TimetablePage() {
     
     const entryId = active.id;
     const parts = over.id.split('-');
-    const timeslotId = parts[parts.length - 1];
+    const timeslotId = parseInt(parts[parts.length - 1], 10);
+    if (isNaN(timeslotId)) return toast.error("Cannot move to an invalid slot");
     
     try {
       const response = await api.patch(`/api/scheduler/timetable/${entryId}/`, {
-        time_slot: parseInt(timeslotId)
+        time_slot: timeslotId
       });
       setTimetable(prev => prev.map(item => 
         item.id === entryId ? { 
@@ -500,16 +520,22 @@ export default function TimetablePage() {
     }
   };
 
-  const getClassForSlot = (day, time) => {
-    return timetable.find(entry => {
+  const getClassesForSlot = (day, time) => {
+    return timetable.filter(entry => {
       if (entry.day !== day || entry.start_time?.substring(0, 5) !== time) return false;
+      if (filterType === 'my_classes' && userFullName && entry.faculty_name !== userFullName) return false;
       if (filterType === 'faculty' && filterValue && entry.faculty_name !== filterValue) return false;
       if (filterType === 'room' && filterValue && entry.room_number !== filterValue) return false;
+      if (filterType === 'department' && filterValue) {
+        const subject = subjects.find(s => s.code === entry.subject_code);
+        const depId = parseInt(filterValue, 10);
+        if (!subject?.departments?.includes(depId)) return false;
+      }
       if (filterType === 'resource' && filterValue) {
         // If the entry's subject or room requires this resource, show it
         const room = rooms.find(r => r.room_number === entry.room_number);
         const subject = subjects.find(s => s.code === entry.subject_code);
-        const resId = parseInt(filterValue);
+        const resId = parseInt(filterValue, 10);
         const hasRes = (room?.amenities?.includes(resId)) || (subject?.amenities?.includes(resId));
         if (!hasRes) return false;
       }
@@ -596,10 +622,6 @@ export default function TimetablePage() {
     return () => document.removeEventListener('open-wayfinding', handleWayfinding);
   }, []);
 
-  useEffect(() => {
-      loadAll();
-  }, [selectedVersionId]);
-
   const handlePublishVersion = async () => {
       if (!selectedVersionId) return;
       try {
@@ -609,6 +631,84 @@ export default function TimetablePage() {
       } catch (err) {
           toast.error("Failed to publish version");
       }
+  };
+
+  const handleDeleteVersion = async () => {
+    if (!confirmDeleteVersion) return;
+    setDeletingVersion(true);
+    try {
+      await api.delete(`/api/scheduler/versions/${confirmDeleteVersion.id}/`);
+      toast.success(`Draft timetable "${confirmDeleteVersion.name}" deleted successfully!`);
+      const deletedId = confirmDeleteVersion.id;
+      setConfirmDeleteVersion(null);
+
+      // Re-fetch versions
+      const versionsRes = await api.get('/api/scheduler/versions/');
+      const updatedVersions = versionsRes.data.results || versionsRes.data || [];
+      setVersions(updatedVersions);
+
+      // If the currently selected version was the one deleted, switch to published or fallback
+      if (String(selectedVersionId) === String(deletedId)) {
+        const published = updatedVersions.find(v => v.is_published);
+        setSelectedVersionId(published ? published.id : (updatedVersions[0]?.id || ''));
+      } else {
+        loadAll();
+      }
+    } catch (err) {
+      console.error('Failed to delete timetable version:', err);
+      toast.error(err.response?.data?.detail || err.response?.data?.[0] || 'Failed to delete draft timetable');
+    } finally {
+      setDeletingVersion(false);
+    }
+  };
+
+  const toggleDraftSelect = (id) => {
+    setSelectedDraftIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllDrafts = () => {
+    const draftIds = versions.filter(v => !v.is_published).map(v => v.id);
+    if (selectedDraftIds.length === draftIds.length) {
+      setSelectedDraftIds([]);
+    } else {
+      setSelectedDraftIds(draftIds);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirmBulkDelete) return;
+    setDeletingVersion(true);
+    try {
+      const payload = confirmBulkDelete.allDrafts
+        ? { delete_all_drafts: true }
+        : { ids: confirmBulkDelete.ids };
+      const res = await api.post('/api/scheduler/versions/bulk-delete/', payload);
+      toast.success(res.data.message || 'Draft timetables deleted successfully!');
+
+      const deletedIds = new Set(confirmBulkDelete.allDrafts ? versions.filter(v => !v.is_published).map(v => v.id) : confirmBulkDelete.ids);
+      setSelectedDraftIds([]);
+      setConfirmBulkDelete(null);
+
+      // Re-fetch versions
+      const versionsRes = await api.get('/api/scheduler/versions/');
+      const updatedVersions = versionsRes.data.results || versionsRes.data || [];
+      setVersions(updatedVersions);
+
+      // If active version was deleted, fallback to published
+      if (confirmBulkDelete.allDrafts || deletedIds.has(Number(selectedVersionId))) {
+        const published = updatedVersions.find(v => v.is_published);
+        setSelectedVersionId(published ? published.id : (updatedVersions[0]?.id || ''));
+      } else {
+        loadAll();
+      }
+    } catch (err) {
+      console.error('Failed to bulk delete drafts:', err);
+      toast.error(err.response?.data?.error || 'Failed to bulk delete draft timetables');
+    } finally {
+      setDeletingVersion(false);
+    }
   };
 
   const handleReportAbsence = async () => {
@@ -733,14 +833,23 @@ export default function TimetablePage() {
     );
   }
 
+  const activeVersion = versions.find(v => String(v.id) === String(selectedVersionId)) || versions.find(v => v.is_published);
+
   return (
     <div className="page-container">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1>Class Timetable</h1>
-          <p>Weekly schedule generated by the constraint satisfaction algorithm</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>Class Timetable</h1>
+            {activeVersion && (
+              <span className={`badge ${activeVersion.is_published ? 'badge-present' : 'badge-low'}`} style={{ fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}>
+                {activeVersion.is_published ? '🟢 Live' : '🟡 Draft'}: {activeVersion.name}
+              </span>
+            )}
+          </div>
+          <p style={{ marginTop: '0.25rem', marginBottom: 0 }}>Weekly academic schedule generated by the constraint satisfaction algorithm</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <select 
              className="form-select" 
              style={{ width: 'auto' }}
@@ -751,10 +860,20 @@ export default function TimetablePage() {
              }}
           >
             <option value="all">All Classes</option>
-            <option value="faculty">Filter by Faculty</option>
-            <option value="room">Filter by Room</option>
-            <option value="resource">Filter by Resource</option>
+            {isFaculty && <option value="my_classes">👤 My Classes</option>}
+            <option value="department">🏛️ Filter by Department</option>
+            <option value="faculty">👨‍🏫 Filter by Faculty</option>
+            <option value="room">📍 Filter by Room</option>
+            <option value="resource">📦 Filter by Resource</option>
           </select>
+          {filterType === 'department' && (
+            <select className="form-select" style={{ width: 'auto' }} value={filterValue} onChange={(e) => setFilterValue(e.target.value)}>
+              <option value="">Select Department...</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name} ({d.dept_id || `DEP-${d.id}`})</option>
+              ))}
+            </select>
+          )}
           {filterType === 'faculty' && (
             <select className="form-select" style={{ width: 'auto' }} value={filterValue} onChange={(e) => setFilterValue(e.target.value)}>
               <option value="">Select Faculty...</option>
@@ -787,23 +906,44 @@ export default function TimetablePage() {
           {isAdmin && (
             <>
               {versions.length > 0 && (
-                 <select 
-                   className="form-select" 
-                   style={{ width: 'auto', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'var(--color-accent-blue)', color: 'var(--color-accent-blue-light)', fontWeight: 'bold' }}
-                   value={selectedVersionId}
-                   onChange={(e) => setSelectedVersionId(e.target.value)}
-                 >
-                   <option value="">-- Select Sandbox Version --</option>
-                   {versions.map(v => (
-                      <option key={v.id} value={v.id}>{v.name} {v.is_published ? '(Live)' : '(Draft)'}</option>
-                   ))}
-                 </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <select 
+                    className="form-select" 
+                    style={{ width: 'auto', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'var(--color-accent-blue)', color: 'var(--color-accent-blue-light)', fontWeight: 'bold' }}
+                    value={selectedVersionId}
+                    onChange={(e) => setSelectedVersionId(e.target.value)}
+                  >
+                    <option value="">-- Timetable Versions --</option>
+                    {versions.map(v => (
+                       <option key={v.id} value={v.id}>{v.name} {v.is_published ? '(Live)' : '(Draft)'}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setShowManageVersionsModal(true)}
+                    title="Manage and view all sandbox draft timetables"
+                    style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                  >
+                    📋 Drafts ({versions.filter(v => !v.is_published).length})
+                  </button>
+                </div>
               )}
               
               {selectedVersionId && !versions.find(v => v.id == selectedVersionId)?.is_published && (
+                <>
                   <button className="btn btn-primary" style={{ background: 'var(--color-accent-emerald)', borderColor: 'var(--color-accent-emerald)' }} onClick={handlePublishVersion}>
                       🚀 Publish Draft
                   </button>
+                  <button
+                    className="btn btn-danger"
+                    style={{ background: 'var(--color-accent-rose, #ef4444)', borderColor: 'var(--color-accent-rose, #ef4444)' }}
+                    onClick={() => setConfirmDeleteVersion(versions.find(v => String(v.id) === String(selectedVersionId)))}
+                    title="Delete this draft timetable"
+                    id="btn-delete-selected-draft"
+                  >
+                      🗑️ Delete Draft
+                  </button>
+                </>
               )}
 
               <button
@@ -832,9 +972,21 @@ export default function TimetablePage() {
           <div className="config-header">
             <h2>🎛️ Generator Configuration</h2>
             <p>Fine-tune which resources to include and set scheduling constraints</p>
-            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <label style={{ fontWeight: 600 }}>Target Department:</label>
-              <select 
+            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontWeight: 600 }}>Draft Name:</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ width: '220px' }}
+                  placeholder="e.g. Fall 2026 Sandbox"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontWeight: 600 }}>Target Department:</label>
+                <select 
                  className="form-select"
                  value={selectedDepartmentId}
                  onChange={(e) => {
@@ -863,6 +1015,7 @@ export default function TimetablePage() {
               </select>
             </div>
           </div>
+        </div>
 
           {/* Config tabs */}
           <div className="config-tabs">
@@ -1379,8 +1532,7 @@ export default function TimetablePage() {
                     </div>
                   ) : (
                     days.map(day => {
-                      const cls = getClassForSlot(day, time);
-                      const locked = cls && isEntryLocked(cls);
+                      const slotClasses = getClassesForSlot(day, time);
                       const ts = getTimeslotForDayTime(day, time);
                       const dropId = ts ? `${day}-${time}-${ts.id}` : `${day}-${time}-unknown`;
                       
@@ -1388,9 +1540,9 @@ export default function TimetablePage() {
                       const activeEntry = activeDragItem ? timetable.find(t => t.id === activeDragItem) : null;
                       if (activeEntry && ts) {
                         const timeConflicts = timetable.filter(t => t.day === day && t.start_time?.substring(0, 5) === time && t.id !== activeEntry.id);
-                        const facultyConflict = timeConflicts.some(t => t.faculty_name === activeEntry.faculty_name);
-                        // If cell already has a class in this filtered view OR faculty conflict, it's invalid
-                        if (cls || facultyConflict) {
+                        const facultyConflict = activeEntry.faculty_name && timeConflicts.some(t => t.faculty_name === activeEntry.faculty_name);
+                        const roomConflict = activeEntry.room_number && timeConflicts.some(t => t.room_number === activeEntry.room_number);
+                        if (facultyConflict || roomConflict) {
                            isValidDrop = false;
                         } else {
                            isValidDrop = true;
@@ -1398,17 +1550,22 @@ export default function TimetablePage() {
                       }
 
                       return (
-                        <div className={`${day === mobileDay ? 'mobile-active' : 'mobile-hidden'}`} key={`${day}-${time}`} onClick={() => {
-                          if (!cls && isAdmin && ts) {
-                            setAddEventSlot(ts);
-                            setShowAddEventModal(true);
-                          }
-                        }}>
+                        <div 
+                          className={`${day === mobileDay ? 'mobile-active' : 'mobile-hidden'}`} 
+                          key={`${day}-${time}`} 
+                          onClick={(e) => {
+                            if (slotClasses.length === 0 && isAdmin && ts && (e.target.classList.contains('timetable-cell') || e.target.closest('.timetable-cell') === e.target)) {
+                              setAddEventSlot(ts);
+                              setShowAddEventModal(true);
+                            }
+                          }}
+                        >
                           <DroppableCell id={dropId} isValidDrop={isValidDrop}>
-                            {cls && (
+                            {slotClasses.map(cls => (
                               <DraggableClassCard 
+                                key={cls.id}
                                 cls={cls} 
-                                isLocked={locked} 
+                                isLocked={isEntryLocked(cls)} 
                                 color={getSubjectColor(cls)} 
                                 isAdmin={isAdmin} 
                                 isFaculty={isFaculty}
@@ -1421,7 +1578,7 @@ export default function TimetablePage() {
                                 }}
                                 onFindSwap={handleFindSwap}
                               />
-                            )}
+                            ))}
                           </DroppableCell>
                         </div>
                       );
@@ -1520,31 +1677,49 @@ export default function TimetablePage() {
       {/* Add Event Modal */}
       {showAddEventModal && addEventSlot && (
         <div className="modal-overlay" onClick={() => setShowAddEventModal(false)}>
-          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '400px' }}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ width: '420px' }}>
             <h3>➕ Add Custom Event</h3>
-            <p>Time: {addEventSlot.day} {formatTime(addEventSlot.start_time)}</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              Scheduled for: <strong>{dayLabels[addEventSlot.day] || addEventSlot.day}</strong> at <strong>{formatTime(addEventSlot.start_time)}</strong>
+            </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="Event Title" 
-                value={newEvent.title}
-                onChange={e => setNewEvent({...newEvent, title: e.target.value})}
-              />
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="Room / Location" 
-                value={newEvent.room}
-                onChange={e => setNewEvent({...newEvent, room: e.target.value})}
-              />
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Event Title</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ width: '100%' }}
+                  placeholder="e.g. Guest Lecture, Department Meeting" 
+                  value={newEvent.title}
+                  onChange={e => setNewEvent({...newEvent, title: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'block', marginBottom: '0.25rem' }}>Room / Venue</label>
+                <select
+                  className="form-select"
+                  style={{ width: '100%' }}
+                  value={newEvent.roomId || ''}
+                  onChange={e => setNewEvent({...newEvent, roomId: e.target.value})}
+                >
+                  <option value="">Select Room...</option>
+                  {rooms.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.room_number} ({r.building || 'Campus'}) - Cap: {r.capacity}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <label>Color:</label>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Badge Color:</label>
                 <input 
                   type="color" 
                   value={newEvent.color}
                   onChange={e => setNewEvent({...newEvent, color: e.target.value})}
+                  style={{ cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--color-border)', width: '38px', height: '36px', padding: 0 }}
                 />
               </div>
             </div>
@@ -1552,25 +1727,24 @@ export default function TimetablePage() {
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowAddEventModal(false)}>Cancel</button>
               <button className="btn btn-primary" style={{ flex: 1 }} onClick={async () => {
-                if (!newEvent.title) return toast.error('Title is required');
+                if (!newEvent.title.trim()) return toast.error('Event title is required');
+                if (!newEvent.roomId) return toast.error('Please select a room');
                 try {
                   const res = await api.post('/api/scheduler/timetable/', {
-                    day: addEventSlot.day,
-                    start_time: addEventSlot.start_time,
-                    end_time: addEventSlot.end_time,
                     time_slot: addEventSlot.id,
-                    event_title: newEvent.title,
+                    room: parseInt(newEvent.roomId, 10),
+                    event_title: newEvent.title.trim(),
                     event_color: newEvent.color,
                     event_type: 'custom',
-                    room_number: newEvent.room,
-                    is_locked: true // Custom events are locked by default
+                    version: selectedVersionId || undefined,
+                    is_locked: true
                   });
-                  setTimetable([...timetable, res.data]);
+                  setTimetable(prev => [...prev, res.data]);
                   setShowAddEventModal(false);
-                  setNewEvent({ title: '', color: '#3b82f6', room: '' });
-                  toast.success('Event added!');
+                  setNewEvent({ title: '', color: '#3b82f6', roomId: '' });
+                  toast.success('Event added successfully!');
                 } catch (err) {
-                  toast.error('Failed to add event');
+                  toast.error(err.response?.data?.error || err.response?.data?.detail || 'Failed to add event');
                 }
               }}>Save Event</button>
             </div>
@@ -1647,6 +1821,262 @@ export default function TimetablePage() {
             )}
 
             <button className="btn btn-secondary" style={{ marginTop: '1rem', width: '100%' }} onClick={() => setShowSmartSwapModal(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Draft Timetable Modal */}
+      {confirmDeleteVersion && (
+        <div className="modal-overlay" onClick={() => !deletingVersion && setConfirmDeleteVersion(null)}>
+          <div className="modal-content glass-card confirm-dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ 
+                width: '38px', 
+                height: '38px', 
+                borderRadius: '8px', 
+                background: 'rgba(239, 68, 68, 0.15)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '1.2rem',
+                color: '#ef4444' 
+              }}>
+                🗑️
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Delete Draft Timetable</h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Sandbox Version Removal</span>
+              </div>
+            </div>
+
+            <p style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+              Are you sure you want to delete the draft timetable <strong>"{confirmDeleteVersion.name}"</strong>?
+            </p>
+            <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)', background: 'rgba(239, 68, 68, 0.08)', padding: '0.75rem', borderRadius: '6px', borderLeft: '3px solid #ef4444' }}>
+              ⚠️ This will remove all scheduled sessions generated for this sandbox. This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setConfirmDeleteVersion(null)} 
+                disabled={deletingVersion}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                style={{ background: '#ef4444', borderColor: '#ef4444' }} 
+                onClick={handleDeleteVersion}
+                disabled={deletingVersion}
+              >
+                {deletingVersion ? 'Deleting...' : 'Delete Draft'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Drafts Modal */}
+      {showManageVersionsModal && (
+        <div className="modal-overlay" onClick={() => setShowManageVersionsModal(false)}>
+          <div className="modal-content glass-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>📋</span>
+                <div>
+                  <h3 style={{ margin: 0 }}>Timetable Versions & Drafts</h3>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                    {versions.length} total versions ({versions.filter(v => !v.is_published).length} drafts)
+                  </span>
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setShowManageVersionsModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: 'var(--color-text-muted)' }}>✕</button>
+            </div>
+
+            {/* Bulk Action Controls */}
+            {versions.filter(v => !v.is_published).length > 0 && (
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: '0.6rem 0.8rem', 
+                background: 'rgba(255, 255, 255, 0.04)', 
+                borderRadius: '8px', 
+                marginBottom: '1rem',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={
+                      versions.filter(v => !v.is_published).length > 0 &&
+                      selectedDraftIds.length === versions.filter(v => !v.is_published).length
+                    }
+                    onChange={toggleSelectAllDrafts}
+                  />
+                  Select All Drafts ({selectedDraftIds.length}/{versions.filter(v => !v.is_published).length})
+                </label>
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {selectedDraftIds.length > 0 && (
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => setConfirmBulkDelete({ ids: selectedDraftIds, count: selectedDraftIds.length, allDrafts: false })}
+                      disabled={deletingVersion}
+                      style={{ background: '#ef4444', borderColor: '#ef4444' }}
+                    >
+                      🗑️ Delete Selected ({selectedDraftIds.length})
+                    </button>
+                  )}
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => setConfirmBulkDelete({ count: versions.filter(v => !v.is_published).length, allDrafts: true })}
+                    disabled={deletingVersion}
+                    style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    title="Delete all draft sandboxes at once"
+                  >
+                    Delete All Drafts
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {versions.length === 0 ? (
+                <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem 0' }}>No timetable versions available.</p>
+              ) : (
+                versions.map(v => (
+                  <div 
+                    key={v.id} 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '0.75rem 1rem', 
+                      borderRadius: '8px',
+                      background: String(selectedVersionId) === String(v.id) ? 'rgba(59, 130, 246, 0.12)' : 'var(--color-bg-glass)',
+                      border: String(selectedVersionId) === String(v.id) ? '1px solid var(--color-accent-blue)' : '1px solid rgba(255, 255, 255, 0.05)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {!v.is_published ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedDraftIds.includes(v.id)}
+                          onChange={() => toggleDraftSelect(v.id)}
+                          style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                        />
+                      ) : (
+                        <span title="Active published timetable is protected" style={{ fontSize: '0.9rem', opacity: 0.6 }}>🔒</span>
+                      )}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontWeight: 600 }}>{v.name}</span>
+                          {v.is_published ? (
+                            <span className="badge badge-present" style={{ fontSize: '0.75rem' }}>🟢 Live Published</span>
+                          ) : (
+                            <span className="badge badge-low" style={{ fontSize: '0.75rem' }}>🟡 Sandbox Draft</span>
+                          )}
+                          {String(selectedVersionId) === String(v.id) && (
+                            <span className="badge badge-medium" style={{ fontSize: '0.7rem' }}>Active View</span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                          Created: {v.created_at ? new Date(v.created_at).toLocaleString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {String(selectedVersionId) !== String(v.id) && (
+                        <button 
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => {
+                            setSelectedVersionId(v.id);
+                            setShowManageVersionsModal(false);
+                          }}
+                        >
+                          View
+                        </button>
+                      )}
+                      {!v.is_published && (
+                        <button 
+                          className="btn btn-sm btn-danger"
+                          style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: '#ef4444' }}
+                          onClick={() => {
+                            setConfirmDeleteVersion(v);
+                          }}
+                          title="Delete this draft"
+                        >
+                          🗑️ Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowManageVersionsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Bulk Delete Modal */}
+      {confirmBulkDelete && (
+        <div className="modal-overlay" onClick={() => !deletingVersion && setConfirmBulkDelete(null)}>
+          <div className="modal-content glass-card confirm-dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ 
+                width: '38px', 
+                height: '38px', 
+                borderRadius: '8px', 
+                background: 'rgba(239, 68, 68, 0.15)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '1.2rem',
+                color: '#ef4444' 
+              }}>
+                🗑️
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem' }}>
+                  {confirmBulkDelete.allDrafts ? 'Delete All Draft Timetables' : 'Delete Selected Drafts'}
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                  Batch Sandbox Removal
+                </span>
+              </div>
+            </div>
+
+            <p style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete <strong>{confirmBulkDelete.count} draft timetable(s)</strong>?
+            </p>
+            <p style={{ marginBottom: '1.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)', background: 'rgba(239, 68, 68, 0.08)', padding: '0.75rem', borderRadius: '6px', borderLeft: '3px solid #ef4444' }}>
+              ⚠️ This will remove all scheduled sessions across these sandboxes. The active published timetable will NOT be affected. This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setConfirmBulkDelete(null)} 
+                disabled={deletingVersion}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                style={{ background: '#ef4444', borderColor: '#ef4444' }} 
+                onClick={handleBulkDelete}
+                disabled={deletingVersion}
+              >
+                {deletingVersion ? 'Deleting...' : `Delete ${confirmBulkDelete.count} Drafts`}
+              </button>
+            </div>
           </div>
         </div>
       )}

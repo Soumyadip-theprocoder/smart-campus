@@ -38,6 +38,13 @@ class Resource(models.Model):
 
 class Department(models.Model):
     """Academic Department for scoping generation and settings."""
+    dept_id = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Standardized Department ID, e.g. DEP-0001"
+    )
     name = models.CharField(max_length=100, unique=True)
     start_time = models.TimeField(null=True, blank=True, help_text="Override global start time")
     end_time = models.TimeField(null=True, blank=True, help_text="Override global end time")
@@ -50,6 +57,18 @@ class Department(models.Model):
         default=4, 
         help_text="Number of years for the programs in this department"
     )
+    program_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="e.g., B.Sc, M.Sc, B.Tech, M.Tech"
+    )
+    core_department = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="e.g., Civil, Mechanical, Computer Science"
+    )
     hod = models.ForeignKey(
         'accounts.Faculty',
         on_delete=models.SET_NULL,
@@ -61,10 +80,25 @@ class Department(models.Model):
 
     class Meta:
         db_table = "departments"
-        ordering = ["name"]
+        ordering = ["dept_id", "name"]
+
+    def save(self, *args, **kwargs):
+        if not self.dept_id:
+            import re
+            existing_ids = Department.objects.exclude(dept_id__isnull=True).values_list("dept_id", flat=True)
+            max_num = 0
+            for did in existing_ids:
+                m = re.match(r"^DEP-(\d+)$", str(did))
+                if m:
+                    max_num = max(max_num, int(m.group(1)))
+            self.dept_id = f"DEP-{(max_num + 1):04d}"
+        super().save(*args, **kwargs)
 
     def __str__(self):
+        if self.dept_id:
+            return f"[{self.dept_id}] {self.name}"
         return self.name
+
 
 
 class Subject(models.Model):
@@ -74,10 +108,18 @@ class Subject(models.Model):
     name = models.CharField(max_length=200)
     faculty = models.ForeignKey(
         Faculty,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="subjects",
     )
-    credits = models.PositiveIntegerField(default=3)
+    semester = models.PositiveIntegerField(
+        default=1,
+        null=True,
+        blank=True,
+        help_text="Target semester (e.g. 1, 2, ...)",
+    )
+    credits = models.FloatField(default=3.0)
     required_capacity = models.PositiveIntegerField(
         default=30,
         help_text="Minimum room capacity needed for this subject",

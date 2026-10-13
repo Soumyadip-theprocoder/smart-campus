@@ -54,13 +54,28 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
     employee_id: initialData?.employee_id || '',
     department: initialData?.department || '',
     designation: initialData?.designation || 'Assistant Professor',
+    set_as_hod: initialData?.is_hod || false,
   });
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  useEffect(() => {
+    if (!initialData) {
+      api.get('/auth/faculty/next-id/')
+        .then(res => {
+          if (res.data?.next_id) {
+            setForm(prev => ({ ...prev, employee_id: prev.employee_id || res.data.next_id }));
+          }
+        })
+        .catch(err => console.error('Error fetching next faculty ID', err));
+    }
+  }, [initialData]);
+
   const handleChange = (e) => {
-    const { name, value, type, selectedOptions } = e.target;
-    if (type === 'select-multiple') {
+    const { name, value, type, checked, selectedOptions } = e.target;
+    if (type === 'checkbox') {
+      setForm(prev => ({ ...prev, [name]: checked }));
+    } else if (type === 'select-multiple') {
       const values = Array.from(selectedOptions, option => option.value);
       setForm(prev => ({ ...prev, [name]: values }));
     } else {
@@ -96,6 +111,8 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
       employee_id: form.employee_id,
       department: form.department,
       designation: form.designation,
+      is_hod: form.set_as_hod, // for register
+      set_as_hod: form.set_as_hod, // for update
     });
   };
 
@@ -152,13 +169,15 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
       </div>
       <div className="form-row-2">
         <div className="form-group">
-          <label className="form-label">Employee ID *</label>
+          <label className="form-label">
+            Employee ID * {!initialData && <span style={{ fontSize: '0.8rem', color: 'var(--color-primary)' }}>(Auto-generated)</span>}
+          </label>
           <input
             className="form-input"
             name="employee_id"
             value={form.employee_id}
             onChange={handleChange}
-            placeholder="e.g. FAC-001"
+            placeholder="e.g. FAC-2026-0001"
             required
           />
         </div>
@@ -226,10 +245,23 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
             <option value="Assistant Professor">Assistant Professor</option>
             <option value="Associate Professor">Associate Professor</option>
             <option value="Professor">Professor</option>
-            <option value="HOD">HOD</option>
             <option value="Lecturer">Lecturer</option>
           </select>
         </div>
+      </div>
+      <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+        <input
+          type="checkbox"
+          id="set_as_hod"
+          name="set_as_hod"
+          checked={form.set_as_hod}
+          onChange={handleChange}
+          style={{ width: '1rem', height: '1rem', cursor: 'pointer' }}
+          disabled={!form.department}
+        />
+        <label htmlFor="set_as_hod" style={{ cursor: 'pointer', margin: 0, fontWeight: 500 }}>
+          Make this faculty the Head of Department (HOD)
+        </label>
       </div>
       <button
         type="submit"
@@ -247,6 +279,11 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
 export default function FacultyPage() {
   const [faculty, setFaculty] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -257,17 +294,33 @@ export default function FacultyPage() {
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(page, search, departmentFilter, roleFilter);
+  }, [page, search, departmentFilter, roleFilter]);
 
-  const fetchData = async () => {
+  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', rFilter = '') => {
     setLoading(true);
     try {
+      let url = `/api/auth/faculty/?page=${pageNum}`;
+      if (searchQuery) url += `&search=${searchQuery}`;
+      if (deptFilter) url += `&department=${deptFilter}`;
+      if (rFilter === 'hod') url += `&is_hod=true`;
+      if (rFilter === 'faculty') url += `&is_hod=false`;
+
       const [facRes, depRes] = await Promise.all([
-        api.get('/api/auth/faculty/'),
-        api.get('/api/scheduler/departments/')
+        api.get(url),
+        api.get('/api/scheduler/departments/?all=true')
       ]);
-      setFaculty(facRes.data.results || facRes.data || []);
+      const newResults = facRes.data.results || facRes.data || [];
+      if (pageNum === 1) {
+        setFaculty(newResults);
+      } else {
+        setFaculty(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(facRes.data.count || (facRes.data.results ? facRes.data.results.length : (facRes.data.length || 0)));
       setDepartments(depRes.data.results || depRes.data || []);
     } catch (err) {
       console.error(err);
@@ -293,7 +346,7 @@ export default function FacultyPage() {
       }
       setModalOpen(false);
       setEditingFaculty(null);
-      fetchData();
+      fetchData(page, search);
     } catch (err) {
       console.error('Save failed:', err);
       const data = err.response?.data;
@@ -320,7 +373,7 @@ export default function FacultyPage() {
       // Delete user (cascades to faculty profile)
       await api.delete(`/api/auth/faculty/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      fetchData();
+      fetchData(page, search);
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete faculty member.');
@@ -338,9 +391,38 @@ export default function FacultyPage() {
         </div>
       )
     },
-    { key: 'employee_id', label: 'Employee ID', render: (val) => <span className="badge badge-low">{val}</span> },
-    { key: 'department', label: 'Department', render: (val) => departments.find(d => d.id === val)?.name || val },
-    { key: 'designation', label: 'Designation', render: (val) => val || 'N/A' },
+    {
+      key: 'employee_id',
+      label: 'Employee ID',
+      render: (val) => (
+        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {val}
+        </span>
+      )
+    },
+    {
+      key: 'department',
+      label: 'Department',
+      render: (val) => {
+        const d = departments.find(dep => String(dep.id) === String(val));
+        if (!d) return val || 'General';
+        return (
+          <div>
+            {d.dept_id && (
+              <span className="badge badge-low" style={{ marginRight: '0.4rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                {d.dept_id}
+              </span>
+            )}
+            <span style={{ fontWeight: 500 }}>{d.name}</span>
+          </div>
+        );
+      }
+    },
+    { key: 'designation', label: 'Designation', render: (val, row) => (
+      <span>
+        {val || 'N/A'} {row.is_hod && <span className="badge badge-high" style={{marginLeft: '0.5rem'}}>HOD</span>}
+      </span>
+    ) },
     { key: 'max_hours_per_week', label: 'Max Hours/Week', render: (val) => <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>🕒 {val || 20}h</span> },
     {
       key: 'actions',
@@ -364,26 +446,101 @@ export default function FacultyPage() {
     },
   ];
 
-  if (loading) return <div className="loading-spinner"><div className="spinner" /></div>;
+  if (loading && faculty.length === 0) return <div className="loading-spinner"><div className="spinner" /></div>;
 
   return (
     <div className="page-container">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>Faculty</h1>
-          <p>Manage faculty members and their information. Add, edit, and organize teaching staff.</p>
+          <p>Manage teaching staff, workload limits, department assignments, and designated heads (HODs).</p>
         </div>
         <button className="btn btn-primary" id="btn-add-faculty" onClick={() => { setEditingFaculty(null); setModalOpen(true); }}>+ Add Faculty</button>
       </div>
 
+      {/* Quick Summary Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-accent-emerald)', fontSize: '1.4rem' }}>
+            👥
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{totalCount}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Faculty</span>
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.1)', color: 'var(--color-primary)', fontSize: '1.4rem' }}>
+            🏛️
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{departments.length}</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Active Departments</span>
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="stat-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-accent-amber)', fontSize: '1.4rem' }}>
+            🎖️
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
+              {faculty.filter(f => f.is_hod).length || departments.filter(d => d.hod).length || 0}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Heads of Department (HODs)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Bar with Role Tabs and Department Dropdown */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', justifyContent: 'space-between' }}>
+        <div className="tabs" style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', margin: 0 }}>
+          <button 
+            className={`btn btn-sm ${roleFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setPage(1); setRoleFilter(''); }}
+          >
+            All Faculty
+          </button>
+          <button 
+            className={`btn btn-sm ${roleFilter === 'hod' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setPage(1); setRoleFilter('hod'); }}
+          >
+            🎖️ HODs Only
+          </button>
+          <button 
+            className={`btn btn-sm ${roleFilter === 'faculty' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setPage(1); setRoleFilter('faculty'); }}
+          >
+            Faculty Staff
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <select
+            className="form-input"
+            style={{ width: 'auto', minWidth: '220px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+            value={departmentFilter}
+            onChange={(e) => { setPage(1); setDepartmentFilter(e.target.value); }}
+          >
+            <option value="">-- All Departments --</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>
+                {d.dept_id ? `[${d.dept_id}] ` : ''}{d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="glass-card animate-fade-in-up" style={{ padding: '1.5rem' }}>
-        <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-accent-emerald)' }}>
             👥
           </div>
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Faculty</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{faculty.length} faculty members registered</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{totalCount} faculty members registered</span>
           </div>
         </div>
 
@@ -392,6 +549,12 @@ export default function FacultyPage() {
           data={faculty}
           searchKey="employee_id"
           emptyMessage="No faculty registered yet."
+          infiniteScroll={true}
+          totalCount={totalCount}
+          serverPage={page}
+          onPageChange={setPage}
+          onSearchChange={(s) => { setPage(1); setSearch(s); }}
+          pageSize={100}
         />
       </div>
 
