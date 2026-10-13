@@ -239,6 +239,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
+  const [ordering, setOrdering] = useState('enrollment_number');
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -250,16 +251,17 @@ export default function StudentsPage() {
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
-    fetchData(page, search, departmentFilter, semesterFilter);
-  }, [page, search, departmentFilter, semesterFilter]);
+    fetchData(page, search, departmentFilter, semesterFilter, ordering);
+  }, [page, search, departmentFilter, semesterFilter, ordering]);
 
-  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', semFilter = '') => {
+  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', semFilter = '', orderingParam = ordering) => {
     setLoading(true);
     try {
       let url = `/api/auth/students/?page=${pageNum}`;
       if (searchQuery) url += `&search=${searchQuery}`;
       if (deptFilter) url += `&department=${deptFilter}`;
       if (semFilter) url += `&semester=${semFilter}`;
+      if (orderingParam) url += `&ordering=${orderingParam}`;
 
       const [stuRes, depRes] = await Promise.all([
         api.get(url),
@@ -352,8 +354,18 @@ export default function StudentsPage() {
 
   const columns = [
     {
+      key: 'enrollment_number',
+      label: 'Student ID',
+      render: (val) => (
+        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {val}
+        </span>
+      )
+    },
+    {
       key: 'name',
       label: 'Name',
+      sortValue: (row) => `${row.user?.first_name || ''} ${row.user?.last_name || ''}`.trim(),
       render: (_, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.user?.first_name} {row.user?.last_name}</div>
@@ -362,17 +374,9 @@ export default function StudentsPage() {
       )
     },
     {
-      key: 'enrollment_number',
-      label: 'Enrollment No',
-      render: (val) => (
-        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-          {val}
-        </span>
-      )
-    },
-    {
       key: 'department',
       label: 'Department',
+      sortValue: (row) => departments.find(dep => String(dep.id) === String(row.department))?.name || '',
       render: (val) => {
         const d = departments.find(dep => String(dep.id) === String(val));
         if (!d) return val || 'General';
@@ -391,6 +395,7 @@ export default function StudentsPage() {
     {
       key: 'semester',
       label: 'Semester',
+      sortValue: (row) => Number(row.semester || 1),
       render: (val) => (
         <span className="badge" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent-blue)', fontWeight: 600 }}>
           Sem {val || '1'}
@@ -400,6 +405,7 @@ export default function StudentsPage() {
     {
       key: 'actions',
       label: 'Actions',
+      sortable: false,
       render: (_, row) => (
         <div className="action-btns">
           <button
@@ -531,6 +537,20 @@ export default function StudentsPage() {
           onPageChange={setPage}
           onSearchChange={(s) => { setPage(1); setSearch(s); }}
           pageSize={100}
+          defaultSortKey="enrollment_number"
+          defaultSortDir="asc"
+          onSortChange={({ sortKey, sortDir }) => {
+            const backendSortMap = {
+              enrollment_number: 'enrollment_number',
+              name: 'user__first_name',
+              semester: 'semester',
+            };
+            const field = backendSortMap[sortKey];
+            if (field) {
+              setOrdering(sortDir === 'desc' ? `-${field}` : field);
+              setPage(1);
+            }
+          }}
         />
       </div>
 

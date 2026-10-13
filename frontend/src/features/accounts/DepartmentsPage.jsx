@@ -220,20 +220,22 @@ export default function DepartmentsPage() {
   const [search, setSearch] = useState('');
   
   const [programFilter, setProgramFilter] = useState('');
+  const [ordering, setOrdering] = useState('dept_id');
 
   // Fetch unique program types for the tabs (in a real app, might come from an endpoint)
   const availablePrograms = ['B.Sc', 'M.Sc', 'B.Tech', 'M.Tech', 'BBA', 'MBA', 'BCA', 'MCA', 'B.A.', 'M.A.', 'Ph.D'];
 
   useEffect(() => {
-    fetchDepartments(page, search, programFilter);
-  }, [page, search, programFilter]);
+    fetchDepartments(page, search, programFilter, ordering);
+  }, [page, search, programFilter, ordering]);
 
-  const fetchDepartments = async (pageNum = 1, searchQuery = '', pFilter = '') => {
+  const fetchDepartments = async (pageNum = 1, searchQuery = '', pFilter = '', orderingParam = ordering) => {
     setLoading(true);
     try {
       let url = `/api/scheduler/departments/?page=${pageNum}`;
       if (searchQuery) url += `&search=${searchQuery}`;
       if (pFilter) url += `&program_type=${pFilter}`;
+      if (orderingParam) url += `&ordering=${orderingParam}`;
       
       const [depRes, facRes] = await Promise.all([
         api.get(url),
@@ -319,33 +321,53 @@ export default function DepartmentsPage() {
       render: (val) => val ? <span className="badge" style={{ backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary-dark)' }}>{val}</span> : <span style={{color:'var(--color-text-tertiary)'}}>General</span>
     },
     {
-      key: 'core_department',
-      label: 'Department',
-      render: (val, row) => <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{val || row.name}</div>
+      key: 'name',
+      label: 'Department Name',
+      sortValue: (row) => row.name || '',
+      render: (val, row) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
+            {row.name}
+          </div>
+          {row.core_department && row.core_department !== row.name && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+              Discipline: {row.core_department}
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: 'no_of_years',
       label: 'Program Years',
+      sortValue: (row) => Number(row.no_of_years || 0),
       render: (val) => val || '-'
     },
     {
       key: 'faculty_count',
       label: 'Faculty',
+      sortValue: (row) => Number(row.faculty_count || 0),
       render: (val) => <span className="badge badge-low">👥 {val || 0}</span>
     },
     {
       key: 'student_count',
       label: 'Students',
+      sortValue: (row) => Number(row.student_count || 0),
       render: (val) => <span className="badge badge-medium">👨‍🎓 {val || 0}</span>
     },
     {
       key: 'subject_count',
       label: 'Courses',
+      sortValue: (row) => Number(row.subject_count || 0),
       render: (val) => <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', fontWeight: 600 }}>📚 {val || 0}</span>
     },
     {
       key: 'hod',
       label: 'Head of Dept',
+      sortValue: (row) => {
+        const hod = faculties.find(f => f.id === row.hod);
+        return hod ? `${hod.user?.first_name || ''} ${hod.user?.last_name || ''}`.trim() : '';
+      },
       render: (val) => {
         const hod = faculties.find(f => f.id === val);
         return hod ? `${hod.user?.first_name} ${hod.user?.last_name}` : '-';
@@ -354,6 +376,7 @@ export default function DepartmentsPage() {
     {
       key: 'actions',
       label: 'Actions',
+      sortable: false,
       render: (_, row) => (
         <div className="action-btns">
           <button
@@ -458,6 +481,21 @@ export default function DepartmentsPage() {
             onPageChange={setPage}
             onSearchChange={(s) => { setPage(1); setSearch(s); }}
             pageSize={100}
+            defaultSortKey="dept_id"
+            defaultSortDir="asc"
+            onSortChange={({ sortKey, sortDir }) => {
+              const backendSortMap = {
+                dept_id: 'dept_id',
+                name: 'name',
+                program_type: 'program_type',
+                no_of_years: 'no_of_years',
+              };
+              const field = backendSortMap[sortKey];
+              if (field) {
+                setOrdering(sortDir === 'desc' ? `-${field}` : field);
+                setPage(1);
+              }
+            }}
           />
         )}
       </div>

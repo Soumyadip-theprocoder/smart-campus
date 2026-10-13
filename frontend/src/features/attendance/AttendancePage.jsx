@@ -11,6 +11,12 @@ import './AttendancePage.css';
 export default function AttendancePage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [ordering, setOrdering] = useState('-date');
+
   const [showScanner, setShowScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [showLiveSession, setShowLiveSession] = useState(false);
@@ -25,37 +31,93 @@ export default function AttendancePage() {
   });
   const [subjects, setSubjects] = useState([]);
 
+  // Debounce search query
   useEffect(() => {
-    loadAttendance();
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Load subject reference list once on mount
+  useEffect(() => {
+    api.get('/api/scheduler/subjects/?all=true')
+      .then(res => setSubjects(res.data.results || res.data || []))
+      .catch(() => {
+        api.get('/api/scheduler/subjects/')
+          .then(res => setSubjects(res.data.results || res.data || []))
+          .catch(() => setSubjects([]));
+      });
   }, []);
 
-  const loadAttendance = async () => {
+  // Fetch attendance with incremental pagination (infinite scroll)
+  const loadAttendance = async ({
+    pageNum = page,
+    searchQuery = debouncedSearch,
+    orderingParam = ordering,
+    currentFilters = filters,
+  } = {}) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.date_from) params.append('date_from', filters.date_from);
-      if (filters.date_to) params.append('date_to', filters.date_to);
-      if (filters.subject_id) params.append('subject_id', filters.subject_id);
+      params.append('page', pageNum);
+      if (searchQuery) params.append('search', searchQuery);
+      if (orderingParam) params.append('ordering', orderingParam);
+      if (currentFilters.date_from) params.append('date_from', currentFilters.date_from);
+      if (currentFilters.date_to) params.append('date_to', currentFilters.date_to);
+      if (currentFilters.subject_id) params.append('subject_id', currentFilters.subject_id);
 
-      const [attRes, subRes] = await Promise.all([
-        api.get(`/api/attendance/?${params.toString()}`),
-        api.get('/api/scheduler/subjects/')
-      ]);
-      setRecords(attRes.data.results || attRes.data || []);
-      setSubjects(subRes.data.results || subRes.data || []);
+      const res = await api.get(`/api/attendance/?${params.toString()}`);
+      const data = res.data;
+      const newResults = data.results || (Array.isArray(data) ? data : []);
+      const count = data.count !== undefined ? data.count : (Array.isArray(data) ? data.length : newResults.length);
+
+      if (pageNum === 1) {
+        setRecords(newResults);
+      } else {
+        setRecords(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(count);
     } catch (err) {
-      console.error('Failed to load data:', err);
+      console.error('Failed to load attendance:', err);
+      if (pageNum === 1) {
+        toast.error('Failed to load attendance data');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadAttendance({
+      pageNum: page,
+      searchQuery: debouncedSearch,
+      orderingParam: ordering,
+      currentFilters: filters,
+    });
+  }, [page, debouncedSearch, ordering]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const handleApplyFilters = () => {
-    loadAttendance();
+    setPage(1);
+    loadAttendance({
+      pageNum: 1,
+      searchQuery: debouncedSearch,
+      orderingParam: ordering,
+      currentFilters: filters,
+    });
+  };
+
+  const refreshAttendance = () => {
+    setPage(1);
+    loadAttendance({ pageNum: 1 });
   };
 
   const handleRunScan = useCallback(async () => {
@@ -85,7 +147,7 @@ export default function AttendancePage() {
       
       toast.success(`✅ Recognized: ${res.data.name} (${res.data.enrollment_number})`);
       setShowScanner(false);
-      loadAttendance();
+      refreshAttendance();
     } catch (e) {
       toast.error(e.response?.data?.error || e.message || 'Face ID Scan failed.');
       console.error(e);
@@ -122,6 +184,7 @@ export default function AttendancePage() {
       toast.success(res.data.message || 'Batch processing started.');
       setShowBatchUpload(false);
       setBatchFiles([]);
+      refreshAttendance();
     } catch (e) {
       toast.error(e.response?.data?.error || e.message || 'Batch upload failed.');
       console.error(e);
@@ -140,7 +203,7 @@ export default function AttendancePage() {
       label: 'Status',
       render: (val) => (
         <span className={`badge badge-${val}`}>
-          {val.charAt(0).toUpperCase() + val.slice(1)}
+          {val ? val.charAt(0).toUpperCase() + val.slice(1) : '-'}
         </span>
       ),
     },
@@ -149,14 +212,14 @@ export default function AttendancePage() {
       label: 'Method',
       render: (val) => (
         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-          {val === 'face_recognition' ? '🤖 AI' : '✍️ Manual'}
+          {val === 'face_recognition' ? '🤖 AI' : val === 'qr_code' ? '📱 QR' : '✍️ Manual'}
         </span>
       ),
     },
     {
       key: 'marked_at',
       label: 'Marked At',
-      render: (val) => new Date(val).toLocaleString(),
+      render: (val) => val ? new Date(val).toLocaleString() : '-',
     },
   ];
 
@@ -270,7 +333,7 @@ export default function AttendancePage() {
         isOpen={showLiveSession} 
         onClose={() => setShowLiveSession(false)} 
         subjectId={filters.subject_id}
-        onSessionEnd={loadAttendance}
+        onSessionEnd={refreshAttendance}
       />
 
       {/* Face ID Scanner Modal */}
@@ -394,16 +457,48 @@ export default function AttendancePage() {
       )}
 
       {/* Records Table */}
-      <div className="glass-card animate-fade-in-up stagger-2" style={{ opacity: 0, marginTop: '1.5rem', padding: '1.5rem' }}>
-        {loading ? (
-          <div className="loading-spinner"><div className="spinner" /></div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={records}
-            emptyMessage="No attendance records found. Adjust your filters or mark attendance first."
-          />
-        )}
+      <div className="glass-card animate-fade-in-up stagger-2" style={{ marginTop: '1.5rem', padding: '1.5rem' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Attendance Log</h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              Showing {records.length} of {totalCount} records (scroll down to load more)
+            </span>
+          </div>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={records}
+          loading={loading}
+          infiniteScroll={true}
+          totalCount={totalCount}
+          serverPage={page}
+          pageSize={100}
+          onPageChange={setPage}
+          searchValue={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          defaultSortKey="date"
+          defaultSortDir="desc"
+          onSortChange={({ sortKey, sortDir }) => {
+            const backendSortMap = {
+              date: 'date',
+              marked_at: 'marked_at',
+              status: 'status',
+              enrollment_number: 'student__enrollment_number',
+              subject_code: 'subject__code',
+            };
+            const field = backendSortMap[sortKey];
+            if (field) {
+              setOrdering(sortDir === 'desc' ? `-${field}` : field);
+              setPage(1);
+            }
+          }}
+          emptyMessage="No attendance records found. Adjust your filters or mark attendance first."
+        />
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import AcademicGroup, Faculty, Student, User
+from .permissions import IsAdminRole
 from .serializers import (AcademicGroupSerializer, FacultySerializer, LoginSerializer,
                           RegisterSerializer, StudentSerializer,
                           UserSerializer)
@@ -125,7 +126,7 @@ class StudentListView(generics.ListAPIView):
     """List all students (admin only)."""
 
     serializer_class = StudentSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     filter_backends = [SearchFilter]
     search_fields = [
         "enrollment_number", "user__first_name", "user__last_name", "user__email",
@@ -133,13 +134,16 @@ class StudentListView(generics.ListAPIView):
     ]
 
     def get_queryset(self):
-        qs = Student.objects.select_related("user", "department").all()
+        qs = Student.objects.select_related("user", "department").all().order_by("enrollment_number")
         dept = self.request.query_params.get('department')
         if dept:
             qs = qs.filter(department_id=dept)
         sem = self.request.query_params.get('semester')
         if sem:
             qs = qs.filter(semester=sem)
+        ordering = self.request.query_params.get('ordering')
+        if ordering:
+            qs = qs.order_by(ordering)
         return qs
 
     def paginate_queryset(self, queryset):
@@ -173,10 +177,10 @@ class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class FacultyListView(generics.ListAPIView):
-    """List all faculty (admin only)."""
+    """List all faculty members."""
 
     serializer_class = FacultySerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [SearchFilter]
     search_fields = [
         "employee_id", "user__first_name", "user__last_name", "user__email",
@@ -184,7 +188,7 @@ class FacultyListView(generics.ListAPIView):
     ]
 
     def get_queryset(self):
-        qs = Faculty.objects.select_related("user", "department").all()
+        qs = Faculty.objects.select_related("user", "department").all().order_by("employee_id")
         dept = self.request.query_params.get('department')
         if dept:
             qs = qs.filter(department_id=dept)
@@ -194,6 +198,9 @@ class FacultyListView(generics.ListAPIView):
                 qs = qs.filter(headed_departments__isnull=False).distinct()
             elif is_hod.lower() in ['false', '0']:
                 qs = qs.filter(headed_departments__isnull=True)
+        ordering = self.request.query_params.get('ordering')
+        if ordering:
+            qs = qs.order_by(ordering)
         return qs
 
     def paginate_queryset(self, queryset):
@@ -206,7 +213,7 @@ class FacultyDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update, or delete a faculty member."""
 
     serializer_class = FacultySerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     queryset = Faculty.objects.select_related("user").all()
 
     def perform_destroy(self, instance):

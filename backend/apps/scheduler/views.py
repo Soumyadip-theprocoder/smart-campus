@@ -45,6 +45,14 @@ class SubjectListView(generics.ListCreateAPIView):
             .all()
             .order_by("code")
         )
+
+        degree = self.request.query_params.get("degree")
+        if degree:
+            qs = qs.filter(
+                Q(departments__name__istartswith=degree)
+                | Q(faculty__department__name__istartswith=degree)
+            ).distinct()
+
         dept_id = self.request.query_params.get("department")
         if dept_id:
             qs = qs.filter(
@@ -59,13 +67,84 @@ class SubjectListView(generics.ListCreateAPIView):
         if faculty_id:
             qs = qs.filter(faculty_id=faculty_id)
 
+        has_faculty = self.request.query_params.get("has_faculty")
+        if has_faculty == "true":
+            qs = qs.filter(faculty__isnull=False)
+        elif has_faculty == "false":
+            qs = qs.filter(faculty__isnull=True)
+
+        year_param = self.request.query_params.get("year")
+        if year_param:
+            try:
+                y = int(year_param)
+                year_sems = [y * 2 - 1, y * 2]
+                qs = qs.filter(semester__in=year_sems)
+            except ValueError:
+                pass
+
         semester = self.request.query_params.get("semester")
         if semester:
             qs = qs.filter(semester=semester)
 
+        semesters = self.request.query_params.get("semesters")
+        if semesters:
+            sem_list = [int(s) for s in semesters.split(",") if s.strip().isdigit()]
+            if sem_list:
+                qs = qs.filter(semester__in=sem_list)
+
+        credits_param = self.request.query_params.get("credits")
+        if credits_param:
+            if credits_param == "1-2":
+                qs = qs.filter(credits__lte=2.0)
+            elif credits_param == "3":
+                qs = qs.filter(credits=3.0)
+            elif credits_param == "4-5":
+                qs = qs.filter(credits__gte=4.0, credits__lte=5.0)
+            elif credits_param == "6+":
+                qs = qs.filter(credits__gte=6.0)
+            else:
+                try:
+                    qs = qs.filter(credits=float(credits_param))
+                except ValueError:
+                    pass
+
         is_elective = self.request.query_params.get("is_elective")
         if is_elective is not None:
             qs = qs.filter(is_elective=is_elective.lower() in ["true", "1"])
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering:
+            ordering_map = {
+                "code": "code",
+                "-code": "-code",
+                "name": "name",
+                "-name": "-name",
+                "semester": "semester",
+                "-semester": "-semester",
+                "credits": "credits",
+                "-credits": "-credits",
+                "required_capacity": "required_capacity",
+                "-required_capacity": "-required_capacity",
+                "sessions_per_week": "sessions_per_week",
+                "-sessions_per_week": "-sessions_per_week",
+                "subject_type": "subject_type",
+                "-subject_type": "-subject_type",
+                "is_elective": "is_elective",
+                "-is_elective": "-is_elective",
+                "department": "departments__name",
+                "-department": "-departments__name",
+                "faculty": "faculty__user__first_name",
+                "-faculty": "-faculty__user__first_name",
+                "faculty_name": "faculty__user__first_name",
+                "-faculty_name": "-faculty__user__first_name",
+                "id": "id",
+                "-id": "-id",
+            }
+            mapped_ordering = ordering_map.get(ordering)
+            if mapped_ordering:
+                qs = qs.order_by(mapped_ordering)
+            else:
+                qs = qs.order_by("code")
 
         return qs
 
@@ -103,6 +182,29 @@ class DepartmentListView(generics.ListCreateAPIView):
         program_type = self.request.query_params.get("program_type")
         if program_type:
             qs = qs.filter(program_type=program_type)
+        ordering = self.request.query_params.get("ordering")
+        if ordering:
+            ordering_map = {
+                "dept_id": "dept_id",
+                "-dept_id": "-dept_id",
+                "name": "name",
+                "-name": "-name",
+                "program_type": "program_type",
+                "-program_type": "-program_type",
+                "core_department": "core_department",
+                "-core_department": "-core_department",
+                "student_count": "student_count",
+                "-student_count": "-student_count",
+                "faculty_count": "faculty_count",
+                "-faculty_count": "-faculty_count",
+                "subject_count": "subject_count",
+                "-subject_count": "-subject_count",
+                "id": "id",
+                "-id": "-id",
+            }
+            mapped_ordering = ordering_map.get(ordering)
+            if mapped_ordering:
+                qs = qs.order_by(mapped_ordering)
         return qs
 
     def paginate_queryset(self, queryset):
@@ -174,7 +276,29 @@ class RoomListView(generics.ListCreateAPIView):
 
     serializer_class = RoomSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Room.objects.all()
+    filter_backends = [SearchFilter]
+    search_fields = ["room_number", "building", "room_type"]
+
+    def get_queryset(self):
+        qs = Room.objects.all().order_by("room_number")
+        ordering = self.request.query_params.get("ordering")
+        if ordering:
+            ordering_map = {
+                "room_number": "room_number",
+                "-room_number": "-room_number",
+                "building": "building",
+                "-building": "-building",
+                "room_type": "room_type",
+                "-room_type": "-room_type",
+                "capacity": "capacity",
+                "-capacity": "-capacity",
+                "id": "id",
+                "-id": "-id",
+            }
+            mapped = ordering_map.get(ordering)
+            if mapped:
+                qs = qs.order_by(mapped)
+        return qs
 
 
 class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):

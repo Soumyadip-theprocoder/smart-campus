@@ -3,6 +3,7 @@ Views for the Communication app.
 """
 
 from rest_framework import generics, permissions, status
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -18,7 +19,18 @@ class NoticeListView(generics.ListAPIView):
 
     serializer_class = NoticeSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = Notice.objects.select_related("posted_by").all()
+    filter_backends = [SearchFilter]
+    search_fields = ["title", "content", "priority", "target_audience"]
+
+    def get_queryset(self):
+        qs = Notice.objects.select_related("posted_by").all().order_by("-created_at")
+        priority = self.request.query_params.get("priority")
+        if priority:
+            qs = qs.filter(priority=priority)
+        target = self.request.query_params.get("target_audience")
+        if target:
+            qs = qs.filter(target_audience=target)
+        return qs
 
 
 class CreateNoticeView(APIView):
@@ -55,7 +67,7 @@ class DeleteNoticeView(generics.DestroyAPIView):
     """Delete a notice (admin only)."""
 
     serializer_class = NoticeSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     queryset = Notice.objects.all()
     lookup_field = "pk"
 

@@ -22,6 +22,7 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
     { to: '/admin/students', icon: <HiOutlineUsers />, label: 'Students' },
     { to: '/admin/departments', icon: <HiOutlineUsers />, label: 'Departments' },
     { to: '/admin/rooms', icon: <HiOutlineViewGrid />, label: 'Rooms' },
+    { to: '/admin/attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
     { to: '/admin/analytics', icon: <HiOutlineChartBar />, label: 'Analytics' },
     { to: '/admin/predictive-analytics', icon: <HiOutlineChartBar />, label: 'Predictive Analytics' },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetables' },
@@ -31,7 +32,8 @@ export default function Sidebar({ collapsed, mobileOpen, setMobileOpen }) {
   const studentLinks = [
     { to: '/student', icon: <HiOutlineViewGrid />, label: 'Dashboard', end: true },
     { to: '/timetable', icon: <HiOutlineCalendar />, label: 'Timetable' },
-    { to: '/student/class-attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
+    { to: '/student/attendance', icon: <HiOutlineClipboardCheck />, label: 'Attendance' },
+    { to: '/student/class-attendance', icon: <HiOutlineCalendar />, label: 'Class Attendance' },
     { to: '/notices', icon: <HiOutlineSpeakerphone />, label: 'Notices' },
     { to: '/student/profile', icon: <FiSettings />, label: 'Profile' },
   ];

@@ -157,6 +157,11 @@ export default function RoomsPage() {
   const [rooms, setRooms] = useState([]);
   const [amenitiesList, setAmenitiesList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [ordering, setOrdering] = useState('room_number');
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -164,25 +169,62 @@ export default function RoomsPage() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  /* Debounce search input */
   useEffect(() => {
-    fetchRooms();
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  /* Load reference amenities once on mount */
+  useEffect(() => {
+    api.get('/api/scheduler/amenities/')
+      .then(res => setAmenitiesList(res.data.results || res.data || []))
+      .catch(() => setAmenitiesList([]));
   }, []);
 
-  const fetchRooms = async () => {
+  /* Fetch rooms with incremental pagination (infinite scroll) */
+  const fetchRooms = async ({
+    pageNum = page,
+    searchQuery = debouncedSearch,
+    orderingParam = ordering,
+  } = {}) => {
     setLoading(true);
     try {
-      const [roomsRes, amenitiesRes] = await Promise.all([
-        api.get('/api/scheduler/rooms/'),
-        api.get('/api/scheduler/amenities/').catch(() => ({ data: { results: [] } }))
-      ]);
-      setRooms(roomsRes.data.results || roomsRes.data || []);
-      setAmenitiesList(amenitiesRes.data.results || amenitiesRes.data || []);
+      let url = `/api/scheduler/rooms/?page=${pageNum}`;
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+      if (orderingParam) url += `&ordering=${orderingParam}`;
+
+      const res = await api.get(url);
+      const data = res.data;
+      const newResults = data.results || (Array.isArray(data) ? data : []);
+      const count = data.count !== undefined ? data.count : (Array.isArray(data) ? data.length : newResults.length);
+
+      if (pageNum === 1) {
+        setRooms(newResults);
+      } else {
+        setRooms(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(count);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to load rooms:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchRooms({
+      pageNum: page,
+      searchQuery: debouncedSearch,
+      orderingParam: ordering,
+    });
+  }, [page, debouncedSearch, ordering]);
 
   /* ── CRUD ─────────────────────────────────────────────────────── */
   const handleSave = async (formData) => {
@@ -195,7 +237,8 @@ export default function RoomsPage() {
       }
       setModalOpen(false);
       setEditingItem(null);
-      fetchRooms();
+      setPage(1);
+      fetchRooms({ pageNum: 1 });
     } catch (err) {
       console.error('Save failed:', err);
       toast.error(err.response?.data ? JSON.stringify(err.response.data) : 'Failed to save.');
@@ -209,7 +252,8 @@ export default function RoomsPage() {
     try {
       await api.delete(`/api/scheduler/rooms/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      fetchRooms();
+      setPage(1);
+      fetchRooms({ pageNum: 1 });
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete. It may be in use by the timetable.');
@@ -242,12 +286,19 @@ export default function RoomsPage() {
     {
       key: 'room_type',
       label: 'Type',
+      sortValue: (row) => typeLabels[row.room_type] || row.room_type || '',
       render: (val) => <span className={`badge ${val === 'lab' ? 'badge-present' : 'badge-low'}`}>{typeLabels[val] || val || 'Lecture Hall'}</span>
     },
-    { key: 'capacity', label: 'Capacity', render: (val) => `👥 ${val}` },
+    { 
+      key: 'capacity', 
+      label: 'Capacity', 
+      sortValue: (row) => Number(row.capacity || 0),
+      render: (val) => `👥 ${val}` 
+    },
     {
       key: 'equipment',
       label: 'Equipment',
+      sortable: false,
       render: (val) => {
         const equips = (val && val.length > 0) ? val : ['projector', 'whiteboard'];
         return (
@@ -262,6 +313,7 @@ export default function RoomsPage() {
     {
       key: 'amenities',
       label: 'Amenities',
+      sortable: false,
       render: (val) => {
         if (!val || val.length === 0) return <span className="badge badge-low">None</span>;
         return (
@@ -277,6 +329,7 @@ export default function RoomsPage() {
     {
       key: 'actions',
       label: 'Actions',
+      sortable: false,
       render: (_, row) => (
         <div className="action-btns">
           <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openEdit(row); }}>Edit</button>
@@ -286,7 +339,9 @@ export default function RoomsPage() {
     },
   ];
 
-  if (loading) return <div className="loading-spinner"><div className="spinner" /></div>;
+  if (loading && rooms.length === 0) {
+    return <div className="loading-spinner"><div className="spinner" /></div>;
+  }
 
   return (
     <div className="page-container">
@@ -305,14 +360,40 @@ export default function RoomsPage() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Rooms</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{rooms.length} rooms available in the system</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              Showing {rooms.length} of {totalCount} rooms available in the system (infinite scroll enabled)
+            </span>
           </div>
         </div>
 
         <DataTable
           columns={columns}
           data={rooms}
-          searchKey="room_number"
+          loading={loading}
+          infiniteScroll={true}
+          totalCount={totalCount}
+          serverPage={page}
+          pageSize={100}
+          onPageChange={setPage}
+          searchValue={search}
+          onSearchChange={(val) => {
+            setSearch(val);
+            setPage(1);
+          }}
+          defaultSortKey="room_number"
+          defaultSortDir="asc"
+          onSortChange={({ sortKey, sortDir }) => {
+            const backendSortMap = {
+              room_number: 'room_number',
+              room_type: 'room_type',
+              capacity: 'capacity',
+            };
+            const field = backendSortMap[sortKey];
+            if (field) {
+              setOrdering(sortDir === 'desc' ? `-${field}` : field);
+              setPage(1);
+            }
+          }}
           emptyMessage="No rooms registered yet."
         />
       </div>

@@ -13,11 +13,41 @@ export default function StudentAttendancePage() {
   const [report, setReport] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     loadAttendanceData();
   }, []);
+
+  useEffect(() => {
+    if (page > 1) {
+      fetchLogs(page);
+    }
+  }, [page]);
+
+  const fetchLogs = async (pageNum = 1) => {
+    try {
+      const res = await api.get(`/api/attendance/?page=${pageNum}`);
+      const data = res.data;
+      const newResults = data.results || (Array.isArray(data) ? data : []);
+      const count = data.count !== undefined ? data.count : (Array.isArray(data) ? data.length : newResults.length);
+
+      if (pageNum === 1) {
+        setLogs(newResults);
+      } else {
+        setLogs(prev => {
+          const newIds = new Set(newResults.map(r => r.id));
+          const filteredPrev = prev.filter(r => !newIds.has(r.id));
+          return [...filteredPrev, ...newResults];
+        });
+      }
+      setTotalCount(count);
+    } catch (err) {
+      console.error('Failed to load logs:', err);
+    }
+  };
 
   const loadAttendanceData = async () => {
     setLoading(true);
@@ -30,11 +60,14 @@ export default function StudentAttendancePage() {
         
         const [reportRes, logsRes] = await Promise.all([
           api.get(`/api/attendance/report/${studentId}/`),
-          api.get('/api/attendance/')
+          api.get('/api/attendance/?page=1')
         ]);
 
         setReport(reportRes.data);
-        setLogs(logsRes.data.results || logsRes.data || []);
+        const logData = logsRes.data;
+        const newResults = logData.results || (Array.isArray(logData) ? logData : []);
+        setLogs(newResults);
+        setTotalCount(logData.count !== undefined ? logData.count : newResults.length);
       }
     } catch (err) {
       console.error('Failed to load attendance data:', err);
@@ -197,6 +230,12 @@ export default function StudentAttendancePage() {
         <DataTable 
           columns={columns} 
           data={logs} 
+          loading={loading}
+          infiniteScroll={true}
+          totalCount={totalCount}
+          serverPage={page}
+          pageSize={100}
+          onPageChange={setPage}
           searchKey="subject_code"
           emptyMessage="No daily attendance logs found."
         />

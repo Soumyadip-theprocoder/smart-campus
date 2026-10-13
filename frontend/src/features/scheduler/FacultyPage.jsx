@@ -284,6 +284,7 @@ export default function FacultyPage() {
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [ordering, setOrdering] = useState('employee_id');
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -294,10 +295,10 @@ export default function FacultyPage() {
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
-    fetchData(page, search, departmentFilter, roleFilter);
-  }, [page, search, departmentFilter, roleFilter]);
+    fetchData(page, search, departmentFilter, roleFilter, ordering);
+  }, [page, search, departmentFilter, roleFilter, ordering]);
 
-  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', rFilter = '') => {
+  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', rFilter = '', orderingParam = ordering) => {
     setLoading(true);
     try {
       let url = `/api/auth/faculty/?page=${pageNum}`;
@@ -305,6 +306,7 @@ export default function FacultyPage() {
       if (deptFilter) url += `&department=${deptFilter}`;
       if (rFilter === 'hod') url += `&is_hod=true`;
       if (rFilter === 'faculty') url += `&is_hod=false`;
+      if (orderingParam) url += `&ordering=${orderingParam}`;
 
       const [facRes, depRes] = await Promise.all([
         api.get(url),
@@ -382,8 +384,18 @@ export default function FacultyPage() {
 
   const columns = [
     {
+      key: 'employee_id',
+      label: 'Faculty ID',
+      render: (val) => (
+        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+          {val}
+        </span>
+      )
+    },
+    {
       key: 'name',
       label: 'Name',
+      sortValue: (row) => `${row.user?.first_name || ''} ${row.user?.last_name || ''}`.trim(),
       render: (_, row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.user?.first_name} {row.user?.last_name}</div>
@@ -392,17 +404,9 @@ export default function FacultyPage() {
       )
     },
     {
-      key: 'employee_id',
-      label: 'Employee ID',
-      render: (val) => (
-        <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-          {val}
-        </span>
-      )
-    },
-    {
       key: 'department',
       label: 'Department',
+      sortValue: (row) => departments.find(dep => String(dep.id) === String(row.department))?.name || '',
       render: (val) => {
         const d = departments.find(dep => String(dep.id) === String(val));
         if (!d) return val || 'General';
@@ -418,15 +422,26 @@ export default function FacultyPage() {
         );
       }
     },
-    { key: 'designation', label: 'Designation', render: (val, row) => (
-      <span>
-        {val || 'N/A'} {row.is_hod && <span className="badge badge-high" style={{marginLeft: '0.5rem'}}>HOD</span>}
-      </span>
-    ) },
-    { key: 'max_hours_per_week', label: 'Max Hours/Week', render: (val) => <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>🕒 {val || 20}h</span> },
+    { 
+      key: 'designation', 
+      label: 'Designation', 
+      sortValue: (row) => row.designation || '',
+      render: (val, row) => (
+        <span>
+          {val || 'N/A'} {row.is_hod && <span className="badge badge-high" style={{marginLeft: '0.5rem'}}>HOD</span>}
+        </span>
+      ) 
+    },
+    { 
+      key: 'max_hours_per_week', 
+      label: 'Max Hours/Week', 
+      sortValue: (row) => Number(row.max_hours_per_week || 20),
+      render: (val) => <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>🕒 {val || 20}h</span> 
+    },
     {
       key: 'actions',
       label: 'Actions',
+      sortable: false,
       render: (_, row) => (
         <div className="action-btns">
           <button
@@ -555,6 +570,21 @@ export default function FacultyPage() {
           onPageChange={setPage}
           onSearchChange={(s) => { setPage(1); setSearch(s); }}
           pageSize={100}
+          defaultSortKey="employee_id"
+          defaultSortDir="asc"
+          onSortChange={({ sortKey, sortDir }) => {
+            const backendSortMap = {
+              employee_id: 'employee_id',
+              name: 'user__first_name',
+              designation: 'designation',
+              max_hours_per_week: 'max_hours_per_week',
+            };
+            const field = backendSortMap[sortKey];
+            if (field) {
+              setOrdering(sortDir === 'desc' ? `-${field}` : field);
+              setPage(1);
+            }
+          }}
         />
       </div>
 

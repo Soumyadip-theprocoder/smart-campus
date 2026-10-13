@@ -44,6 +44,13 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+function AttendanceRedirect() {
+  const { user } = useAuth();
+  if (user?.role === 'student') return <Navigate to="/student/attendance" replace />;
+  if (user?.role === 'faculty') return <Navigate to="/faculty/attendance" replace />;
+  return <Navigate to="/admin/attendance" replace />;
+}
+
 function RoleRedirect() {
   const { user } = useAuth();
   if (user?.role === 'student') return <Navigate to="/student" replace />;
@@ -247,6 +254,7 @@ function AppLayout() {
             />
 
             {/* Redirects */}
+            <Route path="/attendance" element={<AttendanceRedirect />} />
             <Route path="/login" element={<RoleRedirect />} />
             <Route path="/" element={<RoleRedirect />} />
             <Route path="*" element={<RoleRedirect />} />

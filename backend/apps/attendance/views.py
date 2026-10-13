@@ -12,7 +12,7 @@ from django.db.models import Count, Q
 from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from rest_framework import generics, permissions, status
+from rest_framework import filters, generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -23,16 +23,34 @@ from .serializers import (AttendanceReportSerializer, AttendanceSerializer,
 
 
 class AttendanceListView(generics.ListAPIView):
-    """List attendance records with filtering."""
+    """List attendance records with filtering, searching, and ordering."""
 
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = [
+        "student__enrollment_number",
+        "student__user__first_name",
+        "student__user__last_name",
+        "subject__code",
+        "subject__name",
+        "status",
+        "method",
+    ]
+    ordering_fields = [
+        "date",
+        "marked_at",
+        "status",
+        "student__enrollment_number",
+        "subject__code",
+    ]
+    ordering = ["-date", "-marked_at"]
 
     def get_queryset(self):
         qs = Attendance.objects.select_related(
             "student__user",
             "subject",
-        )
+        ).order_by("-date", "-marked_at")
         user = self.request.user
 
         # Students can only see their own records
