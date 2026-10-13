@@ -98,6 +98,7 @@ class DepartmentListView(generics.ListCreateAPIView):
         qs = Department.objects.annotate(
             student_count=Count("students", distinct=True),
             faculty_count=Count("faculty_members", distinct=True),
+            subject_count=Count("subjects", distinct=True),
         ).order_by("dept_id", "name")
         program_type = self.request.query_params.get("program_type")
         if program_type:
@@ -136,6 +137,7 @@ class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Department.objects.annotate(
             student_count=Count("students", distinct=True),
             faculty_count=Count("faculty_members", distinct=True),
+            subject_count=Count("subjects", distinct=True),
         ).all()
 
 

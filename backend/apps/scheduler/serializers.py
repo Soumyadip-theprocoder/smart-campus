@@ -28,15 +28,16 @@ class DepartmentSerializer(BreaksValidationMixin, serializers.ModelSerializer):
     """Serializer for Department."""
     faculty_count = serializers.IntegerField(read_only=True, default=0)
     student_count = serializers.IntegerField(read_only=True, default=0)
+    subject_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Department
         fields = [
             "id", "dept_id", "name", "start_time", "end_time", "default_breaks",
             "no_of_years", "program_type", "core_department", "hod",
-            "faculty_count", "student_count"
+            "faculty_count", "student_count", "subject_count"
         ]
-        read_only_fields = ["id", "faculty_count", "student_count"]
+        read_only_fields = ["id", "faculty_count", "student_count", "subject_count"]
 
 
 class AmenitySerializer(serializers.ModelSerializer):

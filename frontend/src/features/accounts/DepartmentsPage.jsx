@@ -339,6 +339,11 @@ export default function DepartmentsPage() {
       render: (val) => <span className="badge badge-medium">👨‍🎓 {val || 0}</span>
     },
     {
+      key: 'subject_count',
+      label: 'Courses',
+      render: (val) => <span className="badge" style={{ backgroundColor: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', border: '1px solid rgba(99, 102, 241, 0.3)', fontWeight: 600 }}>📚 {val || 0}</span>
+    },
+    {
       key: 'hod',
       label: 'Head of Dept',
       render: (val) => {
