@@ -149,19 +149,19 @@ export default function LoginPage() {
                 </button>
                 <button
                   className="demo-account"
-                  onClick={() => { setEmail('alice.brown@smartcampus.edu'); setPassword('student123'); }}
+                  onClick={() => { setEmail('alice.brown.dep0009.y1.11@smartcampus.edu'); setPassword('student123'); }}
                   type="button"
                 >
                   <span className="demo-role">Student</span>
-                  <span className="demo-email">alice.brown@smartcampus.edu</span>
+                  <span className="demo-email">alice.brown.dep0009.y1.11@smartcampus.edu</span>
                 </button>
                 <button
                   className="demo-account"
-                  onClick={() => { setEmail('john.smith@smartcampus.edu'); setPassword('faculty123'); }}
+                  onClick={() => { setEmail('john.smith.dep0009@smartcampus.edu'); setPassword('faculty123'); }}
                   type="button"
                 >
                   <span className="demo-role">Faculty</span>
-                  <span className="demo-email">john.smith@smartcampus.edu</span>
+                  <span className="demo-email">john.smith.dep0009@smartcampus.edu</span>
                 </button>
               </div>
             </div>

@@ -272,19 +272,63 @@ function CourseForm({ initial, faculty, departments, amenitiesList, onSave, savi
   );
 }
 
-/* ─── Degree & Academic Filter Definitions ────────────────────── */
-const DEGREE_OPTIONS = [
-  { value: '', label: 'All Degrees', icon: '🌐', color: 'var(--color-accent-blue)', count: 89 },
-  { value: 'B.Tech', label: 'B.Tech — Bachelor of Technology', icon: '🎓', color: '#3b82f6', count: 35 },
-  { value: 'B.Sc', label: 'B.Sc — Bachelor of Science', icon: '🔬', color: '#10b981', count: 36 },
-  { value: 'BBA', label: 'BBA — Business Administration', icon: '📊', color: '#8b5cf6', count: 12 },
-  { value: 'BCA', label: 'BCA — Computer Applications', icon: '💻', color: '#06b6d4', count: 1 },
-  { value: 'B.Arch', label: 'B.Arch — Architecture', icon: '🏛️', color: '#f59e0b', count: 1 },
-  { value: 'B.Pharm', label: 'B.Pharm — Pharmacy', icon: '💊', color: '#ec4899', count: 1 },
-  { value: 'BHMCT', label: 'BHMCT — Hotel Management', icon: '🏨', color: '#6366f1', count: 1 },
-  { value: 'BTTM', label: 'BTTM — Travel & Tourism', icon: '✈️', color: '#14b8a6', count: 1 },
-  { value: 'M.A.', label: 'M.A. — Master of Arts', icon: '📚', color: '#f97316', count: 1 },
-];
+/* ─── Dynamic Degree & Academic Filter Definitions ────────────── */
+export const getDepartmentDegree = (dept) => {
+  if (!dept) return '';
+  const progType = typeof dept === 'object' ? dept.program_type : '';
+  if (progType && progType.trim()) {
+    return progType.trim();
+  }
+  const name = typeof dept === 'object' ? dept.name || '' : String(dept);
+  if (name.includes(' in ')) {
+    return name.split(' in ')[0].trim();
+  }
+  return name.split(' ')[0].trim();
+};
+
+const DEGREE_METADATA = {
+  'B.Tech': { label: 'B.Tech — Bachelor of Technology', icon: '🎓', color: '#3b82f6' },
+  'B.Sc': { label: 'B.Sc — Bachelor of Science', icon: '🔬', color: '#10b981' },
+  'M.Tech': { label: 'M.Tech — Master of Technology', icon: '⚡', color: '#6366f1' },
+  'M.Sc': { label: 'M.Sc — Master of Science', icon: '🧪', color: '#059669' },
+  'BBA': { label: 'BBA — Business Administration', icon: '📊', color: '#8b5cf6' },
+  'MBA': { label: 'MBA — Business Administration', icon: '💼', color: '#9333ea' },
+  'BCA': { label: 'BCA — Computer Applications', icon: '💻', color: '#06b6d4' },
+  'MCA': { label: 'MCA — Computer Applications', icon: '🖥️', color: '#0284c7' },
+  'B.Pharm': { label: 'B.Pharm — Pharmacy', icon: '💊', color: '#ec4899' },
+  'M.Pharm': { label: 'M.Pharm — Pharmacy', icon: '💉', color: '#db2777' },
+  'B.Arch': { label: 'B.Arch — Architecture', icon: '🏛️', color: '#f59e0b' },
+  'M.Arch': { label: 'M.Arch — Architecture', icon: '📐', color: '#d97706' },
+  'BHMCT': { label: 'BHMCT — Hotel Management', icon: '🏨', color: '#e11d48' },
+  'BTTM': { label: 'BTTM — Travel & Tourism', icon: '✈️', color: '#14b8a6' },
+  'M.A.': { label: 'M.A. — Master of Arts', icon: '📚', color: '#f97316' },
+  'M.Phil': { label: 'M.Phil — Philosophy', icon: '📖', color: '#ea580c' },
+  'MMS': { label: 'MMS — Management Studies', icon: '📑', color: '#7c3aed' },
+  'B.Optom': { label: 'B.Optom — Optometry', icon: '👁️', color: '#2563eb' },
+  'M.Optom': { label: 'M.Optom — Optometry', icon: '👁️', color: '#1d4ed8' },
+  'BMLS': { label: 'BMLS — Medical Lab Science', icon: '🩺', color: '#0d9488' },
+  'MMLS': { label: 'MMLS — Medical Lab Science', icon: '🔬', color: '#0f766e' },
+  'BMRIT': { label: 'BMRIT — Radiology & Imaging', icon: '🩻', color: '#4f46e5' },
+  'MMRIT': { label: 'MMRIT — Radiology & Imaging', icon: '🩻', color: '#4338ca' },
+  'BND': { label: 'BND — Nutrition & Dietetics', icon: '🥗', color: '#16a34a' },
+  'B.Psy': { label: 'B.Psy — Psychology', icon: '🧠', color: '#c026d3' },
+  'MHA': { label: 'MHA — Hospital Administration', icon: '🏥', color: '#dc2626' },
+  'MMA': { label: 'MMA — Management Administration', icon: '📋', color: '#7e22ce' },
+  'MPH': { label: 'MPH — Public Health', icon: '🌐', color: '#0891b2' },
+  'MTTM': { label: 'MTTM — Tourism & Travel', icon: '🌍', color: '#0d9488' },
+};
+
+const getDegreeMeta = (degCode) => {
+  if (!degCode) return { label: 'All Degrees', icon: '🌐', color: 'var(--color-accent-blue)' };
+  if (DEGREE_METADATA[degCode]) return DEGREE_METADATA[degCode];
+  const isMaster = degCode.startsWith('M') || degCode.startsWith('Master');
+  const isBachelor = degCode.startsWith('B') || degCode.startsWith('Bachelor');
+  return {
+    label: degCode,
+    icon: isMaster ? '🎓' : isBachelor ? '📘' : '🏛️',
+    color: '#6366f1',
+  };
+};
 
 const YEAR_OPTIONS = [
   { value: '', label: 'All Years' },
@@ -336,6 +380,7 @@ export default function SubjectsPage() {
   const [departments, setDepartments] = useState([]);
   const [amenitiesList, setAmenitiesList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -379,7 +424,7 @@ export default function SubjectsPage() {
           id: 'faculty-dept',
           dept_id: deptModalCourse.faculty_dept_id,
           name: deptModalCourse.faculty_department,
-          program_type: 'UG',
+          program_type: getDepartmentDegree(deptModalCourse.faculty_department),
           no_of_years: 4,
         }];
       }
@@ -402,8 +447,7 @@ export default function SubjectsPage() {
     if (!modalDeptList.length) return [];
     const counts = {};
     modalDeptList.forEach((d) => {
-      const opt = DEGREE_OPTIONS.find((o) => o.value && d.name.startsWith(o.value));
-      const deg = opt ? opt.value : 'Other';
+      const deg = getDepartmentDegree(d) || 'Other';
       counts[deg] = (counts[deg] || 0) + 1;
     });
     return Object.entries(counts).map(([degree, count]) => ({ degree, count }));
@@ -458,7 +502,11 @@ export default function SubjectsPage() {
     elecFilter = electiveFilter,
     orderingParam = ordering,
   } = {}) => {
-    setLoading(true);
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
       let url = `/api/scheduler/subjects/?page=${pageNum}`;
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
@@ -499,6 +547,7 @@ export default function SubjectsPage() {
       toast.error('Failed to load courses data');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -532,10 +581,57 @@ export default function SubjectsPage() {
     ordering,
   ]);
 
+  /* ── Dynamic Degree Options derived from Loaded Departments ─── */
+  const degreeOptions = useMemo(() => {
+    const counts = {};
+    departments.forEach((d) => {
+      const deg = getDepartmentDegree(d);
+      if (deg) {
+        counts[deg] = (counts[deg] || 0) + 1;
+      }
+    });
+
+    const sortedDegrees = Object.keys(counts).sort((a, b) => {
+      if (counts[b] !== counts[a]) {
+        return counts[b] - counts[a];
+      }
+      return a.localeCompare(b);
+    });
+
+    return [
+      {
+        value: '',
+        label: 'All Degrees',
+        icon: '🌐',
+        color: 'var(--color-accent-blue)',
+        count: departments.length,
+      },
+      ...sortedDegrees.map((deg) => {
+        const meta = getDegreeMeta(deg);
+        return {
+          value: deg,
+          label: meta.label || deg,
+          icon: meta.icon || '🎓',
+          color: meta.color || '#3b82f6',
+          count: counts[deg],
+        };
+      }),
+    ];
+  }, [departments]);
+
   /* ── Filter Helpers ───────────────────────────────────────────── */
+  const departmentMatchesDegree = (dept, degree) => {
+    if (!degree) return true;
+    const lower = degree.toLowerCase();
+    const dDeg = getDepartmentDegree(dept).toLowerCase();
+    const progType = (dept?.program_type || '').toLowerCase();
+    const name = (dept?.name || '').toLowerCase();
+    return dDeg === lower || progType === lower || name.startsWith(lower) || name.includes(lower);
+  };
+
   const filteredDepartments = useMemo(() => {
     if (!degreeFilter) return departments;
-    return departments.filter(d => d.name && d.name.toLowerCase().startsWith(degreeFilter.toLowerCase()));
+    return departments.filter((d) => departmentMatchesDegree(d, degreeFilter));
   }, [departments, degreeFilter]);
 
   const handleDegreeChange = (newDegree) => {
@@ -544,7 +640,7 @@ export default function SubjectsPage() {
     // If current selected department doesn't match new degree, reset it
     if (departmentFilter && newDegree) {
       const currentDept = departments.find(d => String(d.id) === String(departmentFilter));
-      if (currentDept && !currentDept.name.toLowerCase().startsWith(newDegree.toLowerCase())) {
+      if (currentDept && !departmentMatchesDegree(currentDept, newDegree)) {
         setDepartmentFilter('');
       }
     }
@@ -576,10 +672,21 @@ export default function SubjectsPage() {
     search,
   ].filter(Boolean).length;
 
-  const getDegreeBadge = (deptName) => {
-    if (!deptName) return null;
-    const match = DEGREE_OPTIONS.find(d => d.value && deptName.startsWith(d.value));
-    if (!match) return null;
+  const getDegreeBadge = (deptNameOrDept) => {
+    if (!deptNameOrDept) return null;
+    let degCode = '';
+    if (typeof deptNameOrDept === 'object') {
+      degCode = getDepartmentDegree(deptNameOrDept);
+    } else {
+      const deptObj = departments.find(d => d.name === deptNameOrDept);
+      if (deptObj) {
+        degCode = getDepartmentDegree(deptObj);
+      } else {
+        degCode = getDepartmentDegree(deptNameOrDept);
+      }
+    }
+    if (!degCode) return null;
+    const meta = getDegreeMeta(degCode);
     return (
       <span
         style={{
@@ -587,15 +694,15 @@ export default function SubjectsPage() {
           fontWeight: 700,
           padding: '2px 7px',
           borderRadius: '6px',
-          background: `${match.color}18`,
-          color: match.color,
-          border: `1px solid ${match.color}40`,
+          background: `${meta.color}18`,
+          color: meta.color,
+          border: `1px solid ${meta.color}40`,
           marginRight: '6px',
           letterSpacing: '0.02em',
           display: 'inline-block',
         }}
       >
-        {match.value}
+        {degCode}
       </span>
     );
   };
@@ -668,6 +775,28 @@ export default function SubjectsPage() {
           >
             {val}
           </strong>
+          {row.is_elective && (
+            <div style={{ marginTop: '4px' }}>
+              <span
+                className="badge"
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  background: 'rgba(139, 92, 246, 0.15)',
+                  color: '#a78bfa',
+                  border: '1px solid rgba(139, 92, 246, 0.35)',
+                  borderRadius: '10px',
+                  padding: '1px 7px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>⚡ Elective</span>
+                {row.elective_group && <span style={{ opacity: 0.85 }}>({row.elective_group})</span>}
+              </span>
+            </div>
+          )}
           {row.description && (
             <span
               title={row.description}
@@ -997,10 +1126,10 @@ export default function SubjectsPage() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
-              {degreeFilter ? degreeFilter : '9 Degrees'}
+              {degreeFilter ? degreeFilter : `${degreeOptions.length > 1 ? degreeOptions.length - 1 : 0} Degrees`}
             </h3>
             <span style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
-              {degreeFilter ? `${filteredDepartments.length} Departments in ${degreeFilter}` : 'All 89 University Depts'}
+              {degreeFilter ? `${filteredDepartments.length} Departments in ${degreeFilter}` : `All ${departments.length} University Depts`}
             </span>
           </div>
         </div>
@@ -1057,7 +1186,7 @@ export default function SubjectsPage() {
               scrollbarWidth: 'thin',
             }}
           >
-            {DEGREE_OPTIONS.map((deg) => {
+            {degreeOptions.map((deg) => {
               const isSelected = degreeFilter === deg.value;
               return (
                 <button
@@ -1079,7 +1208,7 @@ export default function SubjectsPage() {
                 >
                   <span>{deg.icon}</span>
                   <span>{deg.value || 'All Degrees'}</span>
-                  {deg.count && (
+                  {deg.count !== undefined && (
                     <span
                       style={{
                         fontSize: '0.7rem',
@@ -1120,9 +1249,9 @@ export default function SubjectsPage() {
               value={degreeFilter}
               onChange={(e) => handleDegreeChange(e.target.value)}
             >
-              {DEGREE_OPTIONS.map((d) => (
+              {degreeOptions.map((d) => (
                 <option key={d.value || 'all'} value={d.value}>
-                  {d.icon} {d.label}
+                  {d.icon} {d.label} {d.count !== undefined ? `(${d.count})` : ''}
                 </option>
               ))}
             </select>
@@ -1131,7 +1260,7 @@ export default function SubjectsPage() {
           {/* Department Selector */}
           <div>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>
-              Department {degreeFilter ? `(${filteredDepartments.length} in ${degreeFilter})` : `(All 89)`}
+              Department {degreeFilter ? `(${filteredDepartments.length} in ${degreeFilter})` : `(All ${departments.length})`}
             </label>
             <select
               className="form-input"
@@ -1152,8 +1281,11 @@ export default function SubjectsPage() {
                 ))
               ) : (
                 <>
-                  {DEGREE_OPTIONS.filter((deg) => deg.value).map((deg) => {
-                    const deptsInDeg = departments.filter((d) => d.name && d.name.startsWith(deg.value));
+                  {degreeOptions.filter((deg) => deg.value).map((deg) => {
+                    const deptsInDeg = departments.filter((d) => {
+                      const dDeg = getDepartmentDegree(d);
+                      return dDeg.toLowerCase() === deg.value.toLowerCase();
+                    });
                     if (deptsInDeg.length === 0) return null;
                     return (
                       <optgroup key={deg.value} label={`${deg.icon} ${deg.value} (${deptsInDeg.length})`}>
@@ -1469,7 +1601,7 @@ export default function SubjectsPage() {
         <DataTable
           columns={columns}
           data={subjects}
-          loading={loading}
+          loading={loading || loadingMore}
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}
@@ -1548,6 +1680,18 @@ export default function SubjectsPage() {
               <span className="badge badge-medium">
                 {viewingItem.sessions_per_week || 3} sessions / wk
               </span>
+              {viewingItem.is_elective && (
+                <span
+                  className="badge"
+                  style={{
+                    background: 'rgba(139, 92, 246, 0.15)',
+                    color: '#a78bfa',
+                    border: '1px solid rgba(139, 92, 246, 0.35)',
+                  }}
+                >
+                  ⚡ Elective: {viewingItem.elective_group || 'General Elective'}
+                </span>
+              )}
             </div>
 
             <div>
@@ -1737,7 +1881,7 @@ export default function SubjectsPage() {
                   Degrees:
                 </span>
                 {modalDegreesSummary.map(({ degree, count }) => {
-                  const opt = DEGREE_OPTIONS.find((o) => o.value === degree);
+                  const meta = getDegreeMeta(degree);
                   return (
                     <span
                       key={degree}
@@ -1745,12 +1889,12 @@ export default function SubjectsPage() {
                       style={{
                         fontSize: '0.75rem',
                         fontWeight: 600,
-                        background: opt ? `${opt.color}18` : 'rgba(255,255,255,0.06)',
-                        color: opt ? opt.color : 'inherit',
-                        border: `1px solid ${opt ? `${opt.color}40` : 'rgba(255,255,255,0.1)'}`,
+                        background: `${meta.color}18`,
+                        color: meta.color,
+                        border: `1px solid ${meta.color}40`,
                       }}
                     >
-                      {opt?.icon || '🎓'} {degree} ({count})
+                      {meta?.icon || '🎓'} {degree} ({count})
                     </span>
                   );
                 })}

@@ -26,6 +26,10 @@ export default function StudentDashboard() {
   const [notices, setNotices] = useState([]);
   const [timetable, setTimetable] = useState([]);
   const [forecast, setForecast] = useState(null);
+  const [electives, setElectives] = useState([]);
+  const [baskets, setBaskets] = useState([]);
+  const [activeSwitchGroup, setActiveSwitchGroup] = useState(null);
+  const [savingElective, setSavingElective] = useState(false);
   const [loading, setLoading] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
@@ -36,24 +40,26 @@ export default function StudentDashboard() {
   const loadStudentData = async () => {
     setLoading(true);
     try {
-      const [meRes, noticesRes, timetableRes] = await Promise.all([
+      const [meRes, noticesRes, timetableRes, enrollRes, basketsRes] = await Promise.allSettled([
         api.get('/api/auth/me/'),
-        api.get('/api/communication/notices/').catch(() => ({ data: { results: [] } })),
-        api.get('/api/scheduler/timetable/').catch(() => ({ data: { results: [] } }))
+        api.get('/api/communication/notices/'),
+        api.get('/api/scheduler/timetable/'),
+        api.get('/api/scheduler/electives/enrollments/'),
+        api.get('/api/scheduler/electives/baskets/'),
       ]);
 
-      setProfile(meRes.data);
+      if (meRes.status === 'fulfilled') {
+        setProfile(meRes.value.data);
 
         // Load attendance report if we have a student profile
-        if (meRes.data.profile?.id) {
+        if (meRes.value.data.profile?.id) {
           try {
             const reportRes = await api.get(
-              `/api/attendance/report/${meRes.data.profile.id}/`
+              `/api/attendance/report/${meRes.value.data.profile.id}/`
             );
             setReport(reportRes.data);
-            
-            // Also load forecast
-            const forecastRes = await api.get(`/api/attendance/forecast/${meRes.data.profile.id}/`);
+
+            const forecastRes = await api.get(`/api/attendance/forecast/${meRes.value.data.profile.id}/`);
             if (forecastRes.data && forecastRes.data.forecasted_cgpa) {
               setForecast(forecastRes.data.forecasted_cgpa);
             }
@@ -61,13 +67,45 @@ export default function StudentDashboard() {
             // No attendance data or forecast available yet
           }
         }
+      }
 
-      setNotices((noticesRes.data.results || noticesRes.data || []).slice(0, 3));
-      setTimetable((timetableRes.data.results || timetableRes.data || []).slice(0, 5));
+      if (noticesRes.status === 'fulfilled') {
+        setNotices((noticesRes.value.data.results || noticesRes.value.data || []).slice(0, 3));
+      }
+      if (timetableRes.status === 'fulfilled') {
+        setTimetable((timetableRes.value.data.results || timetableRes.value.data || []).slice(0, 5));
+      }
+      if (enrollRes.status === 'fulfilled') {
+        setElectives(enrollRes.value.data || []);
+      }
+      if (basketsRes.status === 'fulfilled') {
+        setBaskets(basketsRes.value.data || []);
+      }
     } catch (err) {
       console.error('Failed to load student data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSwitchElective = async (groupName, subjectId, subjectName) => {
+    setSavingElective(true);
+    try {
+      const res = await api.post('/api/scheduler/electives/enrollments/', {
+        subject_id: subjectId,
+        elective_group: groupName,
+      });
+      toast.success(`Enrolled in ${subjectName}!`);
+      setElectives((prev) => {
+        const filtered = prev.filter((e) => e.elective_group !== groupName);
+        return [...filtered, res.data.enrollment];
+      });
+      setActiveSwitchGroup(null);
+    } catch (err) {
+      console.error('Failed to update elective:', err);
+      toast.error('Failed to update elective choice.');
+    } finally {
+      setSavingElective(false);
     }
   };
 
@@ -287,6 +325,182 @@ export default function StudentDashboard() {
           )}
         </div>
       </div>
+
+      {/* Mandatory Elective Courses Section */}
+      {baskets.length > 0 && (
+        <div className="section" style={{ marginTop: '1.5rem' }}>
+          <div
+            className="glass-card animate-fade-in-up"
+            style={{
+              padding: '1.5rem',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
+              background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(139, 92, 246, 0.08) 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <span>⚡ Mandatory Elective Course Selection</span>
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: '0.75rem',
+                      background: 'rgba(139, 92, 246, 0.2)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(139, 92, 246, 0.4)',
+                    }}
+                  >
+                    Semester {profile?.profile?.semester || 1}
+                  </span>
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  Academic regulations require you to study <strong>exactly one course</strong> per elective basket. You can switch your elective anytime.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.25rem' }}>
+              {baskets.map((b) => {
+                const currentEnrollment = electives.find((e) => e.elective_group === b.elective_group);
+                const isExpanded = activeSwitchGroup === b.elective_group;
+
+                return (
+                  <div
+                    key={b.elective_group}
+                    style={{
+                      background: 'var(--color-bg-glass)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                          Elective Basket
+                        </span>
+                        <h4 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', color: 'var(--color-text-primary)' }}>
+                          {b.elective_group}
+                        </h4>
+                      </div>
+                      <span className="badge badge-low" style={{ fontSize: '0.75rem' }}>
+                        {b.choices_count} Available Options
+                      </span>
+                    </div>
+
+                    {/* Current Selected Option */}
+                    {currentEnrollment && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.75rem 1rem',
+                          background: 'rgba(16, 185, 129, 0.08)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          borderRadius: '8px',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.9rem' }}>✓ Enrolled:</span>
+                            <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                              {currentEnrollment.subject_code}
+                            </span>
+                            <strong style={{ color: 'var(--color-text-primary)' }}>
+                              {currentEnrollment.subject_name}
+                            </strong>
+                          </div>
+                          {currentEnrollment.faculty_name && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '2px', marginLeft: '1.8rem' }}>
+                              👨‍🏫 Instructor: {currentEnrollment.faculty_name}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setActiveSwitchGroup(isExpanded ? null : b.elective_group)}
+                          style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                        >
+                          {isExpanded ? 'Hide Options ▲' : 'Change Choice ▼'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Expandable Options List */}
+                    {(!currentEnrollment || isExpanded) && (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                          gap: '0.75rem',
+                          marginTop: '0.5rem',
+                          paddingTop: '0.75rem',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                        }}
+                      >
+                        {b.choices.map((choice) => {
+                          const isSelected = currentEnrollment?.subject === choice.id;
+
+                          return (
+                            <div
+                              key={choice.id}
+                              style={{
+                                background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'var(--color-bg-input)',
+                                border: isSelected ? '1px solid #8b5cf6' : '1px solid var(--color-border)',
+                                borderRadius: '8px',
+                                padding: '0.85rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                gap: '0.5rem',
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                  <span className="badge badge-low" style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                                    {choice.code}
+                                  </span>
+                                  <span className="badge badge-low" style={{ fontSize: '0.7rem' }}>
+                                    {choice.credits} cr
+                                  </span>
+                                </div>
+                                <div style={{ fontWeight: 600, color: 'var(--color-text-primary)', fontSize: '0.92rem' }}>
+                                  {choice.name}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                                  👨‍🏫 {choice.faculty_name || 'TBD'}
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                className={`btn btn-sm ${isSelected ? 'btn-secondary' : 'btn-primary'}`}
+                                style={{ width: '100%', marginTop: '4px', fontSize: '0.8rem' }}
+                                disabled={isSelected || savingElective}
+                                onClick={() => handleSwitchElective(b.elective_group, choice.id, choice.name)}
+                              >
+                                {isSelected ? '✓ Current Selection' : savingElective ? 'Switching...' : 'Select This Elective'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {profile?.profile?.is_ta && (
         <div className="section" style={{ marginTop: '1.5rem' }}>

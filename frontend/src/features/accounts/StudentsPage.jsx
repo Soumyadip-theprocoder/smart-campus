@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../api/axios';
 import DataTable from '../../components/DataTable';
 import EditMarksForm from '../../components/EditMarksForm';
@@ -234,12 +234,22 @@ function AddStudentForm({ initialData, onSave, saving, departments = [] }) {
 export default function StudentsPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
   const [ordering, setOrdering] = useState('enrollment_number');
+
+  /* Contextual stats */
+  const [contextStats, setContextStats] = useState({
+    total_students: 0,
+    active_departments: 0,
+    ta_count: 0
+  });
 
   /* Modal state */
   const [modalOpen, setModalOpen] = useState(false);
@@ -250,23 +260,60 @@ export default function StudentsPage() {
 
   const [departments, setDepartments] = useState([]);
 
+  // 1. Fetch departments ONCE on initial mount
   useEffect(() => {
-    fetchData(page, search, departmentFilter, semesterFilter, ordering);
-  }, [page, search, departmentFilter, semesterFilter, ordering]);
+    api.get('/api/scheduler/departments/?all=true')
+      .then(res => {
+        const list = res.data.results || res.data || [];
+        setDepartments(list);
+      })
+      .catch(err => console.error('Failed to load departments', err));
+  }, []);
 
-  const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', semFilter = '', orderingParam = ordering) => {
-    setLoading(true);
+  // 2. Pre-index departments in a Map for instantaneous O(1) row lookups
+  const departmentMap = useMemo(() => {
+    const map = new Map();
+    for (const d of departments) {
+      map.set(String(d.id), d);
+    }
+    return map;
+  }, [departments]);
+
+  // 3. Debounce search input (300ms, min 2 chars)
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed.length === 1) {
+      // Don't query for a single character wildcard
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed);
+      setPage(1);
+      setIsSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // 4. Fetch students when page, debounced search, or filters change
+  useEffect(() => {
+    fetchStudents(page, debouncedSearch, departmentFilter, semesterFilter, ordering);
+  }, [page, debouncedSearch, departmentFilter, semesterFilter, ordering]);
+
+  const fetchStudents = async (pageNum = 1, searchQuery = '', deptFilter = '', semFilter = '', orderingParam = ordering) => {
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      let url = `/api/auth/students/?page=${pageNum}`;
-      if (searchQuery) url += `&search=${searchQuery}`;
+      let url = `/api/auth/students/?page=${pageNum}&page_size=50`;
+      if (searchQuery && searchQuery.length >= 2) url += `&search=${encodeURIComponent(searchQuery)}`;
       if (deptFilter) url += `&department=${deptFilter}`;
       if (semFilter) url += `&semester=${semFilter}`;
       if (orderingParam) url += `&ordering=${orderingParam}`;
 
-      const [stuRes, depRes] = await Promise.all([
-        api.get(url),
-        api.get('/api/scheduler/departments/?all=true')
-      ]);
+      const stuRes = await api.get(url);
       const newResults = stuRes.data.results || stuRes.data || [];
       if (pageNum === 1) {
         setStudents(newResults);
@@ -277,13 +324,24 @@ export default function StudentsPage() {
           return [...filteredPrev, ...newResults];
         });
       }
-      setTotalCount(stuRes.data.count || (stuRes.data.results ? stuRes.data.results.length : (stuRes.data.length || 0)));
-      setDepartments(depRes.data.results || depRes.data || []);
+      const count = stuRes.data.count || (stuRes.data.results ? stuRes.data.results.length : (stuRes.data.length || 0));
+      setTotalCount(count);
+
+      if (stuRes.data.stats) {
+        setContextStats(stuRes.data.stats);
+      } else {
+        setContextStats(prev => ({
+          ...prev,
+          total_students: count,
+          active_departments: deptFilter ? 1 : departments.length,
+        }));
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -303,12 +361,11 @@ export default function StudentsPage() {
       }
       setModalOpen(false);
       setEditingStudent(null);
-      fetchData(page, search);
+      fetchStudents(1, debouncedSearch, departmentFilter, semesterFilter, ordering);
     } catch (err) {
       console.error('Save failed:', err);
       const data = err.response?.data;
       if (data) {
-        // Format error messages nicely
         const messages = [];
         Object.entries(data).forEach(([key, val]) => {
           const msg = Array.isArray(val) ? val.join(', ') : val;
@@ -329,7 +386,7 @@ export default function StudentsPage() {
       await api.patch(`/api/auth/students/${editingMarks.id}/`, marksData);
       toast.success('Marks updated successfully');
       setEditingMarks(null);
-      fetchData(page, search);
+      fetchStudents(1, debouncedSearch, departmentFilter, semesterFilter, ordering);
     } catch (err) {
       console.error('Save failed:', err);
       toast.error('Failed to save marks. Please try again.');
@@ -342,10 +399,9 @@ export default function StudentsPage() {
   const handleDelete = async () => {
     if (!confirmDelete) return;
     try {
-      // Delete user (cascades to student profile)
       await api.delete(`/api/auth/students/${confirmDelete.id}/`);
       setConfirmDelete(null);
-      fetchData(page, search);
+      fetchStudents(1, debouncedSearch, departmentFilter, semesterFilter, ordering);
     } catch (err) {
       console.error('Delete failed:', err);
       toast.error('Failed to delete student.');
@@ -376,9 +432,9 @@ export default function StudentsPage() {
     {
       key: 'department',
       label: 'Department',
-      sortValue: (row) => departments.find(dep => String(dep.id) === String(row.department))?.name || '',
+      sortValue: (row) => departmentMap.get(String(row.department))?.name || '',
       render: (val) => {
-        const d = departments.find(dep => String(dep.id) === String(val));
+        const d = departmentMap.get(String(val));
         if (!d) return val || 'General';
         return (
           <div>
@@ -450,8 +506,12 @@ export default function StudentsPage() {
             👨‍🎓
           </div>
           <div>
-            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{totalCount}</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Total Students</span>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
+              {contextStats.total_students ? contextStats.total_students.toLocaleString() : totalCount.toLocaleString()}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              {departmentFilter || semesterFilter || debouncedSearch ? 'Matching Students' : 'Total Students'}
+            </span>
           </div>
         </div>
 
@@ -460,8 +520,12 @@ export default function StudentsPage() {
             🏛️
           </div>
           <div>
-            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{departments.length}</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Active Departments</span>
+            <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
+              {contextStats.active_departments}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              {departmentFilter ? 'Selected Department' : 'Active Departments'}
+            </span>
           </div>
         </div>
 
@@ -471,7 +535,7 @@ export default function StudentsPage() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>
-              {students.filter(s => s.is_ta).length || 0}
+              {contextStats.ta_count}
             </h3>
             <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Teaching Assistants (TAs)</span>
           </div>
@@ -483,7 +547,7 @@ export default function StudentsPage() {
         <div className="tabs" style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', margin: 0 }}>
           <button 
             className={`btn btn-sm ${semesterFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => { setPage(1); setSemesterFilter(''); }}
+            onClick={() => { setStudents([]); setPage(1); setSemesterFilter(''); }}
           >
             All Semesters
           </button>
@@ -491,7 +555,7 @@ export default function StudentsPage() {
             <button 
               key={sem}
               className={`btn btn-sm ${String(semesterFilter) === String(sem) ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => { setPage(1); setSemesterFilter(String(sem)); }}
+              onClick={() => { setStudents([]); setPage(1); setSemesterFilter(String(sem)); }}
             >
               Sem {sem}
             </button>
@@ -501,11 +565,11 @@ export default function StudentsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <select
             className="form-input"
-            style={{ width: 'auto', minWidth: '220px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+            style={{ width: 'auto', minWidth: '240px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
             value={departmentFilter}
-            onChange={(e) => { setPage(1); setDepartmentFilter(e.target.value); }}
+            onChange={(e) => { setStudents([]); setPage(1); setDepartmentFilter(e.target.value); }}
           >
-            <option value="">-- All Departments --</option>
+            <option value="">-- All Departments ({departments.length}) --</option>
             {departments.map(d => (
               <option key={d.id} value={d.id}>
                 {d.dept_id ? `[${d.dept_id}] ` : ''}{d.name}
@@ -522,7 +586,9 @@ export default function StudentsPage() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>All Students</h3>
-            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{totalCount} students registered</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              {totalCount.toLocaleString()} {totalCount === 1 ? 'student' : 'students'} {departmentFilter || semesterFilter || debouncedSearch ? 'found' : 'registered'}
+            </span>
           </div>
         </div>
 
@@ -530,13 +596,16 @@ export default function StudentsPage() {
           columns={columns}
           data={students}
           searchKey="enrollment_number"
-          emptyMessage="No students registered yet."
+          searchValue={searchInput}
+          onSearchChange={setSearchInput}
+          isSearching={isSearching}
+          emptyMessage={isSearching ? "Searching..." : "No students found matching your criteria."}
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}
           onPageChange={setPage}
-          onSearchChange={(s) => { setPage(1); setSearch(s); }}
-          pageSize={100}
+          pageSize={50}
+          loading={loading || loadingMore}
           defaultSortKey="enrollment_number"
           defaultSortDir="asc"
           onSortChange={({ sortKey, sortDir }) => {
@@ -547,6 +616,7 @@ export default function StudentsPage() {
             };
             const field = backendSortMap[sortKey];
             if (field) {
+              setStudents([]);
               setOrdering(sortDir === 'desc' ? `-${field}` : field);
               setPage(1);
             }

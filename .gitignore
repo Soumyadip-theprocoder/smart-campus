@@ -35,5 +35,15 @@ Thumbs.db
 node_modules/
 frontend/dist/
 
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+scripts
+
+# Syllabus Scrapes
+*_syllabus_pdfs/
+
 # Antigravity/Agent artifacts
 .planning/
+

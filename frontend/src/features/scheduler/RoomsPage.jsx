@@ -157,6 +157,7 @@ export default function RoomsPage() {
   const [rooms, setRooms] = useState([]);
   const [amenitiesList, setAmenitiesList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -190,7 +191,11 @@ export default function RoomsPage() {
     searchQuery = debouncedSearch,
     orderingParam = ordering,
   } = {}) => {
-    setLoading(true);
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
       let url = `/api/scheduler/rooms/?page=${pageNum}`;
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
@@ -215,6 +220,7 @@ export default function RoomsPage() {
       console.error('Failed to load rooms:', err);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -369,7 +375,7 @@ export default function RoomsPage() {
         <DataTable
           columns={columns}
           data={rooms}
-          loading={loading}
+          loading={loading || loadingMore}
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}

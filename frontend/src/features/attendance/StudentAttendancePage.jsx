@@ -13,6 +13,7 @@ export default function StudentAttendancePage() {
   const [report, setReport] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [showScanner, setShowScanner] = useState(false);
@@ -28,6 +29,7 @@ export default function StudentAttendancePage() {
   }, [page]);
 
   const fetchLogs = async (pageNum = 1) => {
+    setLoadingMore(true);
     try {
       const res = await api.get(`/api/attendance/?page=${pageNum}`);
       const data = res.data;
@@ -46,6 +48,8 @@ export default function StudentAttendancePage() {
       setTotalCount(count);
     } catch (err) {
       console.error('Failed to load logs:', err);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -230,7 +234,7 @@ export default function StudentAttendancePage() {
         <DataTable 
           columns={columns} 
           data={logs} 
-          loading={loading}
+          loading={loading || loadingMore}
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}

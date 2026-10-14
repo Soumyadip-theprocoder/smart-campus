@@ -7,14 +7,24 @@ import datetime
 from django.http import HttpResponse
 from django_q.tasks import async_task, fetch
 from icalendar import Calendar, Event
+from collections import defaultdict
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.accounts.models import Student
 
-from .models import Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings, TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest, Department, Amenity, Resource, BlackoutDate
-from .serializers import (RoomSerializer, SubjectSerializer,
-                          TimeSlotSerializer, TimetableEntrySerializer, InstitutionSettingsSerializer,
-                          TimetableVersionSerializer, AbsenceReportSerializer, NotificationSerializer, TimetableSwapRequestSerializer, DepartmentSerializer, AmenitySerializer, ResourceSerializer)
+from .models import (
+    Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings,
+    TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest,
+    Department, Amenity, Resource, BlackoutDate, StudentElectiveEnrollment
+)
+from .serializers import (
+    RoomSerializer, SubjectSerializer,
+    TimeSlotSerializer, TimetableEntrySerializer, InstitutionSettingsSerializer,
+    TimetableVersionSerializer, AbsenceReportSerializer, NotificationSerializer,
+    TimetableSwapRequestSerializer, DepartmentSerializer, AmenitySerializer,
+    ResourceSerializer, StudentElectiveEnrollmentSerializer
+)
 
 
 from django.db.models import Q
@@ -49,8 +59,12 @@ class SubjectListView(generics.ListCreateAPIView):
         degree = self.request.query_params.get("degree")
         if degree:
             qs = qs.filter(
-                Q(departments__name__istartswith=degree)
+                Q(departments__program_type__iexact=degree)
+                | Q(departments__name__istartswith=degree)
+                | Q(departments__name__icontains=degree)
+                | Q(faculty__department__program_type__iexact=degree)
                 | Q(faculty__department__name__istartswith=degree)
+                | Q(faculty__department__name__icontains=degree)
             ).distinct()
 
         dept_id = self.request.query_params.get("department")
@@ -111,6 +125,10 @@ class SubjectListView(generics.ListCreateAPIView):
         is_elective = self.request.query_params.get("is_elective")
         if is_elective is not None:
             qs = qs.filter(is_elective=is_elective.lower() in ["true", "1"])
+
+        elective_group = self.request.query_params.get("elective_group")
+        if elective_group:
+            qs = qs.filter(elective_group=elective_group)
 
         ordering = self.request.query_params.get("ordering")
         if ordering:
@@ -173,11 +191,19 @@ class DepartmentListView(generics.ListCreateAPIView):
     search_fields = ["name", "dept_id", "core_department"]
 
     def get_queryset(self):
-        from django.db.models import Count
+        from django.db.models import Count, Subquery, OuterRef, IntegerField
+        from django.db.models.functions import Coalesce
+        from apps.accounts.models import Student, Faculty
+        from apps.scheduler.models import Subject
+
+        stu_sub = Student.objects.filter(department=OuterRef("pk")).values("department").annotate(c=Count("id")).values("c")
+        fac_sub = Faculty.objects.filter(department=OuterRef("pk")).values("department").annotate(c=Count("id")).values("c")
+        sub_sub = Subject.objects.filter(departments=OuterRef("pk")).values("departments").annotate(c=Count("id")).values("c")
+
         qs = Department.objects.annotate(
-            student_count=Count("students", distinct=True),
-            faculty_count=Count("faculty_members", distinct=True),
-            subject_count=Count("subjects", distinct=True),
+            student_count=Coalesce(Subquery(stu_sub, output_field=IntegerField()), 0),
+            faculty_count=Coalesce(Subquery(fac_sub, output_field=IntegerField()), 0),
+            subject_count=Coalesce(Subquery(sub_sub, output_field=IntegerField()), 0),
         ).order_by("dept_id", "name")
         program_type = self.request.query_params.get("program_type")
         if program_type:
@@ -227,6 +253,22 @@ class NextDepartmentIDView(APIView):
                 max_num = max(max_num, int(m.group(1)))
         next_id = f"DEP-{(max_num + 1):04d}"
         return Response({"next_id": next_id})
+
+
+class DepartmentProgramTypesView(APIView):
+    """Return distinct program types currently present in departments with their counts."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Count
+        types_data = (
+            Department.objects.exclude(program_type__isnull=True)
+            .exclude(program_type="")
+            .values("program_type")
+            .annotate(count=Count("id"))
+            .order_by("-count", "program_type")
+        )
+        return Response(list(types_data))
 
 
 class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -1060,5 +1102,128 @@ class ForecastingAnalyticsView(APIView):
                 "additional_tas_needed": additional_tas_needed,
             }
         })
+
+
+class ElectiveBasketsListView(APIView):
+    """
+    Returns elective baskets/groups for a given department and semester,
+    along with available subject choices and enrollment counts.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        dept_id = request.query_params.get("department_id")
+        semester = request.query_params.get("semester")
+
+        # If student user, auto-populate dept and sem if not supplied
+        if hasattr(request.user, "student_profile"):
+            student = request.user.student_profile
+            if not dept_id and student.department_id:
+                dept_id = student.department_id
+            if not semester and student.semester:
+                semester = student.semester
+
+        qs = Subject.objects.filter(is_elective=True).exclude(elective_group__isnull=True).select_related('faculty__user')
+        if dept_id:
+            qs = qs.filter(departments__id=dept_id)
+        if semester:
+            try:
+                qs = qs.filter(semester=int(semester))
+            except ValueError:
+                pass
+
+        # Group by elective_group
+        baskets = defaultdict(list)
+        for s in qs.prefetch_related('departments', 'enrolled_students'):
+            baskets[s.elective_group].append({
+                'id': s.id,
+                'code': s.code,
+                'name': s.name,
+                'semester': s.semester,
+                'credits': s.credits,
+                'subject_type': s.subject_type,
+                'faculty_name': s.faculty.user.get_full_name() if s.faculty else 'TBD',
+                'enrolled_count': s.enrolled_students.count(),
+            })
+
+        result = []
+        for group_name, choices in baskets.items():
+            result.append({
+                'elective_group': group_name,
+                'choices_count': len(choices),
+                'choices': choices,
+            })
+
+        return Response(result)
+
+
+class StudentElectiveEnrollmentView(APIView):
+    """
+    View, choose, or switch an elective choice for a student.
+    Enforces that a student has exactly one enrolled course per elective group.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        student = None
+        if hasattr(user, 'student_profile'):
+            student = user.student_profile
+        else:
+            student_id = request.query_params.get('student_id')
+            if student_id:
+                student = Student.objects.filter(id=student_id).first()
+
+        if not student:
+            return Response({'detail': 'Student not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        enrollments = StudentElectiveEnrollment.objects.filter(student=student).select_related('subject__faculty__user')
+        serializer = StudentElectiveEnrollmentSerializer(enrollments, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        user = request.user
+        student = None
+        if hasattr(user, 'student_profile'):
+            student = user.student_profile
+        elif user.is_staff or getattr(user, 'role', '') == 'admin':
+            student_id = request.data.get('student_id')
+            if student_id:
+                student = Student.objects.filter(id=student_id).first()
+
+        if not student:
+            return Response({'detail': 'Student not found or unauthorized'}, status=status.HTTP_400_BAD_REQUEST)
+
+        subject_id = request.data.get('subject_id')
+        elective_group = request.data.get('elective_group')
+
+        if not subject_id:
+            return Response({'detail': 'subject_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            subject = Subject.objects.get(id=subject_id, is_elective=True)
+        except Subject.DoesNotExist:
+            return Response({'detail': 'Elective subject not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        group_to_use = elective_group or subject.elective_group
+        if not group_to_use:
+            return Response({'detail': 'Subject is not assigned to an elective group'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if subject.elective_group != group_to_use:
+            return Response({'detail': f'Subject does not belong to group {group_to_use}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment, created = StudentElectiveEnrollment.objects.update_or_create(
+            student=student,
+            elective_group=group_to_use,
+            defaults={'subject': subject}
+        )
+
+        serializer = StudentElectiveEnrollmentSerializer(enrollment)
+        return Response({
+            'status': 'enrolled',
+            'action': 'created' if created else 'switched',
+            'enrollment': serializer.data,
+        })
+
 
 

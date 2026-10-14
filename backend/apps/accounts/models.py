@@ -44,6 +44,10 @@ class User(AbstractUser):
     class Meta:
         db_table = "users"
         ordering = ["id"]
+        indexes = [
+            models.Index(fields=["role"], name="user_role_idx"),
+            models.Index(fields=["first_name", "last_name"], name="user_name_idx"),
+        ]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.role})"
@@ -139,7 +143,10 @@ class Student(models.Model):
                 m=16,
                 ef_construction=64,
                 opclasses=["vector_l2_ops"],
-            )
+            ),
+            models.Index(fields=["semester"], name="student_sem_idx"),
+            models.Index(fields=["is_ta"], name="student_is_ta_idx"),
+            models.Index(fields=["department", "semester"], name="student_dept_sem_idx"),
         ]
 
     def save(self, *args, **kwargs):

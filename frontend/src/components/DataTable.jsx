@@ -49,7 +49,8 @@ export default function DataTable({
   onSortChange = null,
   sortable = true,
   showSortToolbar = true,
-  loading = false
+  loading = false,
+  isSearching = false
 }) {
   const [internalSearch, setInternalSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,6 +143,14 @@ export default function DataTable({
 
   // 2. Sort data
   const sortedData = useMemo(() => {
+    // When pagination/infinite scrolling is server-driven, the backend SQL query
+    // handles ordering. Client-side re-sorting of accumulated paginated chunks
+    // is redundant, causes performance degradation on large sets, and can scramble
+    // the append sequence.
+    if (isServerDriven) {
+      return filteredData || [];
+    }
+
     if (!filteredData || filteredData.length === 0 || !sortKey || !sortable) {
       return filteredData || [];
     }
@@ -158,7 +167,7 @@ export default function DataTable({
       const cmp = naturalCompare(valA, valB);
       return sortDir === 'desc' ? -cmp : cmp;
     });
-  }, [filteredData, sortKey, sortDir, columns, sortable]);
+  }, [filteredData, sortKey, sortDir, columns, sortable, isServerDriven]);
 
   const activePage = isServerDriven ? serverPage : currentPage;
   const activeTotalPages = isServerDriven 
@@ -173,7 +182,9 @@ export default function DataTable({
 
   const handlePageChange = (newPage) => {
     if (isServerDriven && onPageChange) {
-      onPageChange(newPage);
+      if (newPage !== activePage && !loading) {
+        onPageChange(newPage);
+      }
     } else {
       setCurrentPage(newPage);
     }
@@ -183,20 +194,17 @@ export default function DataTable({
     if (!infiniteScroll) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        const expectedItems = activePage * pageSize;
-        const isDataLoaded = sortedData.length >= Math.min(expectedItems, activeTotalCount);
-        
-        if (entries[0].isIntersecting && activePage < activeTotalPages && isDataLoaded) {
+        if (entries[0].isIntersecting && activePage < activeTotalPages && !loading) {
           handlePageChange(activePage + 1);
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { threshold: 0.1, rootMargin: '200px' }
     );
     if (observerRef.current) {
       observer.observe(observerRef.current);
     }
     return () => observer.disconnect();
-  }, [infiniteScroll, activePage, activeTotalPages, sortedData.length, activeTotalCount, pageSize]);
+  }, [infiniteScroll, activePage, activeTotalPages, loading, onPageChange]);
 
   const currentSortCol = columns.find(c => c.key === sortKey);
 
@@ -206,15 +214,29 @@ export default function DataTable({
       {(searchKey || onSearchChange || (sortable && showSortToolbar && sortableColumns.length > 0)) && (
         <div className="data-table-toolbar">
           {(searchKey || onSearchChange) ? (
-            <div style={{ flex: '1 1 200px', maxWidth: '320px' }}>
+            <div style={{ flex: '1 1 200px', maxWidth: '320px', position: 'relative' }}>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Search..."
+                placeholder="Search by ID, name, email..."
                 value={currentSearchTerm || ''}
                 onChange={handleSearch}
                 aria-label="Search table data"
+                style={{ paddingRight: (isSearching || currentSearchTerm) ? '2.2rem' : '0.8rem' }}
               />
+              {isSearching && (
+                <span className="spinner" style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '14px', height: '14px', borderWidth: '2px' }} />
+              )}
+              {!isSearching && currentSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => handleSearch({ target: { value: '' } })}
+                  style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '0 0.25rem' }}
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ) : <div />}
 
@@ -349,8 +371,17 @@ export default function DataTable({
               </tbody>
             </table>
             {infiniteScroll && (
-              <div ref={observerRef} style={{ height: '20px', margin: '1rem 0', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                {activePage < activeTotalPages ? 'Loading more...' : 'No more data'}
+              <div ref={observerRef} style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}>
+                {loading ? (
+                  <>
+                    <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                    <span style={{ fontSize: '0.85rem' }}>Loading more...</span>
+                  </>
+                ) : activePage < activeTotalPages ? (
+                  <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>Scroll down to load more...</span>
+                ) : (
+                  <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>All {activeTotalCount.toLocaleString()} entries loaded</span>
+                )}
               </div>
             )}
           </div>

@@ -10,7 +10,7 @@ from apps.accounts.models import Faculty
 from .models import (
     Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings,
     TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest,
-    Department, Amenity, Resource
+    Department, Amenity, Resource, StudentElectiveEnrollment
 )
 
 
@@ -116,10 +116,36 @@ class SubjectSerializer(serializers.ModelSerializer):
             "color_code",
             "departments",
             "is_elective",
+            "elective_group",
             "amenities",
             "required_tas",
         ]
         read_only_fields = ["id"]
+
+
+class StudentElectiveEnrollmentSerializer(serializers.ModelSerializer):
+    """Serializer for student elective choices."""
+    subject_code = serializers.CharField(source='subject.code', read_only=True)
+    subject_name = serializers.CharField(source='subject.name', read_only=True)
+    faculty_name = serializers.CharField(source='subject.faculty.user.get_full_name', read_only=True)
+    student_enrollment = serializers.CharField(source='student.enrollment_number', read_only=True)
+    student_name = serializers.CharField(source='student.user.get_full_name', read_only=True)
+
+    class Meta:
+        model = StudentElectiveEnrollment
+        fields = [
+            'id',
+            'student',
+            'student_enrollment',
+            'student_name',
+            'subject',
+            'subject_code',
+            'subject_name',
+            'faculty_name',
+            'elective_group',
+            'enrolled_at',
+        ]
+        read_only_fields = ['id', 'enrolled_at']
 
 
 class RoomSerializer(serializers.ModelSerializer):

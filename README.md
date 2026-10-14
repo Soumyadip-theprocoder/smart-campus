@@ -89,8 +89,8 @@ Navigate to **http://localhost:5173** and use these demo credentials:
 | Role    | Email                        | Password    |
 |---------|------------------------------|-------------|
 | Admin   | admin@smartcampus.edu        | admin123    |
-| Student | alice.brown@smartcampus.edu   | student123  |
-| Faculty | john.smith@smartcampus.edu    | faculty123  |
+| Student | alice.brown.dep0009.y1.11@smartcampus.edu | student123  |
+| Faculty | john.smith.dep0009@smartcampus.edu | faculty123  |
 
 ---
 

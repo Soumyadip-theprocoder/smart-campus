@@ -10,6 +10,7 @@ app_name = "scheduler"
 
 urlpatterns = [
     path("departments/next-id/", views.NextDepartmentIDView.as_view(), name="next-department-id"),
+    path("departments/program-types/", views.DepartmentProgramTypesView.as_view(), name="department-program-types"),
     path("departments/", views.DepartmentListView.as_view(), name="department-list"),
     path("departments/<int:pk>/", views.DepartmentDetailView.as_view(), name="department-detail"),
     path("amenities/", views.AmenityListView.as_view(), name="amenity-list"),
@@ -48,6 +49,8 @@ urlpatterns = [
     path("blackout-dates/", views.BlackoutDateListView.as_view(), name="blackout-date-list"),
     path("blackout-dates/<int:pk>/", views.BlackoutDateDetailView.as_view(), name="blackout-date-detail"),
     path("ical/<int:user_id>/", views.ICalFeedView.as_view(), name="ical-feed"),
+    path("electives/baskets/", views.ElectiveBasketsListView.as_view(), name="elective-baskets-list"),
+    path("electives/enrollments/", views.StudentElectiveEnrollmentView.as_view(), name="student-elective-enrollments"),
     path("analytics/accreditation/", views.AccreditationAnalyticsView.as_view(), name="analytics-accreditation"),
     path("analytics/forecast/", views.ForecastingAnalyticsView.as_view(), name="analytics-forecast"),
 ]

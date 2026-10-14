@@ -528,6 +528,8 @@ select option:disabled {
 
 .data-table tbody tr {
   transition: background var(--transition-fast);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
 }
 
 .data-table tbody tr:hover {

@@ -279,6 +279,7 @@ function AddFacultyForm({ initialData, onSave, saving, departments = [] }) {
 export default function FacultyPage() {
   const [faculty, setFaculty] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -294,24 +295,32 @@ export default function FacultyPage() {
 
   const [departments, setDepartments] = useState([]);
 
+  // Fetch departments once on mount
+  useEffect(() => {
+    api.get('/api/scheduler/departments/?all=true')
+      .then(res => setDepartments(res.data.results || res.data || []))
+      .catch(err => console.error('Failed to load departments', err));
+  }, []);
+
   useEffect(() => {
     fetchData(page, search, departmentFilter, roleFilter, ordering);
   }, [page, search, departmentFilter, roleFilter, ordering]);
 
   const fetchData = async (pageNum = 1, searchQuery = '', deptFilter = '', rFilter = '', orderingParam = ordering) => {
-    setLoading(true);
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      let url = `/api/auth/faculty/?page=${pageNum}`;
-      if (searchQuery) url += `&search=${searchQuery}`;
+      let url = `/api/auth/faculty/?page=${pageNum}&page_size=50`;
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       if (deptFilter) url += `&department=${deptFilter}`;
       if (rFilter === 'hod') url += `&is_hod=true`;
       if (rFilter === 'faculty') url += `&is_hod=false`;
       if (orderingParam) url += `&ordering=${orderingParam}`;
 
-      const [facRes, depRes] = await Promise.all([
-        api.get(url),
-        api.get('/api/scheduler/departments/?all=true')
-      ]);
+      const facRes = await api.get(url);
       const newResults = facRes.data.results || facRes.data || [];
       if (pageNum === 1) {
         setFaculty(newResults);
@@ -323,12 +332,12 @@ export default function FacultyPage() {
         });
       }
       setTotalCount(facRes.data.count || (facRes.data.results ? facRes.data.results.length : (facRes.data.length || 0)));
-      setDepartments(depRes.data.results || depRes.data || []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -569,7 +578,8 @@ export default function FacultyPage() {
           serverPage={page}
           onPageChange={setPage}
           onSearchChange={(s) => { setPage(1); setSearch(s); }}
-          pageSize={100}
+          pageSize={50}
+          loading={loading || loadingMore}
           defaultSortKey="employee_id"
           defaultSortDir="asc"
           onSortChange={({ sortKey, sortDir }) => {

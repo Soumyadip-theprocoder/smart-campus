@@ -50,8 +50,8 @@ def seed():
     # ── Faculty ─────────────────────────────────────────────────────
     faculty_data = [
         {
-            "email": "john.smith@smartcampus.edu",
-            "username": "jsmith",
+            "email": "john.smith.dep0009@smartcampus.edu",
+            "username": "john.smith.dep0009",
             "first_name": "John",
             "last_name": "Smith",
             "employee_id": "FAC-2026-0001",
@@ -59,8 +59,8 @@ def seed():
             "designation": "Professor",
         },
         {
-            "email": "sarah.johnson@smartcampus.edu",
-            "username": "sjohnson",
+            "email": "sarah.johnson.dep0009@smartcampus.edu",
+            "username": "sarah.johnson.dep0009",
             "first_name": "Sarah",
             "last_name": "Johnson",
             "employee_id": "FAC-2026-0002",
@@ -68,8 +68,8 @@ def seed():
             "designation": "Associate Professor",
         },
         {
-            "email": "mike.wilson@smartcampus.edu",
-            "username": "mwilson",
+            "email": "mike.wilson.dep0010@smartcampus.edu",
+            "username": "mike.wilson.dep0010",
             "first_name": "Mike",
             "last_name": "Wilson",
             "employee_id": "FAC-2026-0003",
@@ -77,8 +77,8 @@ def seed():
             "designation": "Assistant Professor",
         },
         {
-            "email": "emily.davis@smartcampus.edu",
-            "username": "edavis",
+            "email": "emily.davis.dep0010@smartcampus.edu",
+            "username": "emily.davis.dep0010",
             "first_name": "Emily",
             "last_name": "Davis",
             "employee_id": "FAC-2026-0004",
@@ -113,12 +113,15 @@ def seed():
     
     for i in range(5, 310):
         dept = random.choice(generated_departments)
+        dept_obj, _ = Department.objects.get_or_create(name=dept)
+        dept_code = dept_obj.dept_id.lower().replace("-", "") if dept_obj.dept_id else f"d{dept_obj.id}"
         fname = random.choice(first_names)
         lname = random.choice(last_names)
         fac_id = f"FAC-{random.randint(2000,2026)}-{i:04d}"
+        username = f"{fname.lower()}.{lname.lower()}.{dept_code}.{i}"
         faculty_data.append({
-            "email": f"{fname.lower()}.{lname.lower()}{i}@smartcampus.edu",
-            "username": f"{fname.lower()}{lname.lower()}{i}",
+            "email": f"{username}@smartcampus.edu",
+            "username": username,
             "first_name": fname,
             "last_name": lname,
             "employee_id": fac_id,
@@ -156,92 +159,92 @@ def seed():
     # ── Students ────────────────────────────────────────────────────
     student_data = [
         {
-            "email": "alice.brown@smartcampus.edu",
-            "username": "abrown",
+            "email": "alice.brown.dep0009.y1.11@smartcampus.edu",
+            "username": "alice.brown.dep0009.y1.11",
             "first_name": "Alice",
             "last_name": "Brown",
-            "enrollment_number": "STU-2026-0001",
-            "department": "Computer Science",
-            "semester": 5,
-        },
-        {
-            "email": "bob.taylor@smartcampus.edu",
-            "username": "btaylor",
-            "first_name": "Bob",
-            "last_name": "Taylor",
-            "enrollment_number": "STU-2026-0002",
-            "department": "Computer Science",
-            "semester": 5,
-        },
-        {
-            "email": "charlie.lee@smartcampus.edu",
-            "username": "clee",
-            "first_name": "Charlie",
-            "last_name": "Lee",
-            "enrollment_number": "STU-2026-0003",
-            "department": "Computer Science",
-            "semester": 3,
-        },
-        {
-            "email": "diana.patel@smartcampus.edu",
-            "username": "dpatel",
-            "first_name": "Diana",
-            "last_name": "Patel",
-            "enrollment_number": "STU-2026-0004",
-            "department": "Electronics",
-            "semester": 5,
-        },
-        {
-            "email": "ethan.kim@smartcampus.edu",
-            "username": "ekim",
-            "first_name": "Ethan",
-            "last_name": "Kim",
-            "enrollment_number": "STU-2026-0005",
-            "department": "Mathematics",
-            "semester": 3,
-        },
-        {
-            "email": "fatima.zahra@smartcampus.edu",
-            "username": "fzahra",
-            "first_name": "Fatima",
-            "last_name": "Zahra",
-            "enrollment_number": "STU-2026-0006",
-            "department": "Computer Science",
-            "semester": 5,
-        },
-        {
-            "email": "gabriel.silva@smartcampus.edu",
-            "username": "gsilva",
-            "first_name": "Gabriel",
-            "last_name": "Silva",
-            "enrollment_number": "STU-2026-0007",
-            "department": "Electronics",
-            "semester": 3,
-        },
-        {
-            "email": "haruki.murakami@smartcampus.edu",
-            "username": "hmurakami",
-            "first_name": "Haruki",
-            "last_name": "Murakami",
-            "enrollment_number": "STU-2026-0008",
+            "enrollment_number": "STU-2026-00011",
             "department": "Computer Science",
             "semester": 1,
         },
         {
-            "email": "isabella.martinez@smartcampus.edu",
-            "username": "imartinez",
+            "email": "bob.taylor.dep0009.y3.31698@smartcampus.edu",
+            "username": "bob.taylor.dep0009.y3.31698",
+            "first_name": "Bob",
+            "last_name": "Taylor",
+            "enrollment_number": "STU-2026-31698",
+            "department": "Computer Science",
+            "semester": 5,
+        },
+        {
+            "email": "charlie.lee.dep0009.y2.31699@smartcampus.edu",
+            "username": "charlie.lee.dep0009.y2.31699",
+            "first_name": "Charlie",
+            "last_name": "Lee",
+            "enrollment_number": "STU-2026-31699",
+            "department": "Computer Science",
+            "semester": 3,
+        },
+        {
+            "email": "diana.patel.dep0010.y3.31700@smartcampus.edu",
+            "username": "diana.patel.dep0010.y3.31700",
+            "first_name": "Diana",
+            "last_name": "Patel",
+            "enrollment_number": "STU-2026-31700",
+            "department": "Electronics",
+            "semester": 5,
+        },
+        {
+            "email": "ethan.kim.dep0010.y2.5@smartcampus.edu",
+            "username": "ethan.kim.dep0010.y2.5",
+            "first_name": "Ethan",
+            "last_name": "Kim",
+            "enrollment_number": "STU-2026-00005",
+            "department": "Mathematics",
+            "semester": 3,
+        },
+        {
+            "email": "fatima.zahra.dep0033.y3.6@smartcampus.edu",
+            "username": "fatima.zahra.dep0033.y3.6",
+            "first_name": "Fatima",
+            "last_name": "Zahra",
+            "enrollment_number": "STU-2026-00006",
+            "department": "Computer Science",
+            "semester": 5,
+        },
+        {
+            "email": "gabriel.silva.dep0010.y2.7@smartcampus.edu",
+            "username": "gabriel.silva.dep0010.y2.7",
+            "first_name": "Gabriel",
+            "last_name": "Silva",
+            "enrollment_number": "STU-2026-00007",
+            "department": "Electronics",
+            "semester": 3,
+        },
+        {
+            "email": "haruki.murakami.dep0009.y1.8@smartcampus.edu",
+            "username": "haruki.murakami.dep0009.y1.8",
+            "first_name": "Haruki",
+            "last_name": "Murakami",
+            "enrollment_number": "STU-2026-00008",
+            "department": "Computer Science",
+            "semester": 1,
+        },
+        {
+            "email": "isabella.martinez.dep0009.y4.9@smartcampus.edu",
+            "username": "isabella.martinez.dep0009.y4.9",
             "first_name": "Isabella",
             "last_name": "Martinez",
-            "enrollment_number": "STU-2026-0009",
+            "enrollment_number": "STU-2026-00009",
             "department": "Mathematics",
             "semester": 7,
         },
         {
-            "email": "jamal.jackson@smartcampus.edu",
-            "username": "jjackson",
+            "email": "jamal.jackson.dep0039.y3.10@smartcampus.edu",
+            "username": "jamal.jackson.dep0039.y3.10",
             "first_name": "Jamal",
             "last_name": "Jackson",
-            "enrollment_number": "STU-2026-0010",
+            "enrollment_number": "STU-2026-00010",
             "department": "Computer Science",
             "semester": 5,
         },
@@ -252,17 +255,22 @@ def seed():
     
     for i in range(11, 3050):
         dept = random.choice(generated_departments)
+        dept_obj, _ = Department.objects.get_or_create(name=dept)
+        dept_code = dept_obj.dept_id.lower().replace("-", "") if dept_obj.dept_id else f"d{dept_obj.id}"
         fname = random.choice(first_names)
         lname = random.choice(last_names)
-        stu_id = f"STU-{random.choice([2023, 2024, 2025, 2026])}-{i:04d}"
+        stu_id = f"STU-{random.choice([2023, 2024, 2025, 2026])}-{i:05d}"
+        sem = random.choice(semesters)
+        yr = max(1, (sem + 1) // 2)
+        username = f"{fname.lower()}.{lname.lower()}.{dept_code}.y{yr}.{i}"
         student_data.append({
-            "email": f"{fname.lower()}.{lname.lower()}{i}@smartcampus.edu",
-            "username": f"{fname.lower()}{lname.lower()}{i}",
+            "email": f"{username}@smartcampus.edu",
+            "username": username,
             "first_name": fname,
             "last_name": lname,
             "enrollment_number": stu_id,
             "department": dept,
-            "semester": random.choice(semesters),
+            "semester": sem,
         })
 
     for sd in student_data:

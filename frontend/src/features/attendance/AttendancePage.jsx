@@ -11,6 +11,7 @@ import './AttendancePage.css';
 export default function AttendancePage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -57,7 +58,11 @@ export default function AttendancePage() {
     orderingParam = ordering,
     currentFilters = filters,
   } = {}) => {
-    setLoading(true);
+    if (pageNum === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
       const params = new URLSearchParams();
       params.append('page', pageNum);
@@ -89,6 +94,7 @@ export default function AttendancePage() {
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -470,7 +476,7 @@ export default function AttendancePage() {
         <DataTable
           columns={columns}
           data={records}
-          loading={loading}
+          loading={loading || loadingMore}
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}

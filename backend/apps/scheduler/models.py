@@ -153,6 +153,13 @@ class Subject(models.Model):
         default=False,
         help_text="True if this is a shared elective across departments",
     )
+    elective_group = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Group identifier for elective choices where students must choose one",
+    )
     amenities = models.ManyToManyField(
         Amenity,
         related_name="required_by_subjects",
@@ -176,6 +183,34 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.code} — {self.name}"
+
+
+class StudentElectiveEnrollment(models.Model):
+    """Enforces that a student is enrolled in exactly one elective per group."""
+    student = models.ForeignKey(
+        'accounts.Student',
+        on_delete=models.CASCADE,
+        related_name='elective_enrollments',
+    )
+    subject = models.ForeignKey(
+        Subject,
+        on_delete=models.CASCADE,
+        related_name='enrolled_students',
+    )
+    elective_group = models.CharField(
+        max_length=150,
+        db_index=True,
+        help_text="Group identifier matching Subject.elective_group",
+    )
+    enrolled_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "student_elective_enrollments"
+        unique_together = ("student", "elective_group")
+        ordering = ["elective_group", "enrolled_at"]
+
+    def __str__(self):
+        return f"{self.student.enrollment_number} -> {self.subject.code} ({self.elective_group})"
 
 
 class Room(models.Model):

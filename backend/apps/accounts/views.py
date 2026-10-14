@@ -121,12 +121,21 @@ class MeView(APIView):
 
 
 from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
+
+
+class StudentPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
 
 class StudentListView(generics.ListAPIView):
-    """List all students (admin only)."""
+    """List all students with high performance pagination and contextual metrics."""
 
     serializer_class = StudentSerializer
     permission_classes = [IsAdminRole]
+    pagination_class = StudentPagination
     filter_backends = [SearchFilter]
     search_fields = [
         "enrollment_number", "user__first_name", "user__last_name", "user__email",
@@ -150,6 +159,24 @@ class StudentListView(generics.ListAPIView):
         if self.request.query_params.get('all', 'false').lower() == 'true':
             return None
         return super().paginate_queryset(queryset)
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        if isinstance(response.data, dict) and "results" in response.data:
+            filtered_qs = self.filter_queryset(self.get_queryset())
+            total_students = response.data.get("count", 0)
+            dept_param = request.query_params.get("department")
+            if dept_param:
+                active_depts = 1 if total_students > 0 else 0
+            else:
+                active_depts = filtered_qs.values("department").distinct().count()
+            ta_count = filtered_qs.filter(is_ta=True).count()
+            response.data["stats"] = {
+                "total_students": total_students,
+                "active_departments": active_depts,
+                "ta_count": ta_count,
+            }
+        return response
 
 
 class StudentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -181,6 +208,7 @@ class FacultyListView(generics.ListAPIView):
 
     serializer_class = FacultySerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StudentPagination
     filter_backends = [SearchFilter]
     search_fields = [
         "employee_id", "user__first_name", "user__last_name", "user__email",
@@ -338,7 +366,7 @@ class NextStudentIDView(APIView):
             m = re.match(rf"^{prefix}(\d+)$", str(num))
             if m:
                 max_num = max(max_num, int(m.group(1)))
-        next_id = f"{prefix}{(max_num + 1):04d}"
+        next_id = f"{prefix}{(max_num + 1):05d}"
         return Response({"next_id": next_id})
 
 
