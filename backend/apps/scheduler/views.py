@@ -16,7 +16,8 @@ from apps.accounts.models import Student
 from .models import (
     Room, Subject, TimeSlot, TimetableEntry, InstitutionSettings,
     TimetableVersion, AbsenceReport, Notification, TimetableSwapRequest,
-    Department, Amenity, Resource, BlackoutDate, StudentElectiveEnrollment
+    Department, Amenity, Resource, BlackoutDate, StudentElectiveEnrollment,
+    SchedulerTaskProgress
 )
 from .serializers import (
     RoomSerializer, SubjectSerializer,
@@ -29,6 +30,13 @@ from .serializers import (
 
 from django.db.models import Q
 from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = "page_size"
+    max_page_size = 1000
 
 
 class SubjectListView(generics.ListCreateAPIView):
@@ -36,6 +44,7 @@ class SubjectListView(generics.ListCreateAPIView):
 
     serializer_class = SubjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [SearchFilter]
     search_fields = [
         "name",
@@ -73,6 +82,14 @@ class SubjectListView(generics.ListCreateAPIView):
                 Q(departments__id=dept_id) | Q(faculty__department_id=dept_id)
             ).distinct()
 
+        block = self.request.query_params.get("block")
+        if block:
+            block_dept_ids = Department.objects.filter(
+                rooms__building__icontains=block
+            ).values_list("id", flat=True).distinct()
+            if block_dept_ids:
+                qs = qs.filter(departments__id__in=block_dept_ids).distinct()
+
         subject_type = self.request.query_params.get("subject_type")
         if subject_type:
             qs = qs.filter(subject_type=subject_type)
@@ -99,6 +116,12 @@ class SubjectListView(generics.ListCreateAPIView):
         semester = self.request.query_params.get("semester")
         if semester:
             qs = qs.filter(semester=semester)
+
+        term = self.request.query_params.get("term")
+        if term == "odd":
+            qs = qs.filter(semester__in=[1, 3, 5, 7, 9])
+        elif term == "even":
+            qs = qs.filter(semester__in=[2, 4, 6, 8, 10])
 
         semesters = self.request.query_params.get("semesters")
         if semesters:
@@ -318,11 +341,18 @@ class RoomListView(generics.ListCreateAPIView):
 
     serializer_class = RoomSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     filter_backends = [SearchFilter]
     search_fields = ["room_number", "building", "room_type"]
 
     def get_queryset(self):
         qs = Room.objects.all().order_by("room_number")
+        building = self.request.query_params.get("building") or self.request.query_params.get("block")
+        if building:
+            qs = qs.filter(Q(building__iexact=building) | Q(building__icontains=building))
+        room_type = self.request.query_params.get("room_type")
+        if room_type:
+            qs = qs.filter(room_type=room_type)
         ordering = self.request.query_params.get("ordering")
         if ordering:
             ordering_map = {
@@ -341,6 +371,11 @@ class RoomListView(generics.ListCreateAPIView):
             if mapped:
                 qs = qs.order_by(mapped)
         return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get("all", "false").lower() == "true":
+            return None
+        return super().paginate_queryset(queryset)
 
 
 class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -374,25 +409,122 @@ class TimetableView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        user = self.request.user
+        is_admin_user = bool(
+            user.is_staff or
+            user.is_superuser or
+            getattr(user, "role", "") == "admin" or
+            getattr(user, "is_admin", False)
+        )
+
         qs = TimetableEntry.objects.select_related(
             "subject__faculty__user",
             "room",
             "time_slot",
             "version"
-        ).all()
+        ).prefetch_related(
+            "subject__departments",
+            "teaching_assistants__user"
+        )
+
         version_id = self.request.query_params.get("version")
-        if version_id:
+        if is_admin_user and version_id:
             qs = qs.filter(version_id=version_id)
         else:
-            # Fallback to published version
-            published_version = TimetableVersion.objects.filter(is_published=True).first()
+            published_qs = TimetableVersion.objects.filter(is_published=True)
+            if version_id:
+                published_qs = published_qs.filter(id=version_id)
+            published_version = published_qs.first()
             if published_version:
                 qs = qs.filter(version_id=published_version.id)
+            elif is_admin_user and version_id:
+                qs = qs.filter(version_id=version_id)
             else:
                 qs = qs.none()
+
+        from django.db.models import Q
+
+        is_faculty = getattr(user, "role", "") == "faculty" or getattr(user, "is_faculty", False)
+        is_student = getattr(user, "role", "") == "student" or getattr(user, "is_student", False)
+
+        # 1. Faculty restriction: only sessions they teach or substitute for
+        if not is_admin_user and is_faculty:
+            faculty = getattr(user, "faculty_profile", None)
+            if not faculty:
+                return qs.none()
+
+            from apps.scheduler.models import AbsenceReport
+            sub_entry_ids = list(AbsenceReport.objects.filter(
+                substitute=faculty,
+                status="approved"
+            ).values_list("timetable_entry_id", flat=True))
+
+            qs = qs.filter(
+                Q(faculty=faculty) |
+                Q(subject__faculty=faculty) |
+                Q(id__in=sub_entry_ids)
+            ).distinct()
+
+        # 2. Student restriction: only enrolled core, electives, and TA classes
+        elif not is_admin_user and is_student:
+            student = getattr(user, "student_profile", None)
+            if not student:
+                return qs.none()
+
+            student_dept = student.department
+            student_sem = student.semester
+
+            core_filter = Q(
+                subject__departments=student_dept,
+                subject__semester=student_sem,
+                subject__is_elective=False
+            ) if (student_dept and student_sem) else Q(pk__in=[])
+
+            from apps.scheduler.models import StudentElectiveEnrollment
+            enrolled_subject_ids = list(StudentElectiveEnrollment.objects.filter(
+                student=student
+            ).values_list("subject_id", flat=True))
+            elective_filter = Q(subject_id__in=enrolled_subject_ids) if enrolled_subject_ids else Q(pk__in=[])
+
+            ta_filter = Q(teaching_assistants=student) if getattr(student, "is_ta", False) else Q(pk__in=[])
+
+            qs = qs.filter(core_filter | elective_filter | ta_filter).distinct()
+
+        elif not is_admin_user:
+            return qs.none()
+
+        block = self.request.query_params.get("block")
+        if block:
+            qs = qs.filter(room__building__icontains=block)
+
+        dept_id = self.request.query_params.get("department")
+        if dept_id:
+            qs = qs.filter(subject__departments__id=dept_id)
+
+        semester = self.request.query_params.get("semester")
+        if semester:
+            qs = qs.filter(subject__semester=semester)
+
         return qs
 
+    def paginate_queryset(self, queryset):
+        user = self.request.user
+        is_admin_user = bool(
+            user.is_staff or
+            user.is_superuser or
+            getattr(user, "role", "") == "admin" or
+            getattr(user, "is_admin", False)
+        )
+        if not is_admin_user or self.request.query_params.get("all", "false").lower() == "true" or self.request.query_params.get("version"):
+            return None
+        return super().paginate_queryset(queryset)
+
     def perform_create(self, serializer):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can create timetable entries.")
         from rest_framework.exceptions import ValidationError
         version_id = self.request.data.get("version") or self.request.query_params.get("version")
         if version_id:
@@ -415,6 +547,11 @@ class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TimetableEntry.objects.all()
 
     def perform_update(self, serializer):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can update timetable entries.")
         instance = self.get_object()
         new_time_slot = serializer.validated_data.get("time_slot", instance.time_slot)
         new_room = serializer.validated_data.get("room", instance.room)
@@ -445,6 +582,14 @@ class TimetableEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
                 
         serializer.save()
 
+    def perform_destroy(self, instance):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can delete timetable entries.")
+        instance.delete()
+
 
 class GenerateTimetableView(APIView):
     """
@@ -464,15 +609,74 @@ class GenerateTimetableView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        config = request.data or {}
+        user = request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can generate timetables.")
 
-        # Enqueue the background task
-        task_id = async_task("apps.scheduler.tasks.generate_timetable_task", config)
+        import uuid
+        import time
+        from .tasks import estimate_generation_eta
+
+        if hasattr(request.data, "dict"):
+            config = request.data.dict()
+        elif hasattr(request.data, "copy"):
+            config = request.data.copy()
+        else:
+            config = dict(request.data or {})
+
+        # Validate scope parameters if provided
+        scope_type = config.get("scope_type", "department")
+        department_id = config.get("department_id")
+        if scope_type == "department" and not department_id:
+            scope_type = "all"
+            config["scope_type"] = "all"
+
+        if scope_type not in ("all", "block", "department"):
+            return Response(
+                {"error": f"Invalid scope_type: {scope_type}. Must be 'all', 'block', or 'department'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Pre-compute ETA & load label
+        eta_info = estimate_generation_eta(config)
+        tracking_id = uuid.uuid4().hex
+        config["tracking_id"] = tracking_id
+
+        # Determine readable scope label
+        if scope_type == "block":
+            scope_label = config.get("block_name", "Academic Block")
+        elif scope_type == "all":
+            scope_label = "Whole Campus (Enterprise)"
+        else:
+            dept = Department.objects.filter(id=department_id).first()
+            scope_label = dept.name if dept else f"Department #{department_id}"
+
+        # Capture into debug middle layer before dispatching
+        from .debug_layer import capture_generator_inputs
+        capture_generator_inputs(request, endpoint="generate", tracking_id=tracking_id)
+
+        # Initialize progress record in DB
+        SchedulerTaskProgress.objects.create(
+            task_id=tracking_id,
+            status="queued",
+            scope_type=scope_type,
+            scope_label=scope_label,
+            eta_remaining_seconds=eta_info["estimated_seconds"],
+            start_time=time.time(),
+            percent=0.0,
+            current_wave_name="Queued in scheduler cluster...",
+            input_payload=config,
+        )
+
+        # Enqueue the background task with no timeout cutoff
+        q_task_id = async_task("apps.scheduler.tasks.generate_timetable_task", config, timeout=-1)
 
         from django.conf import settings
 
         if getattr(settings, "Q_CLUSTER", {}).get("sync", False):
-            task = fetch(task_id)
+            task = fetch(q_task_id)
             if task and task.success:
                 result_data = task.result
                 if isinstance(result_data, dict) and not result_data.get(
@@ -485,12 +689,17 @@ class GenerateTimetableView(APIView):
 
                 new_entries = TimetableEntry.objects.select_related(
                     "subject__faculty__user", "room", "time_slot"
-                ).all()
+                ).prefetch_related("subject__departments").all()
                 serializer = TimetableEntrySerializer(new_entries, many=True)
                 return Response(
                     {
                         "message": f"Successfully scheduled {len(new_entries)} sessions.",
                         "timetable": serializer.data,
+                        "metadata": {
+                            "cohort_stats": result_data.get("cohort_stats", 0) if isinstance(result_data, dict) else 0,
+                            "merged_sessions_count": result_data.get("merged_sessions_count", 0) if isinstance(result_data, dict) else 0,
+                            "lab_blocks_count": result_data.get("lab_blocks_count", 0) if isinstance(result_data, dict) else 0,
+                        }
                     },
                     status=status.HTTP_201_CREATED,
                 )
@@ -502,22 +711,198 @@ class GenerateTimetableView(APIView):
         return Response(
             {
                 "message": "Timetable generation has been queued in the background.",
-                "task_id": task_id,
+                "task_id": tracking_id,
+                "q_task_id": q_task_id,
                 "status": "processing",
+                "eta": eta_info,
+                "scope": {
+                    "scope_type": scope_type,
+                    "scope_label": scope_label,
+                    "block_name": config.get("block_name"),
+                    "department_id": department_id,
+                    "semester": config.get("semester"),
+                }
             },
             status=status.HTTP_202_ACCEPTED,
         )
 
 
 class TaskStatusView(APIView):
-    """Check the status of a background task."""
+    """Check the status of a background task with live dynamic ETA and smooth wave progress."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, task_id):
+        progress = SchedulerTaskProgress.objects.filter(task_id=task_id).first()
+
+        if progress:
+            if progress.status == "completed":
+                return Response({
+                    "status": "completed",
+                    "result": progress.result_data,
+                    "progress": {
+                        "percent": 100.0,
+                        "elapsed_seconds": progress.elapsed_seconds,
+                        "eta_remaining_seconds": 0.0,
+                        "sessions_scheduled": progress.sessions_scheduled,
+                        "current_wave_name": "Completed successfully",
+                        "current_wave": progress.current_wave,
+                        "total_waves": progress.total_waves,
+                        "scope_label": progress.scope_label,
+                    }
+                })
+            elif progress.status == "failed":
+                return Response({
+                    "status": "failed",
+                    "error": progress.error or "Generation failed",
+                    "progress": {
+                        "percent": progress.percent,
+                        "elapsed_seconds": progress.elapsed_seconds,
+                        "current_wave_name": "Failed",
+                        "scope_label": progress.scope_label,
+                    }
+                })
+            elif progress.status == "cancelled":
+                return Response({
+                    "status": "cancelled",
+                    "error": progress.error or "Generation cancelled by user",
+                    "progress": {
+                        "percent": progress.percent,
+                        "elapsed_seconds": progress.elapsed_seconds,
+                        "eta_remaining_seconds": 0.0,
+                        "sessions_scheduled": progress.sessions_scheduled,
+                        "current_wave_name": "Generation cancelled by user",
+                        "scope_label": progress.scope_label,
+                    }
+                })
+            else:
+                import time
+                now = time.time()
+                elapsed = round(now - progress.start_time, 1) if progress.start_time else 0.0
+
+                # Compute dynamic ETA directly from live wave throughput for multi-wave tasks
+                if progress.total_waves > 1 and progress.current_wave > 0:
+                    waves_done = progress.current_wave
+                    rem_waves = max(0, progress.total_waves - waves_done)
+                    avg_wave_sec = max(1.2, elapsed / max(1, waves_done))
+                    last_updated = progress.updated_at.timestamp() if progress.updated_at else now
+                    time_in_current_wave = max(0.0, now - last_updated)
+
+                    if rem_waves == 0:
+                        dynamic_eta = 2.0
+                    else:
+                        dynamic_eta = max(2.0, round((rem_waves * avg_wave_sec) - time_in_current_wave, 1))
+
+                    # Dynamically interpolate percent based on wave position and time in current wave
+                    wave_span = 88.0 / max(1, progress.total_waves)
+                    wave_fraction = min(0.90, time_in_current_wave / max(4.0, avg_wave_sec))
+                    dynamic_pct = min(94.5, round(progress.percent + (wave_span * wave_fraction), 1))
+                else:
+                    base_eta = progress.eta_remaining_seconds if progress.eta_remaining_seconds > 0 else 10.0
+                    last_updated = progress.updated_at.timestamp() if progress.updated_at else (progress.start_time or now)
+                    time_since_update = max(0.0, now - last_updated)
+                    dynamic_eta = max(1.0, round(base_eta - time_since_update, 1))
+
+                    base_pct = progress.percent or 5.0
+                    dur = max(3.0, base_eta)
+                    single_fraction = min(0.92, time_since_update / dur)
+                    dynamic_pct = min(92.0, round(base_pct + (single_fraction * (90.0 - base_pct)), 1))
+
+                return Response({
+                    "status": "processing",
+                    "progress": {
+                        "percent": dynamic_pct,
+                        "current_wave": progress.current_wave,
+                        "total_waves": progress.total_waves,
+                        "current_wave_name": progress.current_wave_name or "Solving timetable...",
+                        "sessions_scheduled": progress.sessions_scheduled,
+                        "elapsed_seconds": elapsed,
+                        "eta_remaining_seconds": dynamic_eta,
+                        "scope_type": progress.scope_type,
+                        "scope_label": progress.scope_label,
+                    }
+                })
+
+        # Fallback to standard Django Q task lookup
         task = fetch(task_id)
         if not task:
-            return Response({"status": "unknown"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"status": "processing"})
+
+
+class TaskCancelView(APIView):
+    """Cancel an active timetable generation background task."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, task_id):
+        progress = SchedulerTaskProgress.objects.filter(task_id=task_id).first()
+        if not progress:
+            return Response(
+                {"error": f"Task {task_id} not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if progress.status in ["completed", "failed", "cancelled"]:
+            return Response(
+                {"message": f"Task is already {progress.status}.", "status": progress.status},
+                status=status.HTTP_200_OK,
+            )
+
+        import time
+        now = time.time()
+        elapsed = round(now - progress.start_time, 1) if progress.start_time else progress.elapsed_seconds
+
+        progress.status = "cancelled"
+        progress.error = "Generation cancelled by user"
+        progress.current_wave_name = "Generation cancelled by user"
+        progress.eta_remaining_seconds = 0.0
+        progress.elapsed_seconds = elapsed
+        progress.save(update_fields=["status", "error", "current_wave_name", "eta_remaining_seconds", "elapsed_seconds", "updated_at"])
+
+        return Response(
+            {
+                "success": True,
+                "message": "Timetable generation cancelled successfully.",
+                "status": "cancelled",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ActiveTaskStatusView(APIView):
+    """Check if there is any active background timetable task running across the system."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        import datetime
+        active = SchedulerTaskProgress.objects.filter(
+            status__in=["queued", "running"]
+        ).order_by("-created_at").first()
+
+        if active:
+            return Response({
+                "has_active_task": True,
+                "task_id": active.task_id,
+                "status": active.status,
+            })
+
+        # Check for recently completed/failed task (within last 15s) for smooth handoff
+        cutoff = datetime.datetime.now() - datetime.timedelta(seconds=15)
+        recent = SchedulerTaskProgress.objects.filter(
+            status__in=["completed", "failed"],
+            updated_at__gte=cutoff
+        ).order_by("-updated_at").first()
+
+        if recent:
+            return Response({
+                "has_active_task": True,
+                "task_id": recent.task_id,
+                "status": recent.status,
+                "is_recent": True,
+            })
+
+        return Response({"has_active_task": False})
 
         if task.success:
             return Response({"status": "completed", "result": task.result})
@@ -525,6 +910,20 @@ class TaskStatusView(APIView):
             return Response({"status": "failed", "error": task.result})
         else:
             return Response({"status": "processing"})
+
+
+class EstimateGenerationETAView(APIView):
+    """Preview generation ETA and load category before launching task."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .tasks import estimate_generation_eta
+        from .debug_layer import capture_generator_inputs
+        config = request.data or {}
+        capture_generator_inputs(request, endpoint="estimate-eta")
+        eta_info = estimate_generation_eta(config)
+        return Response(eta_info, status=status.HTTP_200_OK)
 
 
 class InstitutionSettingsView(APIView):
@@ -547,14 +946,37 @@ class InstitutionSettingsView(APIView):
 class TimetableVersionListView(generics.ListCreateAPIView):
     serializer_class = TimetableVersionSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = TimetableVersion.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        qs = TimetableVersion.objects.all().order_by("-created_at")
+        if not is_admin_user:
+            qs = qs.filter(is_published=True)
+        return qs
+
+    def paginate_queryset(self, queryset):
+        if self.request.query_params.get("all", "false").lower() == "true":
+            return None
+        return super().paginate_queryset(queryset)
 
 class TimetableVersionDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TimetableVersionSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = TimetableVersion.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            return TimetableVersion.objects.filter(is_published=True)
+        return TimetableVersion.objects.all()
 
     def perform_update(self, serializer):
+        user = self.request.user
+        is_admin_user = bool(user.is_staff or getattr(user, "role", "") == "admin" or user.is_superuser)
+        if not is_admin_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can update or rename timetable versions.")
         # If publishing this version, unpublish all others
         if serializer.validated_data.get('is_published', False):
             TimetableVersion.objects.all().update(is_published=False)
@@ -584,7 +1006,7 @@ class TimetableVersionBulkDeleteView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        ids = request.data.get("ids", [])
+        ids = request.data.get("ids") or request.data.get("version_ids", [])
         delete_all_drafts = request.data.get("delete_all_drafts", False)
 
         if delete_all_drafts:
@@ -618,20 +1040,58 @@ class AbsenceReportListView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        qs = AbsenceReport.objects.select_related("faculty__user", "substitute__user").all()
-        if not self.request.user.is_staff:
-            # Faculty only sees their own or pending ones where they could substitute
-            qs = qs.filter(faculty__user=self.request.user) | qs.filter(status="pending")
+        user = self.request.user
+        is_admin = bool(user.is_staff or user.is_superuser or getattr(user, "role", "") == "admin")
+        qs = AbsenceReport.objects.select_related(
+            "faculty__user", "faculty__department",
+            "substitute__user", "substitute__department",
+            "timetable_entry__subject", "timetable_entry__room", "timetable_entry__time_slot"
+        ).all().order_by("-date", "-id")
+
+        if not is_admin:
+            faculty = getattr(user, "faculty_profile", None)
+            if faculty:
+                qs = qs.filter(Q(faculty=faculty) | Q(substitute=faculty) | Q(status="pending"))
+            else:
+                qs = qs.none()
         return qs.distinct()
         
     def perform_create(self, serializer):
-        faculty = self.request.user.faculty_profile
-        report = serializer.save(faculty=faculty)
-        # Mock broadcasting a push alert
+        from apps.accounts.models import Faculty
+        user = self.request.user
+        is_admin = bool(user.is_staff or user.is_superuser or getattr(user, "role", "") == "admin")
+        faculty = getattr(user, "faculty_profile", None)
+        if not faculty and is_admin:
+            faculty_id = self.request.data.get("faculty")
+            if faculty_id:
+                faculty = Faculty.objects.filter(id=faculty_id).first()
+            if not faculty:
+                faculty = Faculty.objects.first()
+        elif not faculty:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only faculty members can report class absences.")
+
+        target_sub_id = self.request.data.get("substitute") or self.request.data.get("substitute_id")
+        target_substitute = None
+        if target_sub_id:
+            target_substitute = Faculty.objects.filter(id=target_sub_id).first()
+
+        report = serializer.save(faculty=faculty, substitute=target_substitute, status="pending")
+
+        entry = report.timetable_entry
+        subj_name = entry.subject.code if (entry and entry.subject) else "Class"
+        time_display = f"{entry.time_slot.day} {entry.time_slot.start_time.strftime('%H:%M')}" if (entry and entry.time_slot) else ""
+
         Notification.objects.create(
-            recipient=self.request.user,
-            message=f"You reported an absence for {report.date}. Substitute request broadcasted."
+            recipient=user,
+            message=f"You reported an absence for {subj_name} on {report.date} ({time_display}). Substitute request broadcasted."
         )
+
+        if target_substitute and target_substitute.user:
+            Notification.objects.create(
+                recipient=target_substitute.user,
+                message=f"Prof. {user.get_full_name()} requested you as a substitute for {subj_name} on {report.date} ({time_display})."
+            )
 
 class AbsenceReportDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AbsenceReportSerializer
@@ -639,19 +1099,41 @@ class AbsenceReportDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = AbsenceReport.objects.all()
 
     def perform_update(self, serializer):
-        report = serializer.save()
-        if report.status == "approved" and report.substitute and report.timetable_entry:
-            # Update the timetable entry's subject faculty, or rather, if we can't easily swap subject faculty (since subject is tied to a faculty), we might just mock it for MVP or create a temporary override.
-            # In our MVP, we can just send a notification and assume the UI/system knows.
-            # But let's actually just notify the original faculty for now to fulfill the UAT.
-            Notification.objects.create(
-                recipient=report.faculty.user,
-                message=f"Your absence request on {report.date} has been covered by {report.substitute.user.get_full_name()}."
-            )
-            Notification.objects.create(
-                recipient=report.substitute.user,
-                message=f"You have been assigned to cover a class on {report.date}."
-            )
+        from apps.accounts.models import Faculty
+        user = self.request.user
+        report = serializer.instance
+        
+        target_status = self.request.data.get("status") or serializer.validated_data.get("status", report.status)
+        substitute = serializer.validated_data.get("substitute")
+
+        if not substitute:
+            sub_id = self.request.data.get("substitute_id") or self.request.data.get("substitute")
+            if sub_id:
+                substitute = Faculty.objects.filter(id=sub_id).first() or Faculty.objects.filter(user_id=sub_id).first()
+            elif hasattr(user, "faculty_profile") and user.faculty_profile and target_status == "approved":
+                substitute = user.faculty_profile
+
+        if substitute and substitute == report.faculty:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"error": "You cannot accept a substitution request for your own class."})
+
+        updated_report = serializer.save(status=target_status, substitute=substitute or report.substitute)
+
+        if updated_report.status == "approved" and updated_report.substitute:
+            entry = updated_report.timetable_entry
+            subj_title = entry.subject.code if (entry and entry.subject) else "Class"
+            time_display = f"{entry.time_slot.day} {entry.time_slot.start_time.strftime('%H:%M')}" if (entry and entry.time_slot) else ""
+
+            if updated_report.faculty and updated_report.faculty.user:
+                Notification.objects.create(
+                    recipient=updated_report.faculty.user,
+                    message=f"Your absence request for {subj_title} on {updated_report.date} ({time_display}) has been accepted and covered by Prof. {updated_report.substitute.user.get_full_name()}."
+                )
+            if updated_report.substitute and updated_report.substitute.user:
+                Notification.objects.create(
+                    recipient=updated_report.substitute.user,
+                    message=f"You are confirmed to cover {subj_title} for Prof. {updated_report.faculty.user.get_full_name()} on {updated_report.date} ({time_display})."
+                )
 
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
@@ -678,7 +1160,10 @@ class TimetableSwapRequestListView(generics.ListCreateAPIView):
         return qs
         
     def perform_create(self, serializer):
-        faculty = self.request.user.faculty_profile
+        from apps.accounts.models import Faculty
+        faculty = getattr(self.request.user, "faculty_profile", None)
+        if not faculty:
+            faculty = Faculty.objects.first()
         serializer.save(requester=faculty)
 
 class TimetableSwapRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -998,12 +1483,13 @@ class AccreditationAnalyticsView(APIView):
         
         # 1. Faculty Workload (max hours per week)
         faculty_workload = []
-        for faculty in Faculty.objects.select_related("user").all():
+        for faculty in Faculty.objects.select_related("user", "department").all():
             count = entries.filter(faculty=faculty).count()
+            dept_name = faculty.department.name if faculty.department else "General"
             # 1 session = 1 hour roughly
             faculty_workload.append({
                 "faculty_name": f"{faculty.user.first_name} {faculty.user.last_name}",
-                "department": faculty.department,
+                "department": dept_name,
                 "sessions_per_week": count,
                 "max_hours": faculty.max_hours_per_week,
                 "compliance": "Pass" if count <= faculty.max_hours_per_week else "Fail"
@@ -1224,6 +1710,81 @@ class StudentElectiveEnrollmentView(APIView):
             'action': 'created' if created else 'switched',
             'enrollment': serializer.data,
         })
+
+
+class SchedulerDebugInputsView(APIView):
+    """
+    Debug Middle Layer Endpoint.
+    Returns the latest or task-specific generator inputs captured from the frontend,
+    along with pre-flight diagnostics, summary counts, and recent historical payloads.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, task_id=None):
+        import json
+        from pathlib import Path
+        from django.conf import settings
+        from .models import SchedulerInputLog
+
+        if task_id:
+            log_entry = SchedulerInputLog.objects.filter(task_id=task_id).first()
+            if not log_entry:
+                return Response(
+                    {"error": f"No input log found for task_id: {task_id}"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response({
+                "task_id": log_entry.task_id,
+                "endpoint": log_entry.endpoint,
+                "created_at": log_entry.created_at,
+                "user": log_entry.user_username,
+                "ip_address": log_entry.ip_address,
+                "summary": log_entry.summary,
+                "raw_payload": log_entry.raw_payload,
+            })
+
+        latest_log = SchedulerInputLog.objects.first()
+        recent_logs = SchedulerInputLog.objects.all()[:15]
+
+        # Read JSON dump file if available
+        file_dump = None
+        dump_path = Path(settings.BASE_DIR) / "latest_generator_input.json"
+        if dump_path.exists():
+            try:
+                with open(dump_path, "r", encoding="utf-8") as f:
+                    file_dump = json.load(f)
+            except Exception:
+                pass
+
+        return Response({
+            "success": True,
+            "latest": {
+                "task_id": latest_log.task_id if latest_log else (file_dump.get("task_id") if file_dump else None),
+                "endpoint": latest_log.endpoint if latest_log else (file_dump.get("endpoint") if file_dump else None),
+                "created_at": latest_log.created_at if latest_log else (file_dump.get("captured_at") if file_dump else None),
+                "user": latest_log.user_username if latest_log else (file_dump.get("user") if file_dump else None),
+                "ip_address": latest_log.ip_address if latest_log else (file_dump.get("ip_address") if file_dump else None),
+                "summary": latest_log.summary if latest_log else (file_dump.get("summary") if file_dump else None),
+                "raw_payload": latest_log.raw_payload if latest_log else (file_dump.get("raw_payload") if file_dump else {}),
+            } if (latest_log or file_dump) else None,
+            "recent_history": [
+                {
+                    "task_id": l.task_id,
+                    "endpoint": l.endpoint,
+                    "created_at": l.created_at,
+                    "scope_label": l.scope_label,
+                    "scope_type": l.scope_type,
+                    "draft_name": l.draft_name,
+                    "user": l.user_username,
+                    "summary_counts": l.summary.get("counts", {}),
+                    "warnings": l.summary.get("warnings", []),
+                }
+                for l in recent_logs
+            ],
+            "total_captured": SchedulerInputLog.objects.count(),
+        })
+
 
 
 

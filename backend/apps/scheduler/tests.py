@@ -462,3 +462,349 @@ class ORToolsSolverBasicTests(TestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(len(result.timetable), 0)
+
+
+class Phase17MultiDepartmentSchedulerTests(TestCase):
+    """Phase 17 enterprise multi-department routine scheduler tests."""
+
+    def _make_slots(self, days, periods):
+        slots = []
+        slot_id = 1
+        for day in days:
+            for start_h, end_h in periods:
+                slots.append(
+                    {
+                        "id": slot_id,
+                        "day": day,
+                        "start_time": f"{start_h:02d}:00",
+                        "end_time": f"{end_h:02d}:00",
+                    }
+                )
+                slot_id += 1
+        return slots
+
+    def test_semester_cohort_non_overlap(self):
+        """Subjects in the same semester cohort must never overlap at the same timeslot."""
+        # Two subjects for cohort (Department 1, Semester 1)
+        subjects = [
+            {
+                "id": 1,
+                "code": "MATH101",
+                "name": "Mathematics I",
+                "faculty_id": 10,
+                "required_capacity": 30,
+                "sessions_per_week": 2,
+                "cohort_key": (1, 1),
+            },
+            {
+                "id": 2,
+                "code": "PHYS101",
+                "name": "Physics I",
+                "faculty_id": 11,
+                "required_capacity": 30,
+                "sessions_per_week": 2,
+                "cohort_key": (1, 1),
+            },
+        ]
+        # Two rooms available — without cohort constraint, they could be co-scheduled
+        rooms = [
+            {"id": 1, "room_number": "R101", "capacity": 40, "room_type": "lecture"},
+            {"id": 2, "room_number": "R102", "capacity": 40, "room_type": "lecture"},
+        ]
+        slots = self._make_slots(["MON", "TUE"], [(9, 10), (10, 11)])
+
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result = adapter.solve()
+
+        self.assertTrue(result.success, f"Solver failed: {result.error}")
+        self.assertEqual(len(result.timetable), 4)
+
+        # Verify that for any time slot, only ONE cohort subject is scheduled
+        slot_counts = {}
+        for entry in result.timetable:
+            ts_id = entry["time_slot_id"]
+            slot_counts[ts_id] = slot_counts.get(ts_id, 0) + 1
+
+        for ts_id, count in slot_counts.items():
+            self.assertEqual(
+                count, 1, f"Cohort conflict detected: {count} subjects scheduled in slot {ts_id}"
+            )
+        self.assertEqual(result.cohort_stats, 1)
+
+    def test_consecutive_lab_blocks(self):
+        """Lab subjects must be scheduled in consecutive 2-hour blocks in a laboratory room."""
+        subjects = [
+            {
+                "id": 1,
+                "code": "CS-LAB1",
+                "name": "Data Structures Lab",
+                "faculty_id": 1,
+                "required_capacity": 30,
+                "sessions_per_week": 2,
+                "is_lab": True,
+            }
+        ]
+        rooms = [
+            {"id": 1, "room_number": "LEC-1", "capacity": 40, "room_type": "lecture"},
+            {"id": 2, "room_number": "LAB-1", "capacity": 40, "room_type": "lab"},
+        ]
+        # MON has consecutive slots (9-10, 10-11); TUE has isolated slot (9-10)
+        slots = [
+            {"id": 1, "day": "MON", "start_time": "09:00", "end_time": "10:00"},
+            {"id": 2, "day": "MON", "start_time": "10:00", "end_time": "11:00"},
+            {"id": 3, "day": "TUE", "start_time": "09:00", "end_time": "10:00"},
+        ]
+
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+            consecutive_labs=True,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result = adapter.solve()
+
+        self.assertTrue(result.success, f"Solver failed: {result.error}")
+        self.assertEqual(len(result.timetable), 2)
+
+        # Both sessions must be in the lab room
+        for entry in result.timetable:
+            self.assertEqual(entry["room_number"], "LAB-1", "Lab must be scheduled in lab room")
+
+        # Must be consecutive on Monday (slot 1 and 2)
+        scheduled_slots = {entry["time_slot_id"] for entry in result.timetable}
+        self.assertEqual(scheduled_slots, {1, 2}, "Must occupy consecutive slots on the same day")
+        self.assertEqual(result.lab_blocks_count, 1)
+
+    def test_common_course_merging(self):
+        """Shared common courses across departments must be merged into concurrent slots."""
+        subjects = [
+            {
+                "id": 1,
+                "code": "ENV101-CSE",
+                "name": "Environmental Studies",
+                "faculty_id": 5,
+                "required_capacity": 30,
+                "sessions_per_week": 1,
+                "merge_group_id": "MG-ENV101",
+            },
+            {
+                "id": 2,
+                "code": "ENV101-ECE",
+                "name": "Environmental Studies",
+                "faculty_id": 5,
+                "required_capacity": 30,
+                "sessions_per_week": 1,
+                "merge_group_id": "MG-ENV101",
+            },
+        ]
+        rooms = [
+            {"id": 1, "room_number": "SEM-101", "capacity": 80, "room_type": "seminar"},
+            {"id": 2, "room_number": "LH-101", "capacity": 100, "room_type": "lecture"},
+        ]
+        slots = self._make_slots(["MON", "TUE"], [(9, 10), (10, 11)])
+
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+            merge_common_courses=True,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result = adapter.solve()
+
+        self.assertTrue(result.success, f"Solver failed: {result.error}")
+        self.assertEqual(len(result.timetable), 2)
+
+        # Both subjects must be scheduled at the exact same time slot
+        ts_1 = result.timetable[0]["time_slot_id"]
+        ts_2 = result.timetable[1]["time_slot_id"]
+        self.assertEqual(ts_1, ts_2, "Merged courses must share the identical time slot")
+        self.assertGreaterEqual(result.merged_sessions_count, 1)
+
+    def test_block_affinity(self):
+        """Departmental subject should prefer room in designated Academic Block."""
+        subjects = [
+            {
+                "id": 1,
+                "code": "AI101",
+                "name": "Intro to AI",
+                "faculty_id": 1,
+                "required_capacity": 30,
+                "sessions_per_week": 1,
+                "block_name": "Block A",
+            }
+        ]
+        rooms = [
+            {"id": 1, "room_number": "B-201", "capacity": 40, "room_type": "lecture", "block_name": "Block B"},
+            {"id": 2, "room_number": "A-101", "capacity": 40, "room_type": "lecture", "block_name": "Block A"},
+        ]
+        slots = self._make_slots(["MON"], [(9, 10)])
+
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+            allow_spillover=True,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result = adapter.solve()
+
+        self.assertTrue(result.success, f"Solver failed: {result.error}")
+        self.assertEqual(result.timetable[0]["room_number"], "A-101",
+                         "Subject should be assigned to designated Block A room")
+
+    def test_multi_department_wave_execution(self):
+        """Wave solver should successfully sequence multiple blocks and pass locked reservations."""
+        from apps.scheduler.tasks import _wave_solve
+        from apps.scheduler.models import Subject, Room, TimeSlot
+
+        ts1 = TimeSlot.objects.create(day="MON", start_time="09:00", end_time="10:00")
+        ts2 = TimeSlot.objects.create(day="MON", start_time="10:00", end_time="11:00")
+
+        r1 = Room.objects.create(room_number="WAVE-A101", capacity=40, room_type="lecture", building="Block A")
+        r2 = Room.objects.create(room_number="WAVE-B101", capacity=40, room_type="lecture", building="Block B")
+
+        s1 = Subject.objects.create(code="WAVE-CS101", name="Intro to CS", required_capacity=30, sessions_per_week=1)
+        s2 = Subject.objects.create(code="WAVE-ME101", name="Thermodynamics", required_capacity=30, sessions_per_week=1)
+
+        subjects = [
+            # Block A subjects
+            {
+                "id": s1.id,
+                "code": s1.code,
+                "name": s1.name,
+                "faculty_id": None,
+                "required_capacity": 30,
+                "sessions_per_week": 1,
+                "block_name": "Block A",
+                "cohort_key": (1, 1),
+                "required_tas": 0,
+            },
+            # Block B subjects
+            {
+                "id": s2.id,
+                "code": s2.code,
+                "name": s2.name,
+                "faculty_id": None,
+                "required_capacity": 30,
+                "sessions_per_week": 1,
+                "block_name": "Block B",
+                "cohort_key": (2, 1),
+                "required_tas": 0,
+            },
+        ]
+        rooms = [
+            {"id": r1.id, "room_number": r1.room_number, "capacity": 40, "room_type": "lecture", "block_name": "Block A", "building": "Block A"},
+            {"id": r2.id, "room_number": r2.room_number, "capacity": 40, "room_type": "lecture", "block_name": "Block B", "building": "Block B"},
+        ]
+        slots = [
+            {"id": ts1.id, "day": "MON", "start_time": "09:00", "end_time": "10:00"},
+            {"id": ts2.id, "day": "MON", "start_time": "10:00", "end_time": "11:00"},
+        ]
+
+        res = _wave_solve(
+            subjects=subjects,
+            rooms=rooms,
+            all_time_slots=slots,
+            resources=[],
+            locked_entries=[],
+            excluded_slots_int={},
+            pref_room_types_int={},
+            avoid_back_to_back=False,
+            max_classes_per_day=1,
+            balance_faculty_workload=False,
+            auto_schedule_office_hours=False,
+            merge_common_courses=False,
+            consecutive_labs=False,
+            allow_spillover=True,
+            config={"draft_name": "Test Wave Sandbox"},
+            db_locked_set=set(),
+        )
+
+        self.assertTrue(res.get("success"), f"Wave solve failed: {res.get('error')}")
+        self.assertEqual(res.get("count"), 2)
+
+    def test_balanced_day_distribution(self):
+        """Subjects of a cohort must be distributed evenly across all active days rather than clustered."""
+        # 4 subjects with 3 sessions each = 12 sessions total
+        subjects = [
+            {
+                "id": 1,
+                "code": "MATH101",
+                "name": "Mathematics I",
+                "faculty_id": 1,
+                "required_capacity": 30,
+                "sessions_per_week": 3,
+                "cohort_key": (1, 1),
+            },
+            {
+                "id": 2,
+                "code": "CS101",
+                "name": "Intro to CS",
+                "faculty_id": 2,
+                "required_capacity": 30,
+                "sessions_per_week": 3,
+                "cohort_key": (1, 1),
+            },
+            {
+                "id": 3,
+                "code": "ENG101",
+                "name": "English Communication",
+                "faculty_id": 3,
+                "required_capacity": 30,
+                "sessions_per_week": 3,
+                "cohort_key": (1, 1),
+            },
+            {
+                "id": 4,
+                "code": "PHY101",
+                "name": "Physics",
+                "faculty_id": 4,
+                "required_capacity": 30,
+                "sessions_per_week": 3,
+                "cohort_key": (1, 1),
+            },
+        ]
+        rooms = [
+            {"id": 1, "room_number": "R101", "capacity": 40, "room_type": "lecture"},
+            {"id": 2, "room_number": "R102", "capacity": 40, "room_type": "lecture"},
+        ]
+        # 6 days (MON through SAT), 4 time slots per day = 24 slots total
+        slots = self._make_slots(
+            ["MON", "TUE", "WED", "THU", "FRI", "SAT"],
+            [(9, 10), (10, 11), (11, 12), (12, 13)]
+        )
+
+        solver_input = SolverInput(
+            subjects=subjects,
+            rooms=rooms,
+            time_slots=slots,
+            max_classes_per_day=1,
+        )
+        adapter = ORToolsSolverAdapter(solver_input)
+        result = adapter.solve()
+
+        self.assertTrue(result.success, f"Solver failed: {result.error}")
+        self.assertEqual(len(result.timetable), 12)
+
+        # Count sessions per day
+        from collections import Counter
+        day_counts = Counter(entry["day"] for entry in result.timetable)
+
+        # Target: 12 sessions across 6 days = exactly 2 sessions per day!
+        # Every day should have at least 1 session and at most 3 sessions
+        for day in ["MON", "TUE", "WED", "THU", "FRI", "SAT"]:
+            count = day_counts.get(day, 0)
+            self.assertGreaterEqual(
+                count, 1, f"Day {day} has 0 sessions scheduled! Expected balanced distribution."
+            )
+            self.assertLessEqual(
+                count, 3, f"Day {day} has {count} sessions (overloaded)! Expected <= 3."
+            )
+

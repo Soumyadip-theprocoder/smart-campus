@@ -42,8 +42,8 @@ def _to_range(entry):
             return None
         return start, min(start + 60, MINUTES_PER_DAY), ""
     if isinstance(entry, dict):
-        start = _to_minutes(entry.get("start"))
-        end = _to_minutes(entry.get("end"))
+        start = _to_minutes(entry.get("start") or entry.get("start_time"))
+        end = _to_minutes(entry.get("end") or entry.get("end_time"))
         if start is None or end is None or end <= start:
             return None
         return start, end, str(entry.get("label") or "")[:30]

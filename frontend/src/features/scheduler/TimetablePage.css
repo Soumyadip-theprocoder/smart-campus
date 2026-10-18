@@ -830,3 +830,155 @@
   font-weight: 700;
   color: #0f172a;
 }
+
+/* ─── Timetable View Switcher Hub ─────────────────────────────── */
+.timetable-view-switcher {
+  display: flex;
+  background: var(--color-bg-secondary, rgba(30, 41, 59, 0.7));
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.35rem;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.view-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-switch-btn:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.view-switch-btn.active {
+  background: var(--color-accent-blue);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+}
+
+.view-context-bar {
+  background: var(--color-bg-card, rgba(15, 23, 42, 0.6));
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.view-context-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.semester-pill-group {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.2rem;
+  gap: 0.2rem;
+}
+
+.semester-pill {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.semester-pill:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.semester-pill.active {
+  background: var(--color-accent-blue);
+  color: #fff;
+}
+
+/* Generator Course & Room Search Toolbar */
+.generator-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.block-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.block-filter-pill {
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.block-filter-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+
+.block-filter-pill.active {
+  background: var(--color-accent-blue);
+  border-color: var(--color-accent-blue);
+  color: #fff;
+}
+
+.generator-load-more {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px dashed var(--color-border);
+  background: rgba(59, 130, 246, 0.05);
+  color: var(--color-accent-blue-light);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.generator-load-more:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--color-accent-blue);
+}

@@ -101,9 +101,14 @@
 - **Scope:** Add a CGPA Forecast gauge to the Student Dashboard and a Recharts scatter plot to the Admin Dashboard.
 
 ### Phase 15: Rebuild CSP from Scratch
-- **Status:** Planned
+- **Status:** Completed
 - **Goal:** Resolve performance bottlenecks and scalability limits of the custom pure-Python Backtracking algorithm.
 - **Scope:** Migrate to Google OR-Tools (CP-SAT), implement Hexagonal Architecture, map configurable hard/soft constraints, and natively minimize rescheduling changes.
+
+### Phase 17: Multi-Department Routine Scheduler (OR-Tools CP-SAT Upgrade)
+- **Status:** Completed
+- **Goal:** Rework the OR-Tools CP-SAT solver into a full multi-department routine scheduler that coordinates 178 departments, eliminates cohort collisions, merges common courses, enforces 2-hour lab blocks, and respects academic block affinities.
+- **Scope:** Coordinated School/Block Wave Solver, Semester Cohort Non-Overlap, Common Course Merging in Seminar/Central Halls, Consecutive Multi-Hour Lab Blocks, Block Affinity with Dynamic Spillover Penalties, and Hierarchical UI Generator Scope Selector.
 
 <details>
 <summary>Archived Milestones</summary>

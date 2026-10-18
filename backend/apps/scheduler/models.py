@@ -357,8 +357,8 @@ class TimetableEntry(models.Model):
 class InstitutionSettings(models.Model):
     """Global settings for the institution (timetable bounds, etc.)."""
 
-    start_time = models.TimeField(default="08:00")
-    end_time = models.TimeField(default="19:00")
+    start_time = models.TimeField(default="09:00")
+    end_time = models.TimeField(default="18:00")
     default_breaks = models.JSONField(
         default=list,
         help_text='List of break times like ["13:00"]',
@@ -443,3 +443,64 @@ class BlackoutDate(models.Model):
 
     def __str__(self):
         return f"{self.date} - {self.reason}"
+
+
+class SchedulerTaskProgress(models.Model):
+    """Real-time progress and dynamic ETA tracking for asynchronous timetable generation."""
+
+    STATUS_CHOICES = [
+        ("queued", "Queued"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    task_id = models.CharField(max_length=64, unique=True, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="queued")
+    scope_type = models.CharField(max_length=20, default="department")
+    scope_label = models.CharField(max_length=150, blank=True, default="")
+    total_waves = models.PositiveIntegerField(default=1)
+    current_wave = models.PositiveIntegerField(default=0)
+    current_wave_name = models.CharField(max_length=150, blank=True, default="")
+    sessions_scheduled = models.PositiveIntegerField(default=0)
+    percent = models.FloatField(default=0.0)
+    elapsed_seconds = models.FloatField(default=0.0)
+    eta_remaining_seconds = models.FloatField(default=0.0)
+    start_time = models.FloatField(default=0.0)
+    error = models.TextField(blank=True, default="")
+    result_data = models.JSONField(blank=True, null=True)
+    input_payload = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "scheduler_task_progress"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Task {self.task_id} ({self.status}) - {self.percent:.1f}% ETA: {self.eta_remaining_seconds:.1f}s"
+
+
+class SchedulerInputLog(models.Model):
+    """Audit and debug log for all incoming frontend generation requests."""
+
+    task_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    endpoint = models.CharField(max_length=60, default="generate")
+    draft_name = models.CharField(max_length=150, blank=True, default="")
+    scope_type = models.CharField(max_length=30, default="department")
+    scope_label = models.CharField(max_length=150, blank=True, default="")
+    department_id = models.IntegerField(null=True, blank=True)
+    block_name = models.CharField(max_length=100, blank=True, default="")
+    raw_payload = models.JSONField(default=dict)
+    summary = models.JSONField(default=dict)
+    user_username = models.CharField(max_length=150, blank=True, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "scheduler_input_logs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.created_at:%Y-%m-%d %H:%M:%S}] {self.scope_label} ({self.scope_type}) by {self.user_username or 'anonymous'}"

@@ -2,6 +2,7 @@ import { useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { TaskProgressProvider } from './context/TaskProgressContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -271,17 +272,19 @@ export default function App() {
       <ErrorBoundary>
         <ThemeProvider>
           <AuthProvider>
-            <Toaster 
-              position="top-right" 
-              toastOptions={{ 
-                style: { 
-                  background: 'var(--color-bg-secondary)', 
-                  color: 'var(--color-text)', 
-                  border: '1px solid var(--color-border)' 
-                } 
-              }} 
-            />
-            <AppLayout />
+            <TaskProgressProvider>
+              <Toaster 
+                position="top-right" 
+                toastOptions={{ 
+                  style: { 
+                    background: 'var(--color-bg-secondary)', 
+                    color: 'var(--color-text)', 
+                    border: '1px solid var(--color-border)' 
+                  } 
+                }} 
+              />
+              <AppLayout />
+            </TaskProgressProvider>
           </AuthProvider>
         </ThemeProvider>
       </ErrorBoundary>

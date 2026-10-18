@@ -36,6 +36,13 @@ urlpatterns = [
     path(
         "task-status/<str:task_id>/", views.TaskStatusView.as_view(), name="task-status"
     ),
+    path(
+        "task-cancel/<str:task_id>/", views.TaskCancelView.as_view(), name="task-cancel"
+    ),
+    path("active-task/", views.ActiveTaskStatusView.as_view(), name="active-task"),
+    path("debug/inputs/", views.SchedulerDebugInputsView.as_view(), name="debug-inputs"),
+    path("debug/inputs/<str:task_id>/", views.SchedulerDebugInputsView.as_view(), name="debug-inputs-task"),
+    path("estimate-eta/", views.EstimateGenerationETAView.as_view(), name="estimate-eta"),
     path("settings/", views.InstitutionSettingsView.as_view(), name="institution-settings"),
     path("versions/", views.TimetableVersionListView.as_view(), name="version-list"),
     path("versions/bulk-delete/", views.TimetableVersionBulkDeleteView.as_view(), name="version-bulk-delete"),

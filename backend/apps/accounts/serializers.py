@@ -17,6 +17,32 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ["id", "email", "username", "first_name", "last_name", "role"]
         read_only_fields = ["id"]
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        try:
+            if instance.is_student and hasattr(instance, "student_profile") and instance.student_profile:
+                sp = instance.student_profile
+                ret["student_profile"] = {
+                    "id": sp.id,
+                    "enrollment_number": sp.enrollment_number,
+                    "department_id": sp.department_id,
+                    "department_name": sp.department.name if sp.department else None,
+                    "semester": sp.semester,
+                    "is_ta": sp.is_ta,
+                }
+            elif instance.is_faculty and hasattr(instance, "faculty_profile") and instance.faculty_profile:
+                fp = instance.faculty_profile
+                ret["faculty_profile"] = {
+                    "id": fp.id,
+                    "employee_id": fp.employee_id,
+                    "department_id": fp.department_id,
+                    "department_name": fp.department.name if fp.department else None,
+                    "designation": fp.designation,
+                }
+        except Exception:
+            pass
+        return ret
+
 
 class AcademicGroupSerializer(serializers.ModelSerializer):
     """Serializer for AcademicGroup."""

@@ -197,7 +197,7 @@ export default function RoomsPage() {
       setLoadingMore(true);
     }
     try {
-      let url = `/api/scheduler/rooms/?page=${pageNum}`;
+      let url = `/api/scheduler/rooms/?page=${pageNum}&page_size=150`;
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
       if (orderingParam) url += `&ordering=${orderingParam}`;
 
@@ -379,7 +379,7 @@ export default function RoomsPage() {
           infiniteScroll={true}
           totalCount={totalCount}
           serverPage={page}
-          pageSize={100}
+          pageSize={150}
           onPageChange={setPage}
           searchValue={search}
           onSearchChange={(val) => {

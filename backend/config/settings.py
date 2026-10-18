@@ -24,7 +24,7 @@ if not SECRET_KEY and not DEBUG:
 elif not SECRET_KEY:
     SECRET_KEY = "django-insecure-dev-key-change-me-in-production"
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
 
 # Render sets this automatically — add it to ALLOWED_HOSTS
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
@@ -208,10 +208,10 @@ FACE_ENGINE_URL = os.environ.get("FACE_ENGINE_URL", None)
 # ─── Django Q2 Configuration ─────────────────────────────────────────
 Q_CLUSTER = {
     "name": "smart_campus_q",
-    "workers": 4,
+    "workers": 12,
     "recycle": 500,
-    "timeout": 600,
-    "retry": 700,
+    "timeout": 86400 * 30,  # Effectively infinite — no time cutoff
+    "retry": 86400 * 31,
     "compress": True,
     "save_limit": 250,
     "queue_limit": 500,

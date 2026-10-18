@@ -71,10 +71,10 @@ export default function ManageTimetablePage() {
     setLoading(true);
     try {
       const [subRes, roomRes, tsRes, facRes] = await Promise.all([
-        api.get('/api/scheduler/subjects/'),
-        api.get('/api/scheduler/rooms/'),
+        api.get('/api/scheduler/subjects/?page_size=200'),
+        api.get('/api/scheduler/rooms/?all=true'),
         api.get('/api/scheduler/timeslots/'),
-        api.get('/api/auth/faculty/'),
+        api.get('/api/auth/faculty/?all=true'),
       ]);
       setSubjects(subRes.data.results || subRes.data || []);
       setRooms(roomRes.data.results || roomRes.data || []);

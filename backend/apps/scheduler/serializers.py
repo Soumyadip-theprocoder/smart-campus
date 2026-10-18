@@ -185,6 +185,10 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
     subject_name = serializers.CharField(source="subject.name", read_only=True, allow_null=True)
     subject_type = serializers.CharField(source="subject.subject_type", read_only=True, allow_null=True)
     faculty_name = serializers.SerializerMethodField()
+    department_names = serializers.SerializerMethodField()
+    department_ids = serializers.SerializerMethodField()
+    semester = serializers.IntegerField(source="subject.semester", read_only=True, allow_null=True)
+    block_name = serializers.SerializerMethodField()
     
     def get_faculty_name(self, obj):
         if obj.subject and obj.subject.faculty:
@@ -192,6 +196,22 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
         if getattr(obj, "faculty", None):
             return obj.faculty.user.get_full_name()
         return None
+
+    def get_department_names(self, obj):
+        if obj.subject:
+            return [d.name for d in obj.subject.departments.all()]
+        return []
+
+    def get_department_ids(self, obj):
+        if obj.subject:
+            return [d.id for d in obj.subject.departments.all()]
+        return []
+
+    def get_block_name(self, obj):
+        if obj.room and obj.room.building:
+            return obj.room.building
+        return ""
+
     room_number = serializers.CharField(source="room.room_number", read_only=True)
     building = serializers.CharField(source="room.building", read_only=True)
     day = serializers.CharField(source="time_slot.day", read_only=True)
@@ -211,6 +231,10 @@ class TimetableEntrySerializer(serializers.ModelSerializer):
             "subject_name",
             "subject_type",
             "faculty_name",
+            "department_names",
+            "department_ids",
+            "semester",
+            "block_name",
             "room",
             "room_number",
             "building",
@@ -245,14 +269,29 @@ class TimetableVersionSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at"]
 
 class AbsenceReportSerializer(serializers.ModelSerializer):
-    """Serializer for AbsenceReport."""
+    """Serializer for AbsenceReport with dynamic class, room, and instructor context."""
     faculty_name = serializers.CharField(source="faculty.user.get_full_name", read_only=True)
+    faculty_department = serializers.CharField(source="faculty.department.name", read_only=True)
     substitute_name = serializers.CharField(source="substitute.user.get_full_name", read_only=True)
+    substitute_department = serializers.CharField(source="substitute.department.name", read_only=True)
+    subject_code = serializers.CharField(source="timetable_entry.subject.code", read_only=True)
+    subject_name = serializers.CharField(source="timetable_entry.subject.name", read_only=True)
+    day = serializers.CharField(source="timetable_entry.time_slot.day", read_only=True)
+    start_time = serializers.CharField(source="timetable_entry.time_slot.start_time", read_only=True)
+    end_time = serializers.CharField(source="timetable_entry.time_slot.end_time", read_only=True)
+    room_number = serializers.CharField(source="timetable_entry.room.room_number", read_only=True)
+    building = serializers.CharField(source="timetable_entry.room.building", read_only=True)
 
     class Meta:
         model = AbsenceReport
-        fields = ["id", "faculty", "faculty_name", "date", "reason", "status", "substitute", "substitute_name", "timetable_entry"]
-        read_only_fields = ["id", "status"]
+        fields = [
+            "id", "faculty", "faculty_name", "faculty_department",
+            "date", "reason", "status",
+            "substitute", "substitute_name", "substitute_department",
+            "timetable_entry", "subject_code", "subject_name",
+            "day", "start_time", "end_time", "room_number", "building"
+        ]
+        read_only_fields = ["id", "faculty"]
 
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for Notification."""
@@ -271,4 +310,4 @@ class TimetableSwapRequestSerializer(serializers.ModelSerializer):
         model = TimetableSwapRequest
         fields = ["id", "requester", "requester_name", "target_entry", "target_entry_details", 
                   "requested_time_slot", "requested_time_slot_details", "reason", "status", "created_at"]
-        read_only_fields = ["id", "status", "created_at"]
+        read_only_fields = ["id", "status", "created_at", "requester"]
